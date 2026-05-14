@@ -1,0 +1,2399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codebook-Guided ULA-FM v0.2 | Language Action Flow Matching</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --paper: #ffffff;
+      --ink: #18212f;
+      --muted: #5d6878;
+      --line: #d8dee8;
+      --line-strong: #aeb8c8;
+      --blue: #1f6feb;
+      --green: #178a5b;
+      --amber: #a96800;
+      --red: #b42318;
+      --teal: #0e7490;
+      --violet: #5b5fc7;
+      --shadow: 0 14px 36px rgba(20, 30, 48, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .shell {
+      width: min(1180px, calc(100vw - 40px));
+      margin: 0 auto;
+    }
+
+    header {
+      background: #111827;
+      color: #fff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .hero {
+      min-height: 520px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+      gap: 42px;
+      align-items: center;
+      padding: 54px 0 46px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      color: #b9c7dc;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: #2dd4bf;
+      border-radius: 50%;
+    }
+
+    h1 {
+      margin: 18px 0 16px;
+      font-size: clamp(38px, 5.2vw, 76px);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .hero-copy {
+      max-width: 760px;
+      color: #d7deeb;
+      font-size: clamp(17px, 1.5vw, 21px);
+    }
+
+    .hero-copy strong {
+      color: #fff;
+    }
+
+    .hero-matrix {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+    }
+
+    .matrix-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: #e7edf7;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .matrix-title span:last-child {
+      color: #8bd3ff;
+      font-size: 13px;
+      align-self: center;
+    }
+
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+
+    .token {
+      min-height: 42px;
+      padding: 8px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: #d7e0ef;
+      font-size: 12px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .token.hot {
+      background: rgba(31, 111, 235, 0.22);
+      border-color: rgba(97, 169, 255, 0.45);
+      color: #fff;
+    }
+
+    .mini-flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-top: 16px;
+      color: #e7edf7;
+      font-size: 13px;
+    }
+
+    .mini-flow div:not(.mini-arrow) {
+      min-height: 56px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .mini-arrow {
+      color: #8bd3ff;
+      font-weight: 900;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+
+    .nav-inner {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      font-weight: 900;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .links a {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 8px 10px;
+      border-radius: 6px;
+    }
+
+    .links a:hover {
+      color: var(--ink);
+      background: #eef2f7;
+    }
+
+    main {
+      padding-bottom: 72px;
+    }
+
+    section {
+      padding: 58px 0 18px;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.8fr) minmax(280px, 0.55fr);
+      gap: 36px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .section-kicker {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(28px, 3vw, 44px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .section-note {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin: 26px 0 12px;
+    }
+
+    .metric {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      min-height: 112px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .diagram {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    .diagram + .diagram {
+      margin-top: 18px;
+    }
+
+    .diagram-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+
+    .diagram-title h3 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #fff;
+      background: var(--ink);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .node {
+      position: relative;
+      min-height: 124px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcff;
+    }
+
+    .node::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -16px;
+      transform: translateY(-50%);
+      color: var(--line-strong);
+      font-size: 23px;
+      font-weight: 900;
+      z-index: 2;
+    }
+
+    .node:last-child::after {
+      content: "";
+    }
+
+    .node strong {
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    .node span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .node.data {
+      border-top: 5px solid var(--teal);
+    }
+
+    .node.label {
+      border-top: 5px solid var(--violet);
+    }
+
+    .node.model {
+      border-top: 5px solid var(--blue);
+    }
+
+    .node.safe {
+      border-top: 5px solid var(--green);
+    }
+
+    .node.warn {
+      border-top: 5px solid var(--amber);
+    }
+
+    .arch-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.1fr) minmax(260px, 0.9fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .block {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcff;
+    }
+
+    .block h4 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .block p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .block.blue {
+      border-left: 5px solid var(--blue);
+    }
+
+    .block.green {
+      border-left: 5px solid var(--green);
+    }
+
+    .block.violet {
+      border-left: 5px solid var(--violet);
+    }
+
+    .block.amber {
+      border-left: 5px solid var(--amber);
+    }
+
+    .block.red {
+      border-left: 5px solid var(--red);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--line-strong);
+    }
+
+    .dot.frozen {
+      background: #697386;
+    }
+
+    .dot.train {
+      background: var(--green);
+    }
+
+    .dot.optional {
+      background: var(--amber);
+    }
+
+    .dot.loss {
+      background: var(--red);
+    }
+
+    .language-map {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.05fr) minmax(280px, 0.95fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .lane {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .module-card {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcff;
+      padding: 14px;
+      min-height: 104px;
+    }
+
+    .module-card h4 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .module-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .module-card.frozen {
+      border-left: 5px solid #697386;
+    }
+
+    .module-card.train {
+      border-left: 5px solid var(--green);
+      background: #f4fbf7;
+    }
+
+    .module-card.optional {
+      border-left: 5px solid var(--amber);
+      background: #fff9ef;
+    }
+
+    .module-card.loss {
+      border-left: 5px solid var(--red);
+      background: #fff5f3;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 4px;
+      padding: 3px 7px;
+      font-size: 11px;
+      font-weight: 900;
+      color: #fff;
+      background: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .tag.train {
+      background: var(--green);
+    }
+
+    .tag.frozen {
+      background: #697386;
+    }
+
+    .tag.optional {
+      background: var(--amber);
+    }
+
+    .tag.loss {
+      background: var(--red);
+    }
+
+    .connector {
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      font-size: 24px;
+      font-weight: 900;
+      min-height: 26px;
+    }
+
+    .micro-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    .micro-table th,
+    .micro-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .micro-table th {
+      background: #eef2f7;
+      color: #344054;
+      font-size: 12px;
+    }
+
+    .micro-table td:first-child {
+      width: 22%;
+      font-weight: 900;
+    }
+
+    .core {
+      border: 1px solid #9eb6ff;
+      border-radius: 8px;
+      background: #f4f7ff;
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .core h4 {
+      margin: 0;
+      font-size: 20px;
+      text-align: center;
+    }
+
+    .transformer {
+      display: grid;
+      gap: 8px;
+    }
+
+    .layer {
+      min-height: 40px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #bac8ff;
+      border-radius: 6px;
+      background: #fff;
+      color: #23315f;
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .io-strip {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 14px;
+    }
+
+    .io {
+      min-height: 70px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .big-arrow {
+      color: var(--blue);
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcff;
+      min-height: 190px;
+      padding: 16px;
+      position: relative;
+    }
+
+    .step-number {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .step h4 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .formula {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: #20304a;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+
+    .data-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .data-card {
+      background: #fbfcff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 112px;
+    }
+
+    .data-card strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+
+    .data-card span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .schema-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .json-sample {
+      background: #111827;
+      color: #dbeafe;
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      margin: 0;
+      white-space: pre;
+    }
+
+    .dist-bars {
+      display: grid;
+      gap: 10px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 130px minmax(120px, 1fr) 86px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .bar-label {
+      font-weight: 800;
+      color: var(--ink);
+      overflow-wrap: anywhere;
+    }
+
+    .bar-track {
+      height: 12px;
+      border-radius: 999px;
+      background: #e8edf5;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .bar-fill.green {
+      background: var(--green);
+    }
+
+    .bar-fill.amber {
+      background: var(--amber);
+    }
+
+    .bar-fill.violet {
+      background: var(--violet);
+    }
+
+    .bar-value {
+      color: var(--muted);
+      font-weight: 800;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      display: table;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #eef2f7;
+      color: #344054;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td:first-child {
+      font-weight: 800;
+      color: var(--ink);
+      width: 34%;
+    }
+
+    .callout {
+      border-left: 5px solid var(--green);
+      background: #effaf5;
+      border-radius: 8px;
+      padding: 18px;
+      color: #123a2a;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .risk {
+      border-left-color: var(--amber);
+      background: #fff7e8;
+      color: #4a2d00;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .milestone {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 150px;
+    }
+
+    .milestone strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .milestone span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    footer {
+      padding: 32px 0 52px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .section-head,
+      .arch-grid,
+      .language-map,
+      .schema-grid,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .pipeline,
+      .flow-grid,
+      .metrics,
+      .data-grid,
+      .timeline {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .node::after {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        width: min(100% - 24px, 1180px);
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 36px 0;
+      }
+
+      .links {
+        display: none;
+      }
+
+      .pipeline,
+      .flow-grid,
+      .metrics,
+      .data-grid,
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-value {
+        text-align: left;
+      }
+
+      .token-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .diagram {
+        padding: 16px;
+      }
+
+      .diagram-title {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .io-strip,
+      .mini-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .big-arrow,
+      .mini-arrow {
+        transform: rotate(90deg);
+        justify-self: center;
+      }
+    }
+
+    @media print {
+      nav {
+        display: none;
+      }
+
+      body {
+        background: #fff;
+      }
+
+      section {
+        break-inside: avoid;
+      }
+
+      .diagram,
+      .metric,
+      .milestone {
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell hero">
+      <div>
+        <div class="eyebrow">No Vision Input · Body-only Language Action Model</div>
+        <h1>Codebook-Guided ULA-FM v0.2</h1>
+        <p class="hero-copy">
+          一个面向 V2 机器人上肢的 <strong>Conditional Flow Matching Action Expert</strong>：
+          从语言、情景、肢体语义手势、A/V 情绪码和机器人当前状态生成 15 维上肢关节轨迹，
+          再通过 MuJoCo 安全过滤输出可预览、可训练、可回放的数据。
+        </p>
+      </div>
+      <div class="hero-matrix" aria-label="Action chunk visualization">
+        <div class="matrix-title">
+          <span>Action Chunk [120 frames × 15 joints]</span>
+          <span>source 30 Hz · 4 sec</span>
+        </div>
+        <div class="token-grid">
+          <div class="token">pelvisYaw</div>
+          <div class="token">pelvisPitch</div>
+          <div class="token">pelvisRoll</div>
+          <div class="token hot">lShoulderPitch</div>
+          <div class="token">lShoulderRoll</div>
+          <div class="token">lShoulderYaw</div>
+          <div class="token hot">lElbow</div>
+          <div class="token">lWristRoll</div>
+          <div class="token">lWristPitch</div>
+          <div class="token">rShoulderPitch</div>
+          <div class="token hot">rShoulderRoll</div>
+          <div class="token">rShoulderYaw</div>
+          <div class="token">rElbow</div>
+          <div class="token">rWristRoll</div>
+          <div class="token">rWristPitch</div>
+        </div>
+        <div class="mini-flow">
+          <div>Condition<br>prompt + codes + q0</div>
+          <span class="mini-arrow">→</span>
+          <div>Flow Expert<br>internal flow time τ</div>
+          <span class="mini-arrow">→</span>
+          <div>Action Chunk<br>q[120, 15]</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav>
+    <div class="shell nav-inner">
+      <a class="brand" href="#overview">Codebook ULA-FM</a>
+      <div class="links">
+        <a href="#data-flow">数据流</a>
+        <a href="#dataset-shape">数据集</a>
+        <a href="#meta-original">Meta 原论文</a>
+        <a href="#network">网络结构</a>
+        <a href="#codebook-fusion">Codebook</a>
+        <a href="#language-head">语言头</a>
+        <a href="#training">训练图</a>
+        <a href="#inference">推理图</a>
+        <a href="#interfaces">接口</a>
+        <a href="#plan">落地计划</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section id="overview">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">System Target</div>
+            <h2>把视频重定向数据变成语义可控的上肢动作生成器</h2>
+          </div>
+          <p class="section-note">
+            第一版不做视觉输入，也不使用非肢体特征。模型先把文本解析成 intent、body_gesture、A/V affect、style 控制码，
+            再生成 V2 上肢关节轨迹，
+            真机执行前必须经过限位、速度、加速度和 MuJoCo 碰撞检查。
+          </p>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <strong>15</strong>
+            <span>V2 上肢关节维度</span>
+          </div>
+          <div class="metric">
+            <strong>120</strong>
+            <span>每个 action chunk 帧数</span>
+          </div>
+          <div class="metric">
+            <strong>30Hz</strong>
+            <span>当前 CSV / JSONL 源频率</span>
+          </div>
+          <div class="metric">
+            <strong>8-16</strong>
+            <span>推理积分步数</span>
+          </div>
+          <div class="metric">
+            <strong>0.5s</strong>
+            <span>重规划执行窗口</span>
+          </div>
+          <div class="metric">
+            <strong>Codes</strong>
+            <span>intent / gesture / A-V / style 中间控制码</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="data-flow">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Data Flow</div>
+            <h2>从视频、骨架、文本到训练样本</h2>
+          </div>
+          <p class="section-note">
+            重点是把重定向轨迹、文本描述和可观察情绪标签绑定成同一个时间窗口。
+            模型看到的是语言条件、派生控制码和机器人动作，不再读取原视频帧。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>数据流总图</h3>
+            <span class="badge">Video → JSONL → Action Chunk</span>
+          </div>
+          <div class="pipeline">
+            <div class="node data">
+              <strong>原始视频数据</strong>
+              <span>第三人称交互视频、音频、转写、可选标注</span>
+            </div>
+            <div class="node data">
+              <strong>人体 3D 骨架</strong>
+              <span>SMPL-H / 关键点 / 上肢运动窗口</span>
+            </div>
+            <div class="node safe">
+              <strong>V2 IK 重定向</strong>
+              <span>15 维关节 CSV，MuJoCo 坐标对齐</span>
+            </div>
+            <div class="node label">
+              <strong>语言动作索引</strong>
+              <span>scenario、action、intent、mood、style</span>
+            </div>
+            <div class="node label">
+              <strong>Codebook 派生</strong>
+              <span>gesture_code、A/V bucket、style_code、语义置信度</span>
+            </div>
+            <div class="node warn">
+              <strong>窗口切片</strong>
+              <span>当前 JSONL 为 4 秒窗口、2 秒 stride、30Hz；模型侧可重采样</span>
+            </div>
+            <div class="node model">
+              <strong>训练样本</strong>
+              <span>condition + q chunk + mask + quality</span>
+            </div>
+            <div class="node safe">
+              <strong>安全可用集</strong>
+              <span>无超限、无穿模、无强抖动</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="dataset-shape">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Dataset Shape</div>
+            <h2>当前 Body-only 语义动作数据集具体长什么样</h2>
+          </div>
+          <p class="section-note">
+            这里统计的是当前 partial 文件：
+            <code>language_action_index.body_partial.jsonl</code>。
+            它由已完成重定向样本生成，只保留上肢轨迹、肢体语义、A/V 情绪码和质量指标；随着 487 条视频继续处理，最终数字还会增加。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>总体形状</h3>
+	            <span class="badge">37,073 windows · 138.1MB</span>
+          </div>
+          <div class="data-grid">
+            <div class="data-card">
+	              <strong>37,073</strong>
+              <span>JSONL 训练窗口数量</span>
+            </div>
+            <div class="data-card">
+	              <strong>343</strong>
+              <span>已覆盖视频数</span>
+            </div>
+            <div class="data-card">
+              <strong>[120,15]</strong>
+              <span>每条 action chunk 形状</span>
+            </div>
+            <div class="data-card">
+              <strong>30Hz</strong>
+              <span>当前源数据帧率</span>
+            </div>
+            <div class="data-card">
+              <strong>4s</strong>
+              <span>窗口长度，2s stride</span>
+            </div>
+            <div class="data-card">
+	              <strong>138.1MB</strong>
+              <span>当前 JSONL 文件大小</span>
+            </div>
+          </div>
+          <div class="callout">
+            <strong>训练张量入口</strong>
+            每个 JSONL record 不直接内嵌完整 q 数组，而是引用对应的 retarget CSV，并用
+            <code>start_row/end_row</code> 切出 120 行、15 个 V2 上肢关节。模型侧 dataset loader 读取后得到
+            <code>x_data ∈ R^[120×15]</code>，再与语言/情绪/codebook 条件组合。
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>每条数据的字段结构</h3>
+            <span class="badge">JSONL record schema</span>
+          </div>
+          <div class="schema-grid">
+            <table>
+              <thead>
+                <tr>
+                  <th>Top-level 字段</th>
+                  <th>内容</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>sample_id</td>
+                  <td>视频样本 ID + 时间窗口行号，例如 <code>...__6840_6960</code>。</td>
+                </tr>
+                <tr>
+                  <td>source</td>
+                  <td>video/json/npz/retarget_csv/monitor_report 的绝对路径。</td>
+                </tr>
+                <tr>
+                  <td>time_window</td>
+                  <td>start_sec、end_sec、fps。当前为 4 秒窗口、30Hz。</td>
+                </tr>
+                <tr>
+                  <td>language_condition</td>
+                  <td>raw_transcript、scenario、action、intent、mood、rationale、instruction_variants。</td>
+                </tr>
+                <tr>
+                  <td>labels</td>
+	                  <td>intent、observed_affect、motion_style、arousal/valence、A/V token、motion_energy。</td>
+                </tr>
+                <tr>
+                  <td>meta_semantics</td>
+	                  <td>visual_element、internal_state、rationale、semantic_gesture、affect_codebook、body_motion。</td>
+                </tr>
+                <tr>
+                  <td>action</td>
+                  <td>retarget_csv_path、start_row、end_row、fps、15 维 joint_order。</td>
+                </tr>
+                <tr>
+                  <td>quality</td>
+                  <td>accepted_for_training、frame_count、flagged_frame_count、elbow/yaw 质量指标。</td>
+                </tr>
+              </tbody>
+            </table>
+
+	            <pre class="json-sample">{
+	  "sample_id": "improvised__dev__...__0_120",
+	  "source": {
+	    "dataset": "seamless_interaction_50g",
+	    "video_path": ".../V00_S0644_I00000129_P0799.mp4",
+	    "json_path": ".../V00_S0644_I00000129_P0799.json",
+	    "npz_path": ".../V00_S0644_I00000129_P0799.npz",
+	    "retarget_csv_path": ".../V00_S0644_I00000129_P0799.v2_upper_body_joints.csv",
+	    "monitor_report_path": ".../V00_S0644_I00000129_P0799.v2_monitor_report.json"
+	  },
+	  "time_window": {"start_sec": 0.0, "end_sec": 4.0, "fps": 30.0},
+	  "language_condition": {
+	    "raw_transcript": "Oh. Oh. Start it up again.",
+	    "scenario_description": "Oh. Oh. Start it up again.",
+	    "action_description": "upper-body conversational gesture",
+	    "intent_text": "conversational expression",
+	    "mood_text": "observable affect unknown",
+	    "rationale_text": "rationale unknown",
+	    "instruction_variants": [
+	      "conversational expression; gesture style: restrained; affect: observable affect unknown; rationale: rationale unknown",
+	      "Perform null with restrained style while expressing neutral"
+	    ]
+	  },
+	  "labels": {
+	    "intent": "explaining",
+	    "observed_affect": "neutral",
+	    "motion_style": "restrained",
+	    "arousal": 0.02105,
+	    "valence": 0.09496,
+	    "arousal_token": 0,
+	    "valence_token": 0,
+	    "motion_energy": 0.01361,
+	    "label_sources": ["movement:emotion_arousal", "movement:emotion_valence"]
+	  },
+	  "meta_semantics": {
+	    "visual_element": "upper-body conversational gesture",
+	    "internal_state": "observable affect unknown",
+	    "rationale": "rationale unknown",
+		    "semantic_gesture": "upper_body_gesture",
+		    "affect_codebook": {"arousal_token": 0, "valence_token": 0},
+		    "body_motion": {
+		      "joint_space": "v2_upper_body_15d",
+		      "action_shape": [120, 15],
+		      "joint_order": ["joint_pelvisYaw", "...", "joint_rWristPitch"],
+		      "motion_style": "restrained",
+		      "motion_energy": 0.01361,
+		      "semantic_gesture": "null"
+		    }
+		  },
+	  "action": {
+	    "retarget_csv_path": "...v2_upper_body_joints.csv",
+	    "start_row": 0,
+	    "end_row": 120,
+	    "fps": 30.0,
+	    "joint_order": ["joint_pelvisYaw", "...", "joint_rWristPitch"]
+	  },
+	  "quality": {
+	    "accepted_for_training": true,
+	    "frame_count": 5280,
+	    "flagged_frame_count": 2729,
+	    "max_elbow_overfold": 0.32,
+	    "max_yaw_under_response": 0.18
+	  }
+		}</pre>
+	          </div>
+	        </div>
+
+	        <div class="diagram">
+	          <div class="diagram-title">
+	            <h3>LeRobot Parquet 打包结果</h3>
+	            <span class="badge">partial snapshot ready</span>
+	          </div>
+	          <div class="schema-grid">
+	            <table>
+	              <thead>
+	                <tr>
+	                  <th>路径</th>
+	                  <th>内容</th>
+	                </tr>
+	              </thead>
+	              <tbody>
+	                <tr>
+	                  <td><code>lerobot_v2_upper_body_body_only_partial/data/chunk-000/file-*.parquet</code></td>
+	                  <td>逐帧 LeRobot 数据：index、episode_index、frame_index、timestamp、task_index、observation.state[15]、action[15]、next.done。</td>
+	                </tr>
+	                <tr>
+	                  <td><code>meta/episodes/chunk-000/file-000.parquet</code></td>
+	                  <td>每个 120 帧窗口一行，保存 sample_id、source 路径、语言、情绪码、动作风格和质量指标。</td>
+	                </tr>
+	                <tr>
+	                  <td><code>meta/semantic_index.parquet</code></td>
+	                  <td>语义索引表：instruction、transcript、action_description、intent、observed_affect、semantic_gesture、A/V token。</td>
+	                </tr>
+	                <tr>
+	                  <td><code>meta/info.json</code> / <code>meta/stats.json</code> / <code>meta/tasks.jsonl</code></td>
+	                  <td>LeRobot v3 风格元数据、15 维轨迹统计、任务文本表。</td>
+	                </tr>
+	                <tr>
+	                  <td><code>lerobot_v2_upper_body_body_only_final/</code></td>
+	                  <td>后台任务等待 487 条重定向完成后自动生成最终版；partial 版已可先检查。</td>
+	                </tr>
+	              </tbody>
+	            </table>
+
+	            <pre class="json-sample">partial summary:
+{
+  "total_episodes": 37073,
+  "total_frames": 4448760,
+  "total_tasks": 13,
+  "skipped": 0,
+  "data_files": 18
+}
+
+data parquet row:
+{
+  "index": 0,
+  "episode_index": 0,
+  "frame_index": 0,
+  "timestamp": 0.0,
+  "task_index": 0,
+  "observation.state": [15 floats],
+  "action": [15 floats],
+  "next.done": false
+}</pre>
+	          </div>
+	        </div>
+
+        <div class="two-col">
+          <div class="diagram">
+            <div class="diagram-title">
+              <h3>Intent 分布</h3>
+              <span class="badge">derived labels</span>
+            </div>
+            <div class="dist-bars">
+              <div class="bar-row">
+                <span class="bar-label">explaining</span>
+	                <span class="bar-track"><span class="bar-fill" style="width:84.4%"></span></span>
+	                <span class="bar-value">31,301</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">refusing</span>
+	                <span class="bar-track"><span class="bar-fill" style="width:13.1%"></span></span>
+	                <span class="bar-value">4,865</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">requesting_help</span>
+	                <span class="bar-track"><span class="bar-fill" style="width:1.8%"></span></span>
+	                <span class="bar-value">657</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">greeting</span>
+	                <span class="bar-track"><span class="bar-fill" style="width:0.7%"></span></span>
+	                <span class="bar-value">241</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">warning</span>
+                <span class="bar-track"><span class="bar-fill" style="width:0.1%"></span></span>
+                <span class="bar-value">9</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title">
+              <h3>Observed Affect 分布</h3>
+              <span class="badge">observable only</span>
+            </div>
+            <div class="dist-bars">
+              <div class="bar-row">
+                <span class="bar-label">neutral</span>
+	                <span class="bar-track"><span class="bar-fill green" style="width:90.8%"></span></span>
+	                <span class="bar-value">33,665</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">sad_like</span>
+	                <span class="bar-track"><span class="bar-fill green" style="width:4.4%"></span></span>
+	                <span class="bar-value">1,638</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">nervous</span>
+	                <span class="bar-track"><span class="bar-fill green" style="width:3.7%"></span></span>
+	                <span class="bar-value">1,359</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">friendly</span>
+	                <span class="bar-track"><span class="bar-fill green" style="width:0.6%"></span></span>
+	                <span class="bar-value">206</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">uncertain</span>
+                <span class="bar-track"><span class="bar-fill green" style="width:0.3%"></span></span>
+                <span class="bar-value">102</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">angry_like</span>
+                <span class="bar-track"><span class="bar-fill green" style="width:0.2%"></span></span>
+                <span class="bar-value">76</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-label">excited</span>
+                <span class="bar-track"><span class="bar-fill green" style="width:0.1%"></span></span>
+                <span class="bar-value">27</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="diagram">
+            <div class="diagram-title">
+              <h3>语义密度</h3>
+              <span class="badge">annotation coverage</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+                  <td>有 transcript 的窗口</td>
+	                  <td>23,122 / 37,073</td>
+                </tr>
+                <tr>
+                  <td>有 3P visual annotation</td>
+	                  <td>60 / 37,073</td>
+                </tr>
+                <tr>
+                  <td>有 internal state annotation</td>
+	                  <td>60 / 37,073</td>
+                </tr>
+                <tr>
+                  <td>有 rationale annotation</td>
+	                  <td>60 / 37,073</td>
+                </tr>
+                <tr>
+	                  <td>可用 NPZ A/V 情绪码</td>
+	                  <td>25,431 个窗口</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title">
+	              <h3>Body-only 特征形状</h3>
+	              <span class="badge">Body features</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+	                  <td>action chunk</td>
+	                  <td>[120, 15]，120 帧 V2 上肢关节角，训练主监督。</td>
+                </tr>
+                <tr>
+	                  <td>body_motion</td>
+	                  <td>joint_space、action_shape、joint_order、motion_style、motion_energy、semantic_gesture。</td>
+                </tr>
+                <tr>
+	                  <td>A/V affect code</td>
+	                  <td>arousal、valence、EmotionArousalToken、EmotionValenceToken；只作为情绪强弱/正负控制码。</td>
+                </tr>
+                <tr>
+	                  <td>motion_energy</td>
+	                  <td>从 15 维关节速度均值派生，用来控制动作幅度和节奏。</td>
+                </tr>
+                <tr>
+                  <td>semantic_gesture</td>
+	                  <td>null 37,025；upper_body_gesture 26；pointing 12；crossed_arms 6；shrugging 4。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="meta-original">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Original Meta Paper</div>
+            <h2>Meta Seamless Interaction 原始网络和训练方式</h2>
+          </div>
+          <p class="section-note">
+            原论文训练的是 dyadic audiovisual motion model：输入双人语音 token，可选加入对方视觉行为，
+            输出 avatar 的 face latent 和 SMPL-H upper-body motion。这里先按论文原始版本说明，再和机器人版 ULA-FM 对比。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>原始 Dyadic Motion Model 网络</h3>
+            <span class="badge">Speech / Visual → Avatar Motion</span>
+          </div>
+          <div class="pipeline">
+            <div class="node data">
+              <strong>Dyadic Audio</strong>
+              <span>两个人的语音流，经 speech tokenizer 转成离散 speech tokens。</span>
+            </div>
+            <div class="node data">
+              <strong>User Visual Optional</strong>
+              <span>对方脸部 Imitator latent 或 body SMPL-H pose，作为视觉条件。</span>
+            </div>
+            <div class="node model">
+              <strong>Condition Projection</strong>
+              <span>speech / visual 条件重采样到 motion 帧率，并投影到模型维度。</span>
+            </div>
+            <div class="node model">
+              <strong>DiT Backbone</strong>
+              <span>Diffusion Transformer，RMSNorm + KQ-Norm self-attention。</span>
+            </div>
+            <div class="node model">
+              <strong>Flow Matching</strong>
+              <span>学习从噪声分布流向真实 motion latent 的速度场。</span>
+            </div>
+            <div class="node safe">
+              <strong>Face Motion</strong>
+              <span>expression code、head rotation、head/body translation。</span>
+            </div>
+            <div class="node safe">
+              <strong>Body Motion</strong>
+              <span>SMPL-H 上半身/手部关节旋转，使用 6D rotation 表示。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="diagram">
+            <div class="diagram-title">
+              <h3>原始动作表示</h3>
+              <span class="badge">Face + Body</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+                  <td>face feature</td>
+                  <td>Imitator representation：expression code、head rotation、translation，拼成每帧 face latent。</td>
+                </tr>
+                <tr>
+                  <td>body feature</td>
+                  <td>SMPL-H joint rotations，使用 6D rotation；论文主要保留上半身，忽略腿部关节。</td>
+                </tr>
+                <tr>
+                  <td>joint model</td>
+                  <td>把 face feature 和 body feature 拼接成 joint face+body motion feature，一起生成。</td>
+                </tr>
+                <tr>
+                  <td>cascaded model</td>
+                  <td>Face2Body 或 Body2Face：先生成一侧，再用它条件化另一侧，减少头部/身体不对齐。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title">
+              <h3>原始条件接入</h3>
+              <span class="badge">Conditioning</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+                  <td>audio condition</td>
+                  <td>两路 speech token 共享 embedding table，拼接后编码为 dyadic speech condition。</td>
+                </tr>
+                <tr>
+                  <td>rate alignment</td>
+                  <td>speech token rate 和 video/motion rate 不同，论文把 speech condition 重采样到 motion 序列长度。</td>
+                </tr>
+                <tr>
+                  <td>fusion method</td>
+                  <td>把 motion projection 和 condition projection 加到同一特征空间；论文发现这比 cross-attention 更对齐。</td>
+                </tr>
+                <tr>
+                  <td>visual condition</td>
+                  <td>audiovisual 版本额外拼入 interlocutor visual features，让 avatar 对对方表情/姿态反应。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>原始 Flow Matching 训练目标</h3>
+            <span class="badge">Velocity Field</span>
+          </div>
+          <div class="flow-grid">
+            <div class="step">
+              <div class="step-number">1</div>
+              <h4>真实动作样本</h4>
+              <p>从数据集中取真实 motion feature x，例如 face latent、SMPL-H body pose 或二者拼接。</p>
+              <div class="formula">x ∈ R^[T×D_motion]</div>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <h4>采样噪声和流时间</h4>
+              <p>采样高斯噪声 ε 和 t∈[0,1]，用线性路径构造 noisy latent。</p>
+              <div class="formula">x_t = t x + (1 - (1 - σ_min)t) ε</div>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <h4>速度场监督</h4>
+              <p>模型预测 vθ(x_t,t,c)，目标是从当前 noisy latent 指向真实数据分布的速度。</p>
+              <div class="formula">v_target = x - (1 - σ_min) ε</div>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <h4>条件式回归</h4>
+              <p>用 MSE 训练条件速度场；推理时从噪声开始解 ODE 生成动作。</p>
+              <div class="formula">L = E ||vθ(x_t,t,c) - v_target||²</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>原始可控生成：Emotion、Expressivity、Semantic Gesture</h3>
+            <span class="badge">Codebook Control</span>
+          </div>
+          <div class="pipeline">
+            <div class="node label">
+              <strong>Arousal / Valence</strong>
+              <span>A/V 连续值或 bucket token；支持固定情绪或动态情绪序列。</span>
+            </div>
+            <div class="node label">
+              <strong>Expressivity Signals</strong>
+              <span>head rotation、eyebrow、mouth、gaze dynamism，bucketize 后控制表达强度。</span>
+            </div>
+            <div class="node label">
+              <strong>Semantic Gesture</strong>
+              <span>语义手势条件 G 或 VQ-VAE gesture code，解决 speech-only 很难学到长尾手势的问题。</span>
+            </div>
+            <div class="node warn">
+              <strong>Temporal Dropout</strong>
+              <span>训练时随机把部分 gesture condition 替换成 null，让模型学会缺失条件下平滑过渡。</span>
+            </div>
+            <div class="node model">
+              <strong>LLM Adapter</strong>
+              <span>冻结 speech LLM；用 MLP Adapter 从 hidden states 预测 arousal、valence、gesture code。</span>
+            </div>
+            <div class="node model">
+              <strong>Code-conditioned Motion</strong>
+              <span>motion model 同时吃 speech tokens 和 codebook conditions，生成更可控的 face/body motion。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>Meta 原论文 vs 机器人版 Codebook ULA-FM</h3>
+            <span class="badge">Mapping</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>模块</th>
+                <th>Meta 原论文</th>
+                <th>本项目机器人版</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>输入语义</td>
+                <td>双人 speech tokens，必要时加对方 visual features。</td>
+                <td>language_action_index 的 transcript、scenario、action、intent、mood、derived codes。</td>
+              </tr>
+              <tr>
+                <td>动作表示</td>
+                <td>face Imitator latent + SMPL-H 6D body rotations。</td>
+                <td>V2 机器人 15 维上肢关节角窗口 [120,15]。</td>
+              </tr>
+              <tr>
+                <td>主干模型</td>
+                <td>Diffusion Transformer / Flow Matching velocity field。</td>
+                <td>保留 Flow Matching Action Expert，输出机器人 joint trajectory velocity field。</td>
+              </tr>
+              <tr>
+                <td>情绪控制</td>
+                <td>Arousal / valence 连续值或 bucket condition。</td>
+                <td>arousal_bucket / valence_bucket + 连续 A/V 数值，作为机器人动作幅度、节奏和开放度条件。</td>
+              </tr>
+              <tr>
+                <td>语义手势</td>
+                <td>gesture vocabulary 或 VQ-VAE code；训练时 temporal gesture dropout。</td>
+                <td>semantic_gesture / gesture_code：null、upper_body_gesture、pointing、crossed_arms、shrugging 等，后续扩 stop/wave。</td>
+              </tr>
+              <tr>
+                <td>LLM 作用</td>
+                <td>冻结 speech LLM，Adapter 预测 emotion/gesture code，不直接输出动作。</td>
+                <td>冻结 text encoder 或 LLM，Code Adapter 预测 intent/gesture/A-V/style code，不直接输出关节角。</td>
+              </tr>
+              <tr>
+                <td>安全层</td>
+                <td>面向 avatar 渲染质量和人评协议。</td>
+                <td>必须加 joint limit、velocity、acceleration、collision、CSV/ROS2 安全导出。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="network">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Network Architecture</div>
+            <h2>Conditional Flow Matching Action Expert</h2>
+          </div>
+          <p class="section-note">
+            左侧先把语言映射成可控 codebook，再和机器人状态融合；中间是动作流模型，右侧输出一个 V2 上肢轨迹窗口。
+            文本编码器第一版冻结，只训练 code adapter、条件融合层和动作专家。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>网络结构图</h3>
+	            <span class="badge">No Vision Input</span>
+          </div>
+          <div class="arch-grid">
+            <div class="stack">
+              <div class="block blue">
+                <h4>Text Encoder</h4>
+                <p>输入 scenario、action、intent、mood、instruction variants。输出 384 维 text embedding。</p>
+              </div>
+              <div class="block amber">
+                <h4>Code Adapter</h4>
+                <p>预测 intent_code、gesture_code、arousal_bucket、valence_bucket、style_code；训练时可用规则/标注监督。</p>
+              </div>
+              <div class="block violet">
+                <h4>Codebook Encoder</h4>
+                <p>gesture、intent、style、A/V bucket、safety_mode 用 embedding；motion_energy 和 confidence 用 MLP。</p>
+              </div>
+              <div class="block green">
+                <h4>Robot State Encoder</h4>
+                <p>当前 q0、dq0、关节余量、安全模式。让模型从真实机器人姿态续接动作。</p>
+              </div>
+              <div class="block amber">
+                <h4>Condition Fusion</h4>
+                <p>concat 后通过 MLP + LayerNorm，得到 cond_emb，作为每层 Transformer 的条件。</p>
+              </div>
+            </div>
+
+            <div class="core">
+              <h4>Flow Matching Action Expert</h4>
+              <div class="io-strip">
+                <div class="io">x_t<br>noisy action chunk<br>[120, 15]</div>
+                <div class="big-arrow">+</div>
+                <div class="io">t embedding<br>flow time<br>[384]</div>
+              </div>
+              <div class="transformer">
+                <div class="layer">Input Projection: 15 → 384</div>
+                <div class="layer">Transformer Block × 8</div>
+                <div class="layer">Condition Modulation: text + codebook + robot state</div>
+                <div class="layer">Output Projection: 384 → 15</div>
+              </div>
+              <div class="io-strip">
+                <div class="io">预测速度场<br>vθ(x_t, t, c)</div>
+                <div class="big-arrow">→</div>
+                <div class="io">生成轨迹<br>[120, 15]</div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="block green">
+                <h4>Safety Decoder</h4>
+                <p>joint limit、velocity limit、acceleration limit、self collision、arm-torso penetration。</p>
+              </div>
+              <div class="block blue">
+                <h4>Candidate Selector</h4>
+                <p>每个 prompt 生成多个候选，选择安全分最高且最贴近风格条件的动作。</p>
+              </div>
+              <div class="block violet">
+                <h4>Receding Horizon</h4>
+                <p>生成一个短轨迹窗口，只执行前若干帧，然后基于新 q0 重新规划，减少漂移。</p>
+              </div>
+              <div class="block amber">
+                <h4>Export</h4>
+                <p>CSV、MuJoCo preview、人工抽检记录，后续接 ROS2 上肢回放。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="codebook-fusion">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Codebook Fusion</div>
+            <h2>把 Meta 论文的情绪与语义手势控制融入 ULA-FM</h2>
+          </div>
+          <p class="section-note">
+            原论文不是让 LLM 直接吐动作，而是让 Adapter 预测 arousal、valence 和 gesture code，再把这些 code 作为扩散/Flow 模型条件。
+            这里采用同样思路，但把输出空间换成机器人 15 维关节轨迹。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>融合后的算法接口</h3>
+            <span class="badge">Text → Codes → Flow</span>
+          </div>
+          <div class="pipeline">
+            <div class="node label">
+              <strong>语言窗口</strong>
+              <span>raw_transcript、scenario、action、intent_text、mood_text</span>
+            </div>
+            <div class="node model">
+              <strong>Frozen Text Encoder</strong>
+              <span>句向量或本地 hashing encoder，第一版不微调</span>
+            </div>
+            <div class="node model">
+              <strong>Code Adapter</strong>
+              <span>多头 MLP：intent、gesture、A/V bucket、style</span>
+            </div>
+            <div class="node label">
+              <strong>Codebook Embeddings</strong>
+              <span>显式中间语义，避免文本 embedding 独自控制动作</span>
+            </div>
+            <div class="node data">
+              <strong>Robot State</strong>
+              <span>q0、dq0、joint margin、safety mode</span>
+            </div>
+            <div class="node model">
+              <strong>ULA-FM Expert</strong>
+              <span>条件速度场 vθ(x_t, t, c)</span>
+            </div>
+            <div class="node safe">
+              <strong>Safe CSV</strong>
+              <span>候选筛选后导出 V2 关节轨迹</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>第一版来源与用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>intent_code</td>
+                <td>从 labels.intent、intent_text 和 transcript 派生；控制 greeting、refusing、explaining、waiting 等动作族。</td>
+              </tr>
+              <tr>
+                <td>gesture_code</td>
+	                <td>从 action_description、关键词和人工规则派生；控制 wave、stop、point、open_hand_explain、crossed_arms、null。</td>
+              </tr>
+              <tr>
+                <td>arousal_code</td>
+                <td>把 arousal 连续值 bucketize 到 12 桶；控制速度、幅度、动作能量。</td>
+              </tr>
+              <tr>
+                <td>valence_code</td>
+                <td>把 valence 连续值 bucketize 到 12 桶；控制开放/收敛、友好/回避的表达倾向。</td>
+              </tr>
+              <tr>
+                <td>style_code</td>
+                <td>从 motion_style 与 motion_energy 派生；控制 relaxed、restrained、energetic、sharp、slow_safe。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                <th>当前缺口</th>
+                <th>需要补充的信息</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>语义手势</td>
+                <td>JSONL 目前没有显式 gesture_code；需要规则标注或人工审核 stop/wave/point/explain/null。</td>
+              </tr>
+              <tr>
+                <td>情绪类别</td>
+                <td>partial 里 observed_affect 都是 low_confidence_unknown；需要更可靠的 observed_affect 或只用 A/V bucket。</td>
+              </tr>
+              <tr>
+                <td>意图细分</td>
+                <td>当前 intent 主要是 explaining/waiting；需要从 transcript、prompt、3P-V/R 中提取 refusing、greeting、warning 等。</td>
+              </tr>
+              <tr>
+                <td>交互角色</td>
+	                <td>需要 speaking/listening、turn-taking、是否回应对方动作；否则难学开放、收拢、停顿、轮替提示等上肢交互趋势。</td>
+              </tr>
+              <tr>
+                <td>目标方向</td>
+                <td>需要 target_direction 或目标对象侧向；否则 point/turn/open hand 只能学平均方向。</td>
+              </tr>
+              <tr>
+                <td>质量权重</td>
+                <td>需要把 flagged_frame_count、yaw_under_response、elbow_overfold 转成训练 sample_weight 或过滤规则。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="language-head">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Language Head Detail</div>
+            <h2>语言头如何接入 Action Expert</h2>
+          </div>
+          <p class="section-note">
+            第一版不要训练完整语言模型。我们冻结文本编码器，只训练 code adapter、language adapter、condition fusion、
+            FiLM/调制层和 action expert。这样数据量不大时更稳，也不会把语言模型训坏。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>语言条件到动作专家的接入细图</h3>
+            <span class="badge">Frozen / Trainable Marked</span>
+          </div>
+
+          <div class="legend">
+            <div class="legend-item"><span class="dot frozen"></span>冻结：不反传更新</div>
+            <div class="legend-item"><span class="dot train"></span>训练：v0.1 必训</div>
+            <div class="legend-item"><span class="dot optional"></span>可选：v0.2 LoRA 微调</div>
+            <div class="legend-item"><span class="dot loss"></span>监督：loss 直接约束</div>
+          </div>
+
+          <div class="language-map">
+            <div class="lane">
+              <div class="module-card frozen">
+                <span class="tag frozen">FROZEN</span>
+                <h4>Text Encoder</h4>
+                <p>先用轻量中文/多语句向量模型，或本地 hashing encoder 占位。输入完整 prompt，输出 text_emb。</p>
+              </div>
+              <div class="connector">↓</div>
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Language Adapter</h4>
+                <p>Linear → GELU → Linear，把 text_emb 投影到 d_model=384。这里负责把自然语言压成动作条件。</p>
+              </div>
+              <div class="connector">↓</div>
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Code Adapter</h4>
+                <p>共享 MLP backbone + 多个分类头，预测 intent、gesture、arousal bucket、valence bucket、style。</p>
+              </div>
+              <div class="connector">↓</div>
+              <div class="module-card optional">
+                <span class="tag optional">OPTIONAL v0.2</span>
+                <h4>LoRA on Text Encoder</h4>
+                <p>只有当 487 条全量数据 + 人工审核标签明显有效后，才考虑开 LoRA；第一版关闭。</p>
+              </div>
+            </div>
+
+            <div class="lane">
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Label Embeddings</h4>
+                <p>intent_code、gesture_code、style_code、target_direction、safety_mode 各自 embedding 后拼接。</p>
+              </div>
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Emotion Code Encoder</h4>
+                <p>arousal/valence 同时保留连续值和 12 桶离散 token；连续值进 MLP，bucket 进 embedding。</p>
+              </div>
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Robot State MLP</h4>
+                <p>q0、dq0、joint margin 输入 MLP，让生成动作从当前机器人姿态连续起步。</p>
+              </div>
+              <div class="connector">↓</div>
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Condition Fusion</h4>
+                <p>concat(language, codebook, numeric, robot) → MLP + LayerNorm，输出 cond_emb=[384]。</p>
+              </div>
+            </div>
+
+            <div class="lane">
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>FiLM / AdaLN Modulation</h4>
+                <p>cond_emb 生成每层 Transformer 的 scale、shift、gate，控制动作风格和语义响应。</p>
+              </div>
+              <div class="connector">↓</div>
+              <div class="module-card train">
+                <span class="tag train">TRAINABLE</span>
+                <h4>Action Expert Transformer</h4>
+                <p>x_t token + time embedding 进入 8 层 Transformer，输出每帧 15 维速度场。</p>
+              </div>
+              <div class="connector">↓</div>
+              <div class="module-card loss">
+                <span class="tag loss">SUPERVISED</span>
+                <h4>Flow + Motion Loss</h4>
+                <p>L_flow 监督速度场；L_code 监督中间语义码；L_start、L_smooth、L_limit 约束动作可执行性。</p>
+              </div>
+            </div>
+          </div>
+
+          <table class="micro-table">
+            <thead>
+              <tr>
+                <th>阶段</th>
+                <th>训练语言头吗</th>
+                <th>训练参数</th>
+                <th>理由</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>v0.1</td>
+                <td>不训练完整语言模型</td>
+                <td>Code Adapter、Language Adapter、code/numeric/state encoder、condition fusion、FiLM/AdaLN、action expert</td>
+                <td>样本量还小，冻结文本编码器能保持语义稳定；用中间 code 提高动作可控性和可调试性。</td>
+              </tr>
+              <tr>
+                <td>v0.2</td>
+                <td>可选 LoRA</td>
+                <td>只在 text encoder 最后 2-4 层加低秩 LoRA，rank 4 或 8</td>
+                <td>当动作描述和人工复核标签足够多时，让语言空间更贴近机器人动作域。</td>
+              </tr>
+              <tr>
+                <td>v1.0</td>
+                <td>多任务训练</td>
+                <td>增加 action caption head、style classifier head、gesture critic、trajectory critic</td>
+                <td>让模型同时学“描述动作”和“生成动作”，提升文本-动作对齐质量。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="training">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Training Graph</div>
+            <h2>训练时学习“从噪声流向真实动作”</h2>
+          </div>
+          <p class="section-note">
+            训练目标不是预测下一个点，而是学习一个条件速度场。语言先被监督成中间控制码，再由 codebook 和机器人状态决定动作的意图、情绪表现、节奏和幅度。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>训练流程图</h3>
+            <span class="badge">Flow Matching Objective</span>
+          </div>
+          <div class="flow-grid">
+            <div class="step">
+              <div class="step-number">1</div>
+              <h4>读取训练窗口</h4>
+              <p>从 JSONL 读取文本、标签和质量字段，从 CSV 读取对应时间窗口，得到真实动作 x_data。</p>
+              <div class="formula">x_data ∈ R^[120×15]</div>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <h4>派生监督 code</h4>
+              <p>从 labels、A/V 数值、transcript 关键词和动作描述派生 intent、gesture、style、A/V bucket。</p>
+              <div class="formula">c_code = {intent, gesture, a_bin, v_bin, style}</div>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <h4>采样噪声和时间</h4>
+              <p>采样高斯噪声 z 和连续流时间 t，构造中间状态 x_t。</p>
+              <div class="formula">x_t = (1 - t) · z + t · x_data</div>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <h4>预测速度场</h4>
+              <p>模型根据 x_t、t、text_emb、codebook condition 预测当前点应该流向真实动作的方向。</p>
+              <div class="formula">v_target = x_data - z</div>
+            </div>
+            <div class="step">
+              <div class="step-number">5</div>
+              <h4>优化与验证</h4>
+              <p>联合 flow、code、平滑、起始姿态和关节限位余量；定期生成预览验证。</p>
+              <div class="formula">L = L_flow + λ_codeL_code + L_smooth + L_limit + L_start</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>训练闭环</h3>
+            <span class="badge">Preview Driven</span>
+          </div>
+          <div class="pipeline">
+            <div class="node data">
+              <strong>Contact-safe CSV</strong>
+              <span>重定向后的真实动作窗口</span>
+            </div>
+            <div class="node label">
+              <strong>Code Supervision</strong>
+              <span>监督 Adapter 预测 intent/gesture/A-V/style</span>
+            </div>
+            <div class="node label">
+              <strong>Gesture Dropout</strong>
+              <span>随机把 gesture_code 置为 null，学习自然过渡</span>
+            </div>
+            <div class="node model">
+              <strong>Train Codebook ULA-FM</strong>
+              <span>先 overfit partial → 全量训练</span>
+            </div>
+            <div class="node safe">
+              <strong>Sample Candidates</strong>
+              <span>每个 prompt 生成 4-8 条候选</span>
+            </div>
+            <div class="node safe">
+              <strong>MuJoCo Filter</strong>
+              <span>碰撞、穿模、速度、加速度</span>
+            </div>
+            <div class="node warn">
+              <strong>Side-by-side Preview</strong>
+              <span>原视频 / 机器人动作并排</span>
+            </div>
+            <div class="node label">
+              <strong>Human Review</strong>
+              <span>高质量样本回灌训练集</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="inference">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Inference Graph</div>
+            <h2>推理时从语言生成安全动作候选</h2>
+          </div>
+          <p class="section-note">
+            推理过程保守处理：先生成多个候选，再做安全排序，最后只执行短窗口。
+            这比一次性生成长动作更稳，也便于接入实时机器人状态。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>推理流程图</h3>
+            <span class="badge">Prompt → Safe CSV</span>
+          </div>
+          <div class="pipeline">
+            <div class="node label">
+              <strong>用户输入</strong>
+              <span>“友好地解释”“克制地拒绝”“紧张地等待”</span>
+            </div>
+            <div class="node model">
+              <strong>Code Adapter</strong>
+              <span>预测 gesture、intent、A/V bucket、style</span>
+            </div>
+            <div class="node data">
+              <strong>机器人当前状态</strong>
+              <span>q0、dq0、safety_mode、关节余量</span>
+            </div>
+            <div class="node model">
+              <strong>条件融合</strong>
+              <span>text + codebook + numeric + robot state</span>
+            </div>
+            <div class="node model">
+              <strong>Flow Sampling</strong>
+              <span>噪声起点，Euler / Heun 8-16 步</span>
+            </div>
+            <div class="node safe">
+              <strong>候选动作</strong>
+              <span>生成 4-8 条 [120, 15] 轨迹</span>
+            </div>
+            <div class="node safe">
+              <strong>安全筛选</strong>
+              <span>MuJoCo collision + limit + smooth</span>
+            </div>
+            <div class="node warn">
+              <strong>短窗口执行</strong>
+              <span>执行前 0.5 秒，再重规划</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="callout">
+            <strong>推荐推理策略</strong>
+            先预测可解释的中间 code，再生成短轨迹窗口，但只播放前若干帧；每次重规划都把机器人真实 q0/dq0 塞回模型。
+            这样动作可以持续，又不会因为长序列生成误差导致姿态漂移。
+          </div>
+          <div class="callout risk">
+            <strong>安全边界</strong>
+            低置信度 code、超限候选、碰撞候选、穿模候选全部降级为 null gesture + neutral style 或保持当前姿态。
+            模型输出不是最终控制命令，必须被安全层接管。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="interfaces">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Interfaces</div>
+            <h2>训练样本、模型输入和输出接口</h2>
+          </div>
+          <p class="section-note">
+            数据接口尽量和当前项目保持一致：JSONL 只保存索引和语言标签，密集关节轨迹仍从 CSV 窗口读取。
+          </p>
+        </div>
+
+        <div class="two-col">
+          <table>
+            <thead>
+              <tr>
+                <th>模块</th>
+                <th>输入 / 输出</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Dataset Loader</td>
+	                <td>读取 language_action_index.body_partial.jsonl，按 start_row/end_row 从 retarget CSV 切 [120, 15]。</td>
+              </tr>
+              <tr>
+                <td>Normalizer</td>
+                <td>按 V2 joint limits 把 q 归一化到 [-1, 1]，保留反归一化参数。</td>
+              </tr>
+              <tr>
+                <td>Condition Encoder</td>
+                <td>文本、intent_code、gesture_code、style_code、A/V bucket、motion_energy、q0、dq0 → cond_emb。</td>
+              </tr>
+              <tr>
+                <td>Code Adapter</td>
+                <td>text_emb → intent logits、gesture logits、arousal bucket logits、valence bucket logits、style logits。</td>
+              </tr>
+              <tr>
+                <td>Action Expert</td>
+                <td>x_t、t、cond_emb → vθ，形状保持 [120, 15]。</td>
+              </tr>
+              <tr>
+                <td>Safety Decoder</td>
+                <td>候选轨迹 → clamp、平滑、MuJoCo 检查、CSV 导出。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>第一版约定</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>joint_order</td>
+                <td>pelvis yaw/pitch/roll + 左右肩 pitch/roll/yaw + 肘 + 腕 roll/pitch。</td>
+              </tr>
+              <tr>
+                <td>window</td>
+                <td>当前数据是 4 秒、30Hz、120 行；训练时可保持 [120,15]，或重采样到 60Hz 后改 horizon。</td>
+              </tr>
+              <tr>
+                <td>text fields</td>
+                <td>scenario_description、action_description、intent_text、mood_text、instruction_variants。</td>
+              </tr>
+              <tr>
+                <td>labels</td>
+                <td>intent、observed_affect、motion_style、arousal、valence、motion_energy、label_sources。</td>
+              </tr>
+              <tr>
+                <td>derived codes</td>
+                <td>intent_code、gesture_code、arousal_bucket、valence_bucket、style_code、semantic_confidence。</td>
+              </tr>
+              <tr>
+                <td>quality gate</td>
+                <td>无 manifest error、无明显穿模、无关节越限、重定向报告通过。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="plan">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Implementation Plan</div>
+            <h2>最小可训练闭环</h2>
+          </div>
+          <p class="section-note">
+            先做能 overfit、能采样、能预览的小模型。不要一开始做巨大网络，先证明语言条件和动作分布是可学的。
+          </p>
+        </div>
+
+        <div class="timeline">
+          <div class="milestone">
+            <strong>1. Dataset</strong>
+            <span>JSONL + CSV window loader，按 fps 读取源窗口，轨迹归一化，质量过滤，派生 codebook 监督。</span>
+          </div>
+          <div class="milestone">
+            <strong>2. Model</strong>
+            <span>Frozen text encoder + code adapter + condition fusion + 8 层 Transformer flow expert。</span>
+          </div>
+          <div class="milestone">
+            <strong>3. Train</strong>
+            <span>先用 partial overfit，再全量训练；记录 flow/code loss、preview 和 checkpoint。</span>
+          </div>
+          <div class="milestone">
+            <strong>4. Sample</strong>
+            <span>prompt 先生成可解释 code，再生成候选轨迹，guidance 控制文本/code 强度。</span>
+          </div>
+          <div class="milestone">
+            <strong>5. Validate</strong>
+            <span>MuJoCo 安全过滤，导出并排预览，人工筛选高质量样本。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      Codebook-Guided ULA-FM v0.2 演示页 · 面向 V2 机器人上肢 · 条件式 Flow Matching 动作专家 · 不含视觉输入
+    </div>
+  </footer>
+</body>
+</html>

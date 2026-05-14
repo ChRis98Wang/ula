@@ -1,0 +1,33 @@
+{
+  "schema_name": "pose_3d_sequence",
+  "version": "0.1",
+  "required_top_level_fields": [
+    "video_id",
+    "pose_tool",
+    "coordinate_type",
+    "fps",
+    "frames"
+  ],
+  "required_frame_fields": [
+    "frame_index",
+    "time_sec",
+    "landmarks_3d",
+    "confidence"
+  ],
+  "required_landmarks": [
+    "nose",
+    "left_ear",
+    "right_ear",
+    "left_shoulder",
+    "right_shoulder",
+    "left_elbow",
+    "right_elbow",
+    "left_wrist",
+    "right_wrist",
+    "left_hip",
+    "right_hip"
+  ],
+  "landmark_value_format": "[x, y, z]",
+  "confidence_range": [0.0, 1.0],
+  "notes": "This is a practical schema description, not a strict JSON Schema draft file."
+}

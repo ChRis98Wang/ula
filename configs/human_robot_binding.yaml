@@ -1,0 +1,63 @@
+pose_format: mediapipe_33_world_landmarks
+required_landmarks:
+  nose: 0
+  left_ear: 7
+  right_ear: 8
+  left_shoulder: 11
+  right_shoulder: 12
+  left_elbow: 13
+  right_elbow: 14
+  left_wrist: 15
+  right_wrist: 16
+  left_hip: 23
+  right_hip: 24
+torso_frame:
+  origin: pelvis_center
+  up: shoulder_center_minus_pelvis_center
+  right: right_shoulder_minus_left_shoulder
+  forward: cross_right_up
+bindings:
+  waist_yaw_joint:
+    source: torso_forward_yaw
+    scale: 0.6
+    offset: 0.0
+  waist_roll_joint:
+    source: torso_roll
+    scale: 0.5
+    offset: 0.0
+  right_arm_shoulder_pitch_joint:
+    source: right_upper_arm_pitch
+    scale: 1.0
+    offset: 0.0
+  right_arm_shoulder_roll_joint:
+    source: right_upper_arm_roll
+    scale: 1.0
+    offset: 0.0
+  right_arm_shoulder_yaw_joint:
+    source: right_arm_plane_yaw
+    scale: 1.0
+    offset: 1.57
+  right_arm_elbow_roll_joint:
+    source: right_elbow_flexion
+    scale: 1.0
+    offset: 0.0
+  left_arm_shoulder_pitch_joint:
+    source: left_upper_arm_pitch
+    scale: 1.0
+    offset: 0.0
+  left_arm_shoulder_roll_joint:
+    source: left_upper_arm_roll
+    scale: 1.0
+    offset: 0.0
+  left_arm_shoulder_yaw_joint:
+    source: left_arm_plane_yaw
+    scale: 1.0
+    offset: 1.57
+  left_arm_elbow_roll_joint:
+    source: left_elbow_flexion
+    scale: 1.0
+    offset: 0.0
+  head_yaw_joint:
+    source: head_yaw
+    scale: 0.5
+    offset: 0.0

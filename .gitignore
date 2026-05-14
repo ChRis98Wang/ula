@@ -1,0 +1,38 @@
+# datasets / large generated files
+datasets/
+data_build/
+final_dataset_package/
+video/
+weights/
+models/smplh/
+
+# training outputs
+training/runs/
+runs/
+outputs/
+checkpoints/
+*.ckpt
+*.pth
+*.pt
+*.onnx
+*.npz
+*.npy
+*.pkl
+*.zip
+*.tar
+*.tar.gz
+
+# local caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# local agent/tool state
+.learnings/
+.superpowers/
+
+# env
+.env
+.venv/
+venv/

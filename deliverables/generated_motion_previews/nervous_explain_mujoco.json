@@ -1,0 +1,8 @@
+{
+  "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/video/seamless_interaction_50g/ula_fm_runs/codebook_v1/generated_nervous_explain.csv",
+  "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/generated_motion_previews/nervous_explain_mujoco.mp4",
+  "frames": 120,
+  "fps": 30.0,
+  "width": 1280,
+  "height": 720
+}

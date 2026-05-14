@@ -1,0 +1,24 @@
+{
+  "schema_name": "motion_annotation",
+  "version": "0.1",
+  "required_top_level_fields": [
+    "motion_id",
+    "source",
+    "intent",
+    "observed_affect",
+    "motion_style",
+    "interaction_state",
+    "human_review"
+  ],
+  "confidence_range": [0.0, 1.0],
+  "intent": {
+    "required_fields": ["label", "confidence"]
+  },
+  "observed_affect": {
+    "required_fields": ["label", "arousal", "valence", "confidence", "source"]
+  },
+  "human_review": {
+    "required_fields": ["reviewed", "accepted_for_training", "notes"]
+  },
+  "notes": "Emotion labels are observable affect estimates, not true psychological state."
+}

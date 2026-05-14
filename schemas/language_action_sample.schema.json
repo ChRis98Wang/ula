@@ -1,0 +1,59 @@
+{
+  "schema_name": "v2_language_action_sample",
+  "version": "0.1",
+  "unit": "time_window",
+  "required_top_level_fields": [
+    "sample_id",
+    "source",
+    "time_window",
+    "language_condition",
+    "labels",
+    "action",
+    "quality"
+  ],
+  "joint_order": [
+    "joint_pelvisYaw",
+    "joint_pelvisPitch",
+    "joint_pelvisRoll",
+    "joint_lShoulderPitch",
+    "joint_lShoulderRoll",
+    "joint_lShoulderYaw",
+    "joint_lElbow",
+    "joint_lWristRoll",
+    "joint_lWristPitch",
+    "joint_rShoulderPitch",
+    "joint_rShoulderRoll",
+    "joint_rShoulderYaw",
+    "joint_rElbow",
+    "joint_rWristRoll",
+    "joint_rWristPitch"
+  ],
+  "language_condition_fields": [
+    "raw_transcript",
+    "scenario_description",
+    "action_description",
+    "intent_text",
+    "mood_text",
+    "instruction_variants"
+  ],
+  "label_fields": [
+    "intent",
+    "observed_affect",
+    "motion_style",
+    "arousal",
+    "valence",
+    "label_sources"
+  ],
+  "action_fields": [
+    "retarget_csv_path",
+    "start_row",
+    "end_row",
+    "fps",
+    "joint_order"
+  ],
+  "notes": [
+    "Emotion labels are observable affect estimates, not true psychological state.",
+    "JSONL records reference retarget CSV windows instead of embedding dense q arrays.",
+    "Use contact-safe IK retargeted CSVs for V2 training."
+  ]
+}

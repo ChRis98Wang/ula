@@ -1,0 +1,27 @@
+{
+  "schema_name": "flow_matching_motion_sample",
+  "version": "0.1",
+  "required_top_level_fields": [
+    "motion_id",
+    "fps",
+    "joint_order",
+    "q",
+    "dq",
+    "condition"
+  ],
+  "joint_count": 11,
+  "fps": 60,
+  "condition_required_fields": [
+    "intent",
+    "observed_affect",
+    "motion_style",
+    "arousal",
+    "valence",
+    "human_state_confidence",
+    "robot_energy_level",
+    "robot_safety_mode",
+    "target_direction",
+    "duration_sec"
+  ],
+  "notes": "Generated trajectories must pass safety filtering before simulation or robot playback."
+}

@@ -1,0 +1,45 @@
+robot_name: upper_body_0421
+urdf_path: robot/urdf/0421.urdf
+output_hz: 60
+safety:
+  safety_scale: 0.5
+  max_velocity_scale: 0.5
+  max_missing_duration_sec: 0.3
+  low_confidence_policy: hold_last
+  filter_alpha: 0.35
+joint_order:
+  - waist_yaw_joint
+  - waist_roll_joint
+  - right_arm_shoulder_pitch_joint
+  - right_arm_shoulder_roll_joint
+  - right_arm_shoulder_yaw_joint
+  - right_arm_elbow_roll_joint
+  - left_arm_shoulder_pitch_joint
+  - left_arm_shoulder_roll_joint
+  - left_arm_shoulder_yaw_joint
+  - left_arm_elbow_roll_joint
+  - head_yaw_joint
+joint_limits:
+  waist_yaw_joint: [-1.57, 1.57]
+  waist_roll_joint: [-0.423, 0.423]
+  right_arm_shoulder_pitch_joint: [-1.57, 1.57]
+  right_arm_shoulder_roll_joint: [-1.57, 2.00]
+  right_arm_shoulder_yaw_joint: [0.0, 3.14]
+  right_arm_elbow_roll_joint: [-0.4, 2.00]
+  left_arm_shoulder_pitch_joint: [-1.57, 1.57]
+  left_arm_shoulder_roll_joint: [-1.57, 2.00]
+  left_arm_shoulder_yaw_joint: [0.0, 3.14]
+  left_arm_elbow_roll_joint: [-0.4, 2.10]
+  head_yaw_joint: [-0.512, 0.512]
+neutral_pose:
+  waist_yaw_joint: 0.0
+  waist_roll_joint: 0.0
+  right_arm_shoulder_pitch_joint: 0.0
+  right_arm_shoulder_roll_joint: 0.0
+  right_arm_shoulder_yaw_joint: 1.57
+  right_arm_elbow_roll_joint: 0.1
+  left_arm_shoulder_pitch_joint: 0.0
+  left_arm_shoulder_roll_joint: 0.0
+  left_arm_shoulder_yaw_joint: 1.57
+  left_arm_elbow_roll_joint: 0.1
+  head_yaw_joint: 0.0

@@ -1,0 +1,51 @@
+intent_labels:
+  - greeting
+  - pointing
+  - refusing
+  - thinking
+  - comforting
+  - warning
+  - explaining
+  - requesting_help
+  - waiting
+  - attention_shift
+observed_affect_labels:
+  - friendly
+  - neutral
+  - uncertain
+  - nervous
+  - angry_like
+  - sad_like
+  - excited
+  - low_confidence_unknown
+motion_style_labels:
+  - slow_safe
+  - energetic
+  - hesitant
+  - sharp
+  - relaxed
+  - restrained
+interaction_state_labels:
+  - looking_at_robot
+  - looking_away
+  - approaching
+  - backing_away
+  - waiting
+  - requesting_help
+  - refusing
+continuous_fields:
+  arousal:
+    min: 0.0
+    max: 1.0
+  valence:
+    min: -1.0
+    max: 1.0
+  confidence:
+    min: 0.0
+    max: 1.0
+  motion_energy:
+    min: 0.0
+    max: 1.0
+low_confidence_policy:
+  affect: low_confidence_unknown
+  robot_action: neutral_or_hold
