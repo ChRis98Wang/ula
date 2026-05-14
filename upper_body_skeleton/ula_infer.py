@@ -25,7 +25,9 @@ def load_model(checkpoint_path, device):
         hidden_dim=int(config.get("hidden_dim", 256)),
         layers=int(config.get("layers", 4)),
     )
-    model.load_state_dict(checkpoint["model_state_dict"])
+    missing, unexpected = model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+    if unexpected:
+        raise RuntimeError(f"unexpected checkpoint keys: {unexpected}")
     model.to(device)
     return model, checkpoint
 

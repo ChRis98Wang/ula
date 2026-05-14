@@ -11,6 +11,8 @@ import mujoco
 import numpy as np
 
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
+from upper_body_skeleton.side_by_side_preview import build_front_camera
+from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF
 
 
 V2_UPPER_BODY_XML = """
@@ -83,36 +85,57 @@ def read_joint_csv(path):
     return np.asarray(rows, dtype=np.float32)
 
 
-def build_preview_model():
-    model = mujoco.MjModel.from_xml_string(V2_UPPER_BODY_XML)
+def load_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
+    if simplified:
+        model = mujoco.MjModel.from_xml_string(V2_UPPER_BODY_XML)
+        model_source = "simplified_builtin_xml"
+    else:
+        urdf_path = Path(urdf_path)
+        model = mujoco.MjModel.from_xml_path(str(urdf_path))
+        model_source = str(urdf_path)
     joint_to_qpos = {}
     for index, joint in enumerate(JOINT_ORDER):
         joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, joint)
         if joint_id < 0:
             raise ValueError(f"missing joint in MuJoCo model: {joint}")
         joint_to_qpos[index] = int(model.jnt_qposadr[joint_id])
+    return model, joint_to_qpos, model_source
+
+
+def build_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
+    model, joint_to_qpos, _ = load_preview_model(urdf_path=urdf_path, simplified=simplified)
     return model, joint_to_qpos
 
 
-def render_motion(joint_csv, output_mp4, *, fps=30.0, width=1280, height=720, camera_distance=2.2):
+def render_motion(
+    joint_csv,
+    output_mp4,
+    *,
+    fps=30.0,
+    width=1280,
+    height=720,
+    urdf_path=DEFAULT_URDF,
+    simplified=False,
+    camera_distance=None,
+):
     trajectory = read_joint_csv(joint_csv)
-    model, joint_to_qpos = build_preview_model()
+    model, joint_to_qpos, model_source = load_preview_model(urdf_path=urdf_path, simplified=simplified)
+    model.vis.global_.offwidth = max(int(model.vis.global_.offwidth), int(width))
+    model.vis.global_.offheight = max(int(model.vis.global_.offheight), int(height))
     data = mujoco.MjData(model)
     renderer = mujoco.Renderer(model, height=height, width=width)
-    camera = mujoco.MjvCamera()
-    camera.type = mujoco.mjtCamera.mjCAMERA_FREE
-    camera.lookat[:] = [0.0, 0.0, -0.05]
-    camera.distance = camera_distance
-    camera.azimuth = 180
-    camera.elevation = -10
+    camera = build_front_camera()
+    if camera_distance is not None:
+        camera.distance = float(camera_distance)
 
     frames = []
     for values in trajectory:
+        data.qpos[:] = 0.0
         for action_index, value in enumerate(values):
             data.qpos[joint_to_qpos[action_index]] = float(value)
         mujoco.mj_forward(model, data)
         renderer.update_scene(data, camera=camera)
-        frames.append(renderer.render())
+        frames.append(renderer.render().copy())
     renderer.close()
     output_mp4 = Path(output_mp4)
     output_mp4.parent.mkdir(parents=True, exist_ok=True)
@@ -123,9 +146,13 @@ def render_motion(joint_csv, output_mp4, *, fps=30.0, width=1280, height=720, ca
         "input_csv": str(joint_csv),
         "output_mp4": str(output_mp4),
         "frames": int(trajectory.shape[0]),
+        "duration_sec": float(trajectory.shape[0] / fps) if fps else None,
         "fps": float(fps),
         "width": int(width),
         "height": int(height),
+        "model_source": model_source,
+        "model_nq": int(model.nq),
+        "model_nbody": int(model.nbody),
     }
 
 
@@ -137,8 +164,18 @@ def main():
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--urdf", default=str(DEFAULT_URDF))
+    parser.add_argument("--simplified", action="store_true", help="Use the old built-in simplified preview model")
     args = parser.parse_args()
-    summary = render_motion(args.joint_csv, args.output_mp4, fps=args.fps, width=args.width, height=args.height)
+    summary = render_motion(
+        args.joint_csv,
+        args.output_mp4,
+        fps=args.fps,
+        width=args.width,
+        height=args.height,
+        urdf_path=args.urdf,
+        simplified=args.simplified,
+    )
     if args.summary_json:
         Path(args.summary_json).parent.mkdir(parents=True, exist_ok=True)
         Path(args.summary_json).write_text(json.dumps(summary, indent=2), encoding="utf-8")

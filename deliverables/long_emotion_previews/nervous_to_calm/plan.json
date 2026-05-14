@@ -1,0 +1,130 @@
+{
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "fps": 30.0,
+  "max_duration_sec": 30.0,
+  "segments": [
+    {
+      "segment_index": 0,
+      "start_sec": 0.0,
+      "end_sec": 3.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9585813879966736,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.25544384121894836,
+        "emotion_change": 0.24829824268817902,
+        "action_change": 0.26479244232177734,
+        "end": 0.2314654439687729
+      }
+    },
+    {
+      "segment_index": 1,
+      "start_sec": 3.0,
+      "end_sec": 6.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9588168263435364,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.25585007667541504,
+        "emotion_change": 0.24840274453163147,
+        "action_change": 0.2648613750934601,
+        "end": 0.2308858186006546
+      }
+    },
+    {
+      "segment_index": 2,
+      "start_sec": 6.0,
+      "end_sec": 9.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9603168368339539,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.2560233473777771,
+        "emotion_change": 0.24741509556770325,
+        "action_change": 0.2653556168079376,
+        "end": 0.23120595514774323
+      }
+    },
+    {
+      "segment_index": 3,
+      "start_sec": 9.0,
+      "end_sec": 12.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.960171103477478,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.2558908760547638,
+        "emotion_change": 0.24743781983852386,
+        "action_change": 0.2657773196697235,
+        "end": 0.2308940291404724
+      }
+    },
+    {
+      "segment_index": 4,
+      "start_sec": 12.0,
+      "end_sec": 15.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.960416853427887,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.2565990090370178,
+        "emotion_change": 0.247141033411026,
+        "action_change": 0.2649734914302826,
+        "end": 0.2312864363193512
+      }
+    },
+    {
+      "segment_index": 5,
+      "start_sec": 15.0,
+      "end_sec": 18.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9595860242843628,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.25594478845596313,
+        "emotion_change": 0.247857928276062,
+        "action_change": 0.26486432552337646,
+        "end": 0.23133303225040436
+      }
+    },
+    {
+      "segment_index": 6,
+      "start_sec": 18.0,
+      "end_sec": 21.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9587567448616028,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.2553246319293976,
+        "emotion_change": 0.24796536564826965,
+        "action_change": 0.2655484080314636,
+        "end": 0.23116157948970795
+      }
+    },
+    {
+      "segment_index": 7,
+      "start_sec": 21.0,
+      "end_sec": 24.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9585739374160767,
+      "used_duration_sec": 3.0,
+      "transition": "action_change",
+      "transition_probs": {
+        "continue": 0.25570663809776306,
+        "emotion_change": 0.24738886952400208,
+        "action_change": 0.26527997851371765,
+        "end": 0.2316245138645172
+      }
+    }
+  ],
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion.npz",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion_original_v2.mp4"
+}

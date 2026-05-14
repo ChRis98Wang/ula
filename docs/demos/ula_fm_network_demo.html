@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codebook-Guided ULA-FM v0.2 | Language Action Flow Matching</title>
+  <title>Codebook-Guided ULA-FM v0.3 | Long Emotion Language Action</title>
   <style>
     :root {
       --bg: #f7f8fb;
@@ -1006,17 +1006,17 @@
     <div class="shell hero">
       <div>
         <div class="eyebrow">No Vision Input · Body-only Language Action Model</div>
-        <h1>Codebook-Guided ULA-FM v0.2</h1>
+        <h1>Codebook-Guided ULA-FM v0.3</h1>
         <p class="hero-copy">
-          一个面向 V2 机器人上肢的 <strong>Conditional Flow Matching Action Expert</strong>：
-          从语言、情景、肢体语义手势、A/V 情绪码和机器人当前状态生成 15 维上肢关节轨迹，
-          再通过 MuJoCo 安全过滤输出可预览、可训练、可回放的数据。
+          一个面向 V2 机器人上肢的 <strong>Long Emotion Conditional Flow Matching Action Expert</strong>：
+          从语言、情景、肢体语义手势、A/V 情绪码和机器人当前状态规划多段情绪动作，
+          再用 Flow Expert 生成 15 维上肢关节轨迹，并通过原 V2 MuJoCo 模型录制预览。
         </p>
       </div>
       <div class="hero-matrix" aria-label="Action chunk visualization">
         <div class="matrix-title">
-          <span>Action Chunk [120 frames × 15 joints]</span>
-          <span>source 30 Hz · 4 sec</span>
+          <span>Long Emotion Plan + Action Segments</span>
+          <span>variable T · original V2 MuJoCo</span>
         </div>
         <div class="token-grid">
           <div class="token">pelvisYaw</div>
@@ -1038,9 +1038,9 @@
         <div class="mini-flow">
           <div>Condition<br>prompt + codes + q0</div>
           <span class="mini-arrow">→</span>
-          <div>Flow Expert<br>internal flow time τ</div>
+          <div>Planner Head<br>duration + transition</div>
           <span class="mini-arrow">→</span>
-          <div>Action Chunk<br>q[120, 15]</div>
+          <div>Long Motion<br>q[T, 15]</div>
         </div>
       </div>
     </div>
@@ -1054,6 +1054,7 @@
         <a href="#dataset-shape">数据集</a>
         <a href="#meta-original">Meta 原论文</a>
         <a href="#network">网络结构</a>
+        <a href="#long-emotion">长程情绪</a>
         <a href="#codebook-fusion">Codebook</a>
         <a href="#language-head">语言头</a>
         <a href="#training">训练图</a>
@@ -1085,20 +1086,20 @@
             <span>V2 上肢关节维度</span>
           </div>
           <div class="metric">
-            <strong>120</strong>
-            <span>每个 action chunk 帧数</span>
+            <strong>T</strong>
+            <span>长程输出总帧数，由多段 action segment 拼接</span>
           </div>
           <div class="metric">
             <strong>30Hz</strong>
             <span>当前 CSV / JSONL 源频率</span>
           </div>
           <div class="metric">
-            <strong>8-16</strong>
-            <span>推理积分步数</span>
+            <strong>duration</strong>
+            <span>Planner 预测每段动作持续时间</span>
           </div>
           <div class="metric">
-            <strong>0.5s</strong>
-            <span>重规划执行窗口</span>
+            <strong>4-way</strong>
+            <span>continue / emotion_change / action_change / end</span>
           </div>
           <div class="metric">
             <strong>Codes</strong>
@@ -1806,6 +1807,10 @@ data parquet row:
                 <h4>Condition Fusion</h4>
                 <p>concat 后通过 MLP + LayerNorm，得到 cond_emb，作为每层 Transformer 的条件。</p>
               </div>
+              <div class="block red">
+                <h4>Long Emotion Planner Head</h4>
+                <p>从同一个 condition 预测 duration_sec 和 transition logits：continue、emotion_change、action_change、end。</p>
+              </div>
             </div>
 
             <div class="core">
@@ -1824,7 +1829,7 @@ data parquet row:
               <div class="io-strip">
                 <div class="io">预测速度场<br>vθ(x_t, t, c)</div>
                 <div class="big-arrow">→</div>
-                <div class="io">生成轨迹<br>[120, 15]</div>
+                <div class="io">单段轨迹<br>q[segment_T, 15]</div>
               </div>
             </div>
 
@@ -1838,12 +1843,12 @@ data parquet row:
                 <p>每个 prompt 生成多个候选，选择安全分最高且最贴近风格条件的动作。</p>
               </div>
               <div class="block violet">
-                <h4>Receding Horizon</h4>
-                <p>生成一个短轨迹窗口，只执行前若干帧，然后基于新 q0 重新规划，减少漂移。</p>
+                <h4>Segment Stitcher</h4>
+                <p>根据 planner 输出循环生成多段动作，用上一段末尾 q 作为下一段起点，形成长程情绪表达。</p>
               </div>
               <div class="block amber">
                 <h4>Export</h4>
-                <p>CSV、MuJoCo preview、人工抽检记录，后续接 ROS2 上肢回放。</p>
+                <p>long_motion.csv、plan.json、summary.json、原 V2 MuJoCo MP4，后续接 ROS2 上肢回放。</p>
               </div>
             </div>
           </div>
@@ -1967,6 +1972,159 @@ data parquet row:
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="long-emotion">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Long Emotion v0.3</div>
+            <h2>新训练和模型改动：让动作自己决定持续、转场和结束</h2>
+          </div>
+          <p class="section-note">
+            v0.3 不再把生成动作理解成固定 4 秒。当前数据仍是 120 帧训练窗口，但模型已经加入
+            duration 和 transition 规划头；推理时由 planner 循环调用 Flow Expert，拼成长程情绪表达。
+          </p>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>新增模块总图</h3>
+            <span class="badge">Planner + Segment Flow + Original V2 Playback</span>
+          </div>
+          <div class="pipeline">
+            <div class="node label">
+              <strong>语言/情绪条件</strong>
+              <span>prompt、intent、gesture、A/V、style、q0</span>
+            </div>
+            <div class="node model">
+              <strong>Condition Encoder</strong>
+              <span>复用 v0.2 的 text/code/numeric/robot condition</span>
+            </div>
+            <div class="node model">
+              <strong>Planner Head</strong>
+              <span>duration_sec + transition_logits[4]</span>
+            </div>
+            <div class="node model">
+              <strong>Segment Flow Expert</strong>
+              <span>按 planner 的时长生成 q[segment_T,15]</span>
+            </div>
+            <div class="node data">
+              <strong>Continuity State</strong>
+              <span>上一段末尾 q 作为下一段起点，减少段间跳变</span>
+            </div>
+            <div class="node safe">
+              <strong>Original V2 MuJoCo</strong>
+              <span>加载 mujoco_robot_v2_meshdir.urdf，不再使用简化机器人</span>
+            </div>
+            <div class="node warn">
+              <strong>长程输出</strong>
+              <span>plan.json + long_motion.csv + long_motion_original_v2.mp4</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <table>
+            <thead>
+              <tr>
+                <th>新增训练头</th>
+                <th>当前实现</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>duration_head</td>
+                <td><code>softplus(MLP(cond)) + 0.25</code>，输出每段动作预测持续秒数。</td>
+              </tr>
+              <tr>
+                <td>transition_head</td>
+                <td>4 类 logits：<code>continue</code>、<code>emotion_change</code>、<code>action_change</code>、<code>end</code>。</td>
+              </tr>
+              <tr>
+                <td>planner_loss</td>
+                <td><code>smooth_l1(log1p(duration)) + 0.25 * cross_entropy(transition)</code>。</td>
+              </tr>
+              <tr>
+                <td>flow_loss</td>
+                <td>仍然是 Conditional Flow Matching：<code>MSE(vθ(x_t,t,c), x_data-z)</code>。</td>
+              </tr>
+              <tr>
+                <td>总 loss</td>
+                <td><code>L = L_flow + 0.05 * L_planner</code>，先保证动作分布，再逐步增强时长和转场监督。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                <th>训练数据现实</th>
+                <th>解释</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>当前 parquet</td>
+                <td>51,101 episodes，每条仍是 120 帧固定窗口；这是现有数据事实，不等于最终长程数据。</td>
+              </tr>
+              <tr>
+                <td>当前 duration 监督</td>
+                <td>弱监督来自 episode length / fps，所以旧数据只能给 planner 一个可训练接口，不能充分学真实“解释多久”。</td>
+              </tr>
+              <tr>
+                <td>下一版数据</td>
+                <td>需要从整段 retarget CSV、transcript、A/V token 和 motion_energy 自动切出 variable-length 情绪段。</td>
+              </tr>
+              <tr>
+                <td>旧 checkpoint</td>
+                <td>已支持 strict=False 加载；旧权重能跑长程推理，但 planner head 是新初始化，必须重新训练才有质量。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>长程推理循环</h3>
+            <span class="badge">Loop Until End or Max Duration</span>
+          </div>
+          <pre class="json-sample">for segment_i in range(max_segments):
+    cond_i = condition(prompt, q_last, previous_transition)
+    duration_i, transition_i = planner_head(cond_i)
+    q_i = flow_expert.sample(cond_i, frames=duration_i * fps)
+    q_i[0] = q_last
+    append(q_i)
+    if transition_i == "end" and min_segments_satisfied:
+        break
+
+render original V2 MuJoCo:
+  long_motion.csv -> long_motion_original_v2.mp4</pre>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>手动推理命令</h3>
+            <span class="badge">No .sh · Transparent Command</span>
+          </div>
+          <pre class="json-sample">cd /Users/demo/Desktop/upper_body_motion_roadmap
+
+PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
+/Users/demo/Desktop/mjlab/.venv/bin/python -m upper_body_skeleton.long_emotion_infer \
+  --checkpoint /Users/demo/Desktop/upper_body_motion_roadmap/weights/codebook_v1_checkpoint.pt \
+  --text "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化" \
+  --output-dir /Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm \
+  --max-duration-sec 30 \
+  --min-segment-sec 3 \
+  --max-segment-sec 8 \
+  --min-segments 3 \
+  --max-segments 8 \
+  --sampling-steps 32 \
+  --device auto \
+  --width 1280 \
+  --height 720</pre>
         </div>
       </div>
     </section>
@@ -2108,10 +2266,11 @@ data parquet row:
         <div class="section-head">
           <div>
             <div class="section-kicker">Training Graph</div>
-            <h2>训练时学习“从噪声流向真实动作”</h2>
+            <h2>训练时同时学习动作速度场、时长和转场</h2>
           </div>
           <p class="section-note">
-            训练目标不是预测下一个点，而是学习一个条件速度场。语言先被监督成中间控制码，再由 codebook 和机器人状态决定动作的意图、情绪表现、节奏和幅度。
+            v0.3 的主目标仍是条件速度场，但额外训练 planner head：
+            预测每段动作持续时间，以及 continue、emotion_change、action_change、end 四类转场。
           </p>
         </div>
 
@@ -2124,8 +2283,8 @@ data parquet row:
             <div class="step">
               <div class="step-number">1</div>
               <h4>读取训练窗口</h4>
-              <p>从 JSONL 读取文本、标签和质量字段，从 CSV 读取对应时间窗口，得到真实动作 x_data。</p>
-              <div class="formula">x_data ∈ R^[120×15]</div>
+              <p>从 LeRobot parquet 读取文本、语义、质量字段和 V2 关节序列；当前数据仍是固定窗口。</p>
+              <div class="formula">x_data ∈ R^[120×15]，future: x_data ∈ R^[T×15]</div>
             </div>
             <div class="step">
               <div class="step-number">2</div>
@@ -2148,8 +2307,8 @@ data parquet row:
             <div class="step">
               <div class="step-number">5</div>
               <h4>优化与验证</h4>
-              <p>联合 flow、code、平滑、起始姿态和关节限位余量；定期生成预览验证。</p>
-              <div class="formula">L = L_flow + λ_codeL_code + L_smooth + L_limit + L_start</div>
+              <p>联合 flow 和 planner loss；定期生成长程 MuJoCo 预览，检查情绪表达是否持续且有转场。</p>
+              <div class="formula">L = L_flow + 0.05 · L_planner</div>
             </div>
           </div>
         </div>
@@ -2202,11 +2361,11 @@ data parquet row:
         <div class="section-head">
           <div>
             <div class="section-kicker">Inference Graph</div>
-            <h2>推理时从语言生成安全动作候选</h2>
+            <h2>推理时先规划长程情绪段，再生成安全动作</h2>
           </div>
           <p class="section-note">
-            推理过程保守处理：先生成多个候选，再做安全排序，最后只执行短窗口。
-            这比一次性生成长动作更稳，也便于接入实时机器人状态。
+            推理过程改成 planner loop：每段先预测 duration 和 transition，再生成对应长度的动作段；
+            多段拼接成长程表达，最后用原 V2 MuJoCo 模型录制。
           </p>
         </div>
 
@@ -2221,8 +2380,8 @@ data parquet row:
               <span>“友好地解释”“克制地拒绝”“紧张地等待”</span>
             </div>
             <div class="node model">
-              <strong>Code Adapter</strong>
-              <span>预测 gesture、intent、A/V bucket、style</span>
+              <strong>Code + Planner</strong>
+              <span>预测 gesture、intent、A/V、style、duration、transition</span>
             </div>
             <div class="node data">
               <strong>机器人当前状态</strong>
@@ -2233,20 +2392,20 @@ data parquet row:
               <span>text + codebook + numeric + robot state</span>
             </div>
             <div class="node model">
-              <strong>Flow Sampling</strong>
-              <span>噪声起点，Euler / Heun 8-16 步</span>
+              <strong>Segment Flow Sampling</strong>
+              <span>每段从噪声采样 q[segment_T,15]</span>
             </div>
             <div class="node safe">
-              <strong>候选动作</strong>
-              <span>生成 4-8 条 [120, 15] 轨迹</span>
+              <strong>长程拼接</strong>
+              <span>q_last 连续约束，多段合成 q[T,15]</span>
             </div>
             <div class="node safe">
               <strong>安全筛选</strong>
               <span>MuJoCo collision + limit + smooth</span>
             </div>
             <div class="node warn">
-              <strong>短窗口执行</strong>
-              <span>执行前 0.5 秒，再重规划</span>
+              <strong>原 V2 录制</strong>
+              <span>long_motion.csv → original V2 MuJoCo MP4</span>
             </div>
           </div>
         </div>
@@ -2254,12 +2413,12 @@ data parquet row:
         <div class="two-col">
           <div class="callout">
             <strong>推荐推理策略</strong>
-            先预测可解释的中间 code，再生成短轨迹窗口，但只播放前若干帧；每次重规划都把机器人真实 q0/dq0 塞回模型。
-            这样动作可以持续，又不会因为长序列生成误差导致姿态漂移。
+            先预测可解释的中间 code 和 planner 结果，再生成多个动作段；每段之间把上一段末尾 q 写回下一段起点。
+            这样可以形成 20-60 秒长程情绪表达，同时保留安全过滤和人工预览。
           </div>
           <div class="callout risk">
             <strong>安全边界</strong>
-            低置信度 code、超限候选、碰撞候选、穿模候选全部降级为 null gesture + neutral style 或保持当前姿态。
+            低置信度 code、超限候选、碰撞候选、穿模候选全部降级为 null gesture + neutral style 或缩短当前 segment。
             模型输出不是最终控制命令，必须被安全层接管。
           </div>
         </div>

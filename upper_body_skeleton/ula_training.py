@@ -22,6 +22,7 @@ STYLE_IDS = {"restrained": 0, "relaxed": 1, "energetic": 2}
 GESTURE_IDS = {"null": 0, "upper_body_gesture": 1, "pointing": 2, "crossed_arms": 3, "shrugging": 4, "waving": 5}
 BASE_CONDITION_DIM = len(INTENT_IDS) + len(AFFECT_IDS) + len(STYLE_IDS) + len(GESTURE_IDS) + 5
 TEXT_EMBED_DIM = 64
+TRANSITION_IDS = {"continue": 0, "emotion_change": 1, "action_change": 2, "end": 3}
 
 
 INTENT_KEYWORDS = [
@@ -198,6 +199,9 @@ def load_lerobot_episodes(dataset_dir, max_episodes=None):
                 "actions": actions,
                 "condition": condition_vector(meta),
                 "task_index": frame_rows[0]["task_index"] if frame_rows else 0,
+                "duration_sec": float(len(actions) / max(1e-6, float(meta.get("fps") or 30.0))),
+                "fps": float(meta.get("fps") or 30.0),
+                "transition_id": TRANSITION_IDS["end"],
             }
         )
 
@@ -239,6 +243,9 @@ class UlaFmModel(nn.Module):
         self.input = nn.Linear(action_dim, hidden_dim)
         self.time = SinusoidalTimeEmbedding(hidden_dim)
         self.cond = nn.Sequential(nn.Linear(condition_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, hidden_dim))
+        self.plan = nn.Sequential(nn.Linear(condition_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, hidden_dim), nn.SiLU())
+        self.duration_head = nn.Linear(hidden_dim, 1)
+        self.transition_head = nn.Linear(hidden_dim, len(TRANSITION_IDS))
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=4,
@@ -255,6 +262,13 @@ class UlaFmModel(nn.Module):
         time = self.time(t)[:, None, :]
         h = h + cond + time
         return self.output(self.blocks(h))
+
+    def plan_condition(self, condition):
+        if condition.ndim == 1:
+            condition = condition[None, :]
+        h = self.plan(condition)
+        duration_sec = torch.nn.functional.softplus(self.duration_head(h).squeeze(-1)) + 0.25
+        return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
 
 
 def joint_limit_tensors(device, action_dim):
@@ -360,7 +374,9 @@ def sample_batch(episodes, batch_size, device):
     selected = random.choices(episodes, k=batch_size)
     actions = torch.tensor(np.stack([episode["actions"] for episode in selected]), dtype=torch.float32, device=device)
     condition = torch.tensor(np.stack([episode["condition"] for episode in selected]), dtype=torch.float32, device=device)
-    return actions, condition
+    duration = torch.tensor([episode.get("duration_sec", episode["actions"].shape[0] / 30.0) for episode in selected], dtype=torch.float32, device=device)
+    transition = torch.tensor([episode.get("transition_id", TRANSITION_IDS["end"]) for episode in selected], dtype=torch.long, device=device)
+    return actions, condition, duration, transition
 
 
 def flow_matching_loss(model, actions, condition):
@@ -370,6 +386,15 @@ def flow_matching_loss(model, actions, condition):
     target_v = actions - noise
     pred_v = model(x_t, t, condition)
     return torch.mean((pred_v - target_v) ** 2)
+
+
+def planner_loss(model, condition, duration_target, transition_target):
+    plan = model.plan_condition(condition)
+    duration_target = duration_target.to(plan["duration_sec"].device, plan["duration_sec"].dtype)
+    transition_target = transition_target.to(plan["transition_logits"].device, torch.long)
+    duration = torch.nn.functional.smooth_l1_loss(torch.log1p(plan["duration_sec"]), torch.log1p(duration_target))
+    transition = torch.nn.functional.cross_entropy(plan["transition_logits"], transition_target)
+    return duration + 0.25 * transition
 
 
 def train_steps(
@@ -399,8 +424,8 @@ def train_steps(
     if progress_path:
         progress_path.parent.mkdir(parents=True, exist_ok=True)
     for step_index in range(steps):
-        actions, condition = sample_batch(episodes, batch_size, device)
-        loss = flow_matching_loss(model, actions, condition)
+        actions, condition, durations, transitions = sample_batch(episodes, batch_size, device)
+        loss = flow_matching_loss(model, actions, condition) + 0.05 * planner_loss(model, condition, durations, transitions)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)

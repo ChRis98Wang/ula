@@ -1,0 +1,40 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm",
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "segments": 8,
+  "frames": 720,
+  "duration_sec": 24.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/plan.json",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion_original_v2.mp4",
+  "render": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion.csv",
+    "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm/long_motion_original_v2.mp4",
+    "frames": 720,
+    "duration_sec": 24.0,
+    "fps": 30.0,
+    "width": 1280,
+    "height": 720,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/video/seamless_interaction_50g/upper_body_skeletons/mujoco_robot_v2_meshdir.urdf",
+    "model_nq": 25,
+    "model_nbody": 29
+  },
+  "last_pose": [
+    0.029388979077339172,
+    0.015034588053822517,
+    -0.018492719158530235,
+    -0.12509195506572723,
+    -1.3844587802886963,
+    0.03879999369382858,
+    -0.6966734528541565,
+    -0.024179961532354355,
+    -0.01349746435880661,
+    -0.48233556747436523,
+    -1.409999966621399,
+    -0.7208425998687744,
+    0.7018100619316101,
+    0.016520552337169647,
+    -0.009824604727327824
+  ]
+}

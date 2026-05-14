@@ -10,6 +10,7 @@ from upper_body_skeleton.ula_training import (
     build_condition_from_text,
     load_lerobot_episodes,
     sample_trajectory,
+    planner_loss,
     train_steps,
     write_training_preview,
     write_generated_csv,
@@ -130,6 +131,28 @@ def test_flow_sampler_exports_generated_joint_csv(tmp_path):
     assert trajectory.shape == (6, len(JOINT_ORDER))
     assert torch.isfinite(torch.tensor(trajectory)).all()
     assert csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_sec," + ",".join(JOINT_ORDER)
+
+
+def test_ula_model_predicts_duration_and_transition_logits():
+    condition = torch.randn(3, 92)
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+
+    plan = model.plan_condition(condition)
+
+    assert plan["duration_sec"].shape == (3,)
+    assert plan["transition_logits"].shape == (3, 4)
+    assert torch.all(plan["duration_sec"] > 0.0)
+
+
+def test_planner_loss_uses_duration_and_transition_targets():
+    condition = torch.randn(2, 92)
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    duration_target = torch.tensor([4.0, 12.0])
+    transition_target = torch.tensor([0, 3])
+
+    loss = planner_loss(model, condition, duration_target, transition_target)
+
+    assert torch.isfinite(loss)
 
 
 def test_training_preview_writes_mujoco_video_folder(tmp_path):

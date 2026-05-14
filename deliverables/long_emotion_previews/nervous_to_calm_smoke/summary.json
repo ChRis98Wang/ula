@@ -1,0 +1,40 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke",
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "segments": 4,
+  "frames": 90,
+  "duration_sec": 3.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/plan.json",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion_original_v2.mp4",
+  "render": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion.csv",
+    "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion_original_v2.mp4",
+    "frames": 90,
+    "duration_sec": 3.0,
+    "fps": 30.0,
+    "width": 640,
+    "height": 360,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/video/seamless_interaction_50g/upper_body_skeletons/mujoco_robot_v2_meshdir.urdf",
+    "model_nq": 25,
+    "model_nbody": 29
+  },
+  "last_pose": [
+    -0.14906279742717743,
+    0.0807955265045166,
+    -0.022579699754714966,
+    -1.399999976158142,
+    -0.6923071146011353,
+    2.7899999618530273,
+    -1.5700000524520874,
+    -0.026392266154289246,
+    0.05799514055252075,
+    -1.0818639993667603,
+    -1.232973337173462,
+    -0.09679843485355377,
+    0.9795072078704834,
+    -0.11460685729980469,
+    -0.14364147186279297
+  ]
+}

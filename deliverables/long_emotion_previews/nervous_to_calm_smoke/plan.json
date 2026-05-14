@@ -1,0 +1,70 @@
+{
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "fps": 30.0,
+  "max_duration_sec": 3.0,
+  "segments": [
+    {
+      "segment_index": 0,
+      "start_sec": 0.0,
+      "end_sec": 0.9666666666666667,
+      "frames": 29,
+      "predicted_duration_sec": 0.9647635817527771,
+      "used_duration_sec": 0.9666666666666667,
+      "transition": "continue",
+      "transition_probs": {
+        "continue": 0.25600048899650574,
+        "emotion_change": 0.24529537558555603,
+        "action_change": 0.25195249915122986,
+        "end": 0.2467515617609024
+      }
+    },
+    {
+      "segment_index": 1,
+      "start_sec": 0.9666666666666667,
+      "end_sec": 1.9333333333333333,
+      "frames": 29,
+      "predicted_duration_sec": 0.9631267786026001,
+      "used_duration_sec": 0.9666666666666667,
+      "transition": "continue",
+      "transition_probs": {
+        "continue": 0.25550833344459534,
+        "emotion_change": 0.24596451222896576,
+        "action_change": 0.25190988183021545,
+        "end": 0.24661721289157867
+      }
+    },
+    {
+      "segment_index": 2,
+      "start_sec": 1.9333333333333333,
+      "end_sec": 2.9,
+      "frames": 29,
+      "predicted_duration_sec": 0.9635502696037292,
+      "used_duration_sec": 0.9666666666666667,
+      "transition": "continue",
+      "transition_probs": {
+        "continue": 0.25594010949134827,
+        "emotion_change": 0.24635151028633118,
+        "action_change": 0.25165992975234985,
+        "end": 0.2460484355688095
+      }
+    },
+    {
+      "segment_index": 3,
+      "start_sec": 2.9,
+      "end_sec": 3.0,
+      "frames": 3,
+      "predicted_duration_sec": 0.9638218879699707,
+      "used_duration_sec": 0.1,
+      "transition": "continue",
+      "transition_probs": {
+        "continue": 0.2555837631225586,
+        "emotion_change": 0.24647481739521027,
+        "action_change": 0.2511295676231384,
+        "end": 0.24681179225444794
+      }
+    }
+  ],
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion.npz",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smoke/long_motion_original_v2.mp4"
+}
