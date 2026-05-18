@@ -107,6 +107,16 @@ def test_build_records_writes_jsonl_referencing_action_csv(tmp_path):
     assert record["action"]["end_row"] == 120
     assert record["meta_semantics"]["body_motion"]["action_shape"] == [120, len(JOINT_ORDER)]
     assert record["meta_semantics"]["body_motion"]["joint_space"] == "v2_upper_body_15d"
+    assert record["labels"]["communicative_intent"] == "explaining"
+    assert record["labels"]["gesture_function"] == "representational"
+    assert record["labels"]["emotion_trajectory"] == "friendly_sustained"
+    assert record["labels"]["intensity"] == "low"
+    assert record["labels"]["openness"] == "neutral"
+    assert record["labels"]["tension"] == "low"
+    assert record["labels"]["duration_sec"] == 4.0
+    assert record["labels"]["transition"] == "end"
+    assert record["meta_semantics"]["body_expression"]["gesture_function"] == "representational"
+    assert record["meta_semantics"]["body_expression"]["openness"] == "neutral"
     assert "facial_action_units" not in record["meta_semantics"]
     assert "head_gaze" not in record["meta_semantics"]
 

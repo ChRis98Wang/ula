@@ -1,0 +1,26 @@
+dataset_dir: /mnt/datasets/lerobot_v2_upper_body_body_only_clean_v1
+output_dir: /workspace/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m
+
+steps: 1000000
+batch_size: 32
+lr: 0.0001
+max_episodes: 51101
+hidden_dim: 384
+layers: 6
+device: auto
+log_interval: 200
+
+preview:
+  every_steps: 1000
+  text: "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化"
+  mode: long
+  duration_sec: 24
+  min_segment_sec: 3
+  max_segment_sec: 3
+  min_segments: 8
+  max_segments: 8
+  max_velocity_rad_s: 3.0
+  smooth_window: 5
+  sampling_steps: 32
+  width: 1280
+  height: 720

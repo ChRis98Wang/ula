@@ -7,6 +7,7 @@ from upper_body_skeleton.side_by_side_preview import (
     build_upper_body_camera,
     concat_side_by_side,
     preview_output_path,
+    select_rows,
     skip_video_frames,
     update_renderer_scene,
 )
@@ -89,3 +90,27 @@ def test_skip_video_frames_supports_imageio_reader_get_data():
     skip_video_frames(reader, 3)
 
     assert reader.requested == [0, 1, 2]
+
+
+def test_select_rows_accepts_preview_processed_status():
+    rows = [
+        {"sample": "a", "status": "error:ValueError:x", "max_cross_body_intent": "1.0", "frame_count": "10"},
+        {
+            "sample": "b",
+            "status": "processed_preview_360",
+            "max_cross_body_intent": "0.8",
+            "flagged_frame_count": "0",
+            "frame_count": "10",
+        },
+        {
+            "sample": "c",
+            "status": "processed",
+            "max_cross_body_intent": "0.2",
+            "flagged_frame_count": "0",
+            "frame_count": "10",
+        },
+    ]
+
+    selected = select_rows(rows, limit=2)
+
+    assert [row["sample"] for row in selected] == ["b", "c"]

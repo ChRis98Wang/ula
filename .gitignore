@@ -8,12 +8,17 @@ models/smplh/
 
 # training outputs
 training/runs/
-runs/
+!training/runs/
+!training/runs/ula_fm_0514_close_v2_1m/
+training/runs/ula_fm_0514_close_v2_1m/*
+!training/runs/ula_fm_0514_close_v2_1m/ula_fm_checkpoint.pt
+/runs/
 outputs/
 checkpoints/
 *.ckpt
 *.pth
 *.pt
+!training/runs/ula_fm_0514_close_v2_1m/ula_fm_checkpoint.pt
 *.onnx
 *.npz
 *.npy
@@ -36,3 +41,7 @@ __pycache__/
 .env
 .venv/
 venv/
+
+# Generated MuJoCo conversion cache; regenerated from URDF/STL on demand.
+urdf_V2_20260514/.mujoco_assets/
+urdf_V2_20260514/urdf/xacro/*_meshdir.urdf

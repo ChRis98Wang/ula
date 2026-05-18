@@ -3,16 +3,18 @@ import argparse
 import csv
 import json
 import os
+import time
 from pathlib import Path
 
 import imageio_ffmpeg
 import mediapy as media
 import mujoco
+import mujoco.viewer
 import numpy as np
 
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.side_by_side_preview import build_front_camera
-from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF
+from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF, resolve_mujoco_urdf
 
 
 V2_UPPER_BODY_XML = """
@@ -90,7 +92,7 @@ def load_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
         model = mujoco.MjModel.from_xml_string(V2_UPPER_BODY_XML)
         model_source = "simplified_builtin_xml"
     else:
-        urdf_path = Path(urdf_path)
+        urdf_path = resolve_mujoco_urdf(urdf_path)
         model = mujoco.MjModel.from_xml_path(str(urdf_path))
         model_source = str(urdf_path)
     joint_to_qpos = {}
@@ -156,26 +158,93 @@ def render_motion(
     }
 
 
+def _launch_passive_viewer(model, data):
+    return mujoco.viewer.launch_passive(model, data)
+
+
+def play_motion(
+    joint_csv,
+    *,
+    fps=30.0,
+    urdf_path=DEFAULT_URDF,
+    simplified=False,
+    loops=0,
+    realtime=True,
+):
+    trajectory = read_joint_csv(joint_csv)
+    model, joint_to_qpos, model_source = load_preview_model(urdf_path=urdf_path, simplified=simplified)
+    data = mujoco.MjData(model)
+    frame_period = 1.0 / float(fps) if fps else 0.0
+    frames_played = 0
+    loops_completed = 0
+
+    with _launch_passive_viewer(model, data) as viewer:
+        while viewer.is_running():
+            for values in trajectory:
+                if not viewer.is_running():
+                    break
+                start = time.monotonic()
+                data.qpos[:] = 0.0
+                for action_index, value in enumerate(values):
+                    data.qpos[joint_to_qpos[action_index]] = float(value)
+                mujoco.mj_forward(model, data)
+                viewer.sync()
+                frames_played += 1
+                if realtime and frame_period > 0:
+                    elapsed = time.monotonic() - start
+                    if elapsed < frame_period:
+                        time.sleep(frame_period - elapsed)
+            loops_completed += 1
+            if loops and loops_completed >= int(loops):
+                break
+
+    return {
+        "input_csv": str(joint_csv),
+        "frames": int(trajectory.shape[0]),
+        "frames_played": int(frames_played),
+        "loops_completed": int(loops_completed),
+        "fps": float(fps),
+        "model_source": model_source,
+        "model_nq": int(model.nq),
+        "model_nbody": int(model.nbody),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Render generated V2 upper-body joint CSV in MuJoCo")
     parser.add_argument("--joint-csv", required=True)
-    parser.add_argument("--output-mp4", required=True)
+    parser.add_argument("--output-mp4")
     parser.add_argument("--summary-json")
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--urdf", default=str(DEFAULT_URDF))
     parser.add_argument("--simplified", action="store_true", help="Use the old built-in simplified preview model")
+    parser.add_argument("--viewer", action="store_true", help="Open a MuJoCo viewer and play the motion interactively")
+    parser.add_argument("--loops", type=int, default=0, help="Viewer loops to play; 0 means until the viewer closes")
+    parser.add_argument("--no-realtime", action="store_true", help="Viewer playback as fast as possible")
     args = parser.parse_args()
-    summary = render_motion(
-        args.joint_csv,
-        args.output_mp4,
-        fps=args.fps,
-        width=args.width,
-        height=args.height,
-        urdf_path=args.urdf,
-        simplified=args.simplified,
-    )
+    if args.viewer:
+        summary = play_motion(
+            args.joint_csv,
+            fps=args.fps,
+            urdf_path=args.urdf,
+            simplified=args.simplified,
+            loops=args.loops,
+            realtime=not args.no_realtime,
+        )
+    else:
+        if not args.output_mp4:
+            parser.error("--output-mp4 is required unless --viewer is set")
+        summary = render_motion(
+            args.joint_csv,
+            args.output_mp4,
+            fps=args.fps,
+            width=args.width,
+            height=args.height,
+            urdf_path=args.urdf,
+            simplified=args.simplified,
+        )
     if args.summary_json:
         Path(args.summary_json).parent.mkdir(parents=True, exist_ok=True)
         Path(args.summary_json).write_text(json.dumps(summary, indent=2), encoding="utf-8")

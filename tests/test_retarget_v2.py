@@ -1,7 +1,7 @@
 import csv
 import math
 
-from upper_body_skeleton.retarget_v2 import JOINT_ORDER, retarget_payload_to_rows, write_joint_csv
+from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER, retarget_payload_to_rows, write_joint_csv
 
 
 def make_frame(time_sec, left_elbow, left_wrist, right_elbow, right_wrist):
@@ -96,7 +96,7 @@ def test_elbow_bend_maps_to_elbow_joint_and_csv_header(tmp_path):
     rows, _ = retarget_payload_to_rows(payload, output_hz=30.0)
 
     assert rows[0]["joint_lElbow"] < -0.8
-    assert rows[0]["joint_rElbow"] > 0.8
+    assert rows[0]["joint_rElbow"] < -0.8
 
     out = tmp_path / "joints.csv"
     write_joint_csv(rows, out)
@@ -123,7 +123,7 @@ def test_moderate_elbow_bend_uses_stronger_v2_amplitude():
     row = rows[0]
 
     assert row["joint_lElbow"] < -0.95
-    assert row["joint_rElbow"] > 0.95
+    assert row["joint_rElbow"] < -0.95
 
 
 def test_forearms_turning_inward_drive_cross_body_shoulder_yaw():
@@ -164,8 +164,8 @@ def test_strong_cross_body_left_elbow_keeps_large_amplitude():
     rows, _ = retarget_payload_to_rows(payload, output_hz=30.0)
     row = rows[0]
 
-    assert -1.57 <= row["joint_lElbow"] < -1.35
-    assert row["joint_rElbow"] > 0.35
+    assert -1.75 <= row["joint_lElbow"] < -1.35
+    assert row["joint_rElbow"] < -0.35
 
 
 def test_moderate_cross_body_keeps_left_elbow_amplitude():
@@ -189,4 +189,11 @@ def test_moderate_cross_body_keeps_left_elbow_amplitude():
     assert row["joint_lElbow"] < -1.35
     assert row["joint_rShoulderPitch"] < -1.05
     assert row["joint_rShoulderYaw"] < -1.05
-    assert row["joint_rElbow"] > 0.35
+    assert row["joint_rElbow"] < -0.35
+
+
+def test_training_joint_limits_keep_shoulders_on_human_like_pitch_branch():
+    assert JOINT_LIMITS["joint_lShoulderPitch"] == (-1.75, 1.75)
+    assert JOINT_LIMITS["joint_rShoulderPitch"] == (-1.75, 1.75)
+    assert JOINT_LIMITS["joint_lElbow"] == (-1.75, 1.57)
+    assert JOINT_LIMITS["joint_rElbow"] == (-1.75, 1.57)

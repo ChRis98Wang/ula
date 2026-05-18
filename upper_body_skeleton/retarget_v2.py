@@ -29,18 +29,18 @@ JOINT_LIMITS = {
     "joint_pelvisYaw": (-1.57, 1.57),
     "joint_pelvisPitch": (0.0, 1.046),
     "joint_pelvisRoll": (-0.35, 0.35),
-    "joint_lShoulderPitch": (-1.4, 4.2),
-    "joint_lShoulderRoll": (-1.41, 1.57),
+    "joint_lShoulderPitch": (-1.75, 1.75),
+    "joint_lShoulderRoll": (-1.65, 1.65),
     "joint_lShoulderYaw": (-2.79, 2.79),
-    "joint_lElbow": (-1.57, 1.57),
+    "joint_lElbow": (-1.75, 1.57),
     "joint_lWristRoll": (-2.79, 2.79),
-    "joint_lWristPitch": (-1.57, 1.57),
-    "joint_rShoulderPitch": (-1.4, 4.2),
-    "joint_rShoulderRoll": (-1.41, 1.57),
+    "joint_lWristPitch": (-1.75, 1.57),
+    "joint_rShoulderPitch": (-1.75, 1.75),
+    "joint_rShoulderRoll": (-1.65, 1.65),
     "joint_rShoulderYaw": (-2.79, 2.79),
-    "joint_rElbow": (-1.57, 1.57),
+    "joint_rElbow": (-1.75, 1.57),
     "joint_rWristRoll": (-2.79, 2.79),
-    "joint_rWristPitch": (-1.57, 1.57),
+    "joint_rWristPitch": (-1.75, 1.57),
 }
 
 
@@ -94,7 +94,7 @@ def arm_angles(landmarks, side):
     inward_wrist_motion = inward_sign * fore[1]
     cross_body_strength = cross_body_strength_from_inward_motion(inward_wrist_motion)
     pitch = math.atan2(upper[0], -upper[2]) + CROSS_BODY_PITCH_GAIN * cross_body_strength
-    elbow_sign = -1.0 if side == "left" else 1.0
+    elbow_sign = -1.0
     elbow_flexion = elbow_sign * angle_between(upper, fore) * ELBOW_FLEXION_GAIN
     yaw_sign = 1.0 if side == "left" else -1.0
     yaw = yaw_sign * CROSS_BODY_YAW_LIMIT * cross_body_strength

@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ULA-FM 0514 | 网络结构与训练流程</title>
+  <style>
+    :root {
+      --ink: #1c2024;
+      --muted: #667085;
+      --line: #d8dee7;
+      --paper: #f6f7f9;
+      --panel: #ffffff;
+      --teal: #0f766e;
+      --green: #3f7d20;
+      --amber: #b76e00;
+      --red: #b42318;
+      --violet: #6d5bd0;
+      --shadow: 0 14px 40px rgba(28, 32, 36, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.8), rgba(246,247,249,0.98)),
+        radial-gradient(circle at 10% 0%, rgba(15, 118, 110, 0.12), transparent 30%),
+        radial-gradient(circle at 90% 8%, rgba(183, 110, 0, 0.10), transparent 26%),
+        var(--paper);
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 46px 0 56px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 28px;
+      align-items: stretch;
+      min-height: 300px;
+    }
+
+    .hero-copy,
+    .status-card,
+    .section,
+    .module,
+    .step,
+    .command {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(216, 222, 231, 0.86);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-copy {
+      padding: 34px;
+      border-radius: 8px;
+    }
+
+    .eyebrow {
+      color: var(--teal);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 14px 0 14px;
+      font-size: clamp(36px, 5vw, 62px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 760px;
+      color: #3e4650;
+      font-size: 19px;
+      line-height: 1.58;
+    }
+
+    .status-card {
+      border-radius: 8px;
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 22px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: #263039;
+      background: #eef2f5;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.train { color: #0f5132; background: #dff3e7; }
+    .pill.frozen { color: #5c4300; background: #fff1c2; }
+    .pill.output { color: #53389e; background: #eee9ff; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      min-height: 86px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfd;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .section {
+      margin-top: 28px;
+      padding: 30px;
+      border-radius: 8px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      margin-bottom: 22px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 27px;
+      letter-spacing: 0;
+    }
+
+    .section-title p {
+      margin: 3px 0 0;
+      max-width: 540px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .paper-figure {
+      border: 1px solid #cfd6df;
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,251,253,0.96)),
+        repeating-linear-gradient(0deg, rgba(28,32,36,0.035), rgba(28,32,36,0.035) 1px, transparent 1px, transparent 28px),
+        repeating-linear-gradient(90deg, rgba(28,32,36,0.035), rgba(28,32,36,0.035) 1px, transparent 1px, transparent 28px);
+      overflow: hidden;
+    }
+
+    .paper-figure svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .figure-caption {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px 16px 14px;
+      border-top: 1px solid #dbe2ea;
+      color: #586473;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .network {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .module {
+      position: relative;
+      min-height: 188px;
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: none;
+    }
+
+    .module::after {
+      content: "";
+      position: absolute;
+      right: -13px;
+      top: 50%;
+      width: 12px;
+      height: 2px;
+      background: var(--line);
+    }
+
+    .module:last-child::after { display: none; }
+
+    .module .tag {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: #ffffff;
+      background: var(--ink);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .module.frozen .tag { background: var(--amber); }
+    .module.train .tag { background: var(--green); }
+    .module.output .tag { background: var(--violet); }
+
+    h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.22;
+      letter-spacing: 0;
+    }
+
+    .module p,
+    .step p {
+      margin: 0;
+      color: #4b5563;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .mini-list {
+      display: grid;
+      gap: 7px;
+      margin-top: 12px;
+      color: #344054;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .step {
+      min-height: 166px;
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: none;
+    }
+
+    .num {
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      margin-bottom: 13px;
+      border-radius: 50%;
+      color: #ffffff;
+      background: var(--teal);
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .note {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fbfcfd;
+      padding: 18px;
+    }
+
+    .note h3 { font-size: 17px; }
+
+    .note ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: #46515d;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .command {
+      margin-top: 16px;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: none;
+      border-color: #cfd6df;
+    }
+
+    .command-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      color: #ffffff;
+      background: #29313a;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      overflow-x: auto;
+      background: #11161d;
+      color: #e8edf3;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+
+    .footer {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .audio-band {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .audio-flow {
+      min-height: 210px;
+      border: 1px solid #cfd6df;
+      border-radius: 8px;
+      background: #fbfcfd;
+      padding: 18px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .audio-row {
+      display: grid;
+      grid-template-columns: 1fr 28px 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .audio-node {
+      min-height: 54px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .audio-node strong {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .arrow {
+      color: var(--teal);
+      font-weight: 900;
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .split,
+      .audio-band {
+        grid-template-columns: 1fr;
+      }
+
+      .network,
+      .steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .module::after { display: none; }
+    }
+
+    @media (max-width: 640px) {
+      main {
+        width: min(100vw - 24px, 1180px);
+        padding-top: 24px;
+      }
+
+      .hero-copy,
+      .status-card,
+      .section {
+        padding: 20px;
+      }
+
+      .network,
+      .steps,
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section-title {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+      <div class="eyebrow">Weekly Demo · Language Action Model · V2 URDF 0514</div>
+        <h1>ULA-FM 网络结构与训练流程</h1>
+        <p class="lead">
+          当前目标是无视觉头的语言动作模型：输入文本、情绪、动作风格和语义标签，生成 V2 机器人上肢关节轨迹。
+          训练核心不是“复读视频”，而是学习情绪表达下的连续动作分布。
+        </p>
+      </div>
+
+      <aside class="status-card">
+        <div>
+          <div class="pill-row">
+            <span class="pill frozen">冻结：文本编码</span>
+            <span class="pill train">训练：Action Expert</span>
+            <span class="pill train">训练：时长/转场头</span>
+            <span class="pill output">输出：V2 上肢动作</span>
+          </div>
+        </div>
+        <div class="metric-grid">
+          <div class="metric">
+            <strong>92D</strong>
+            <span>条件向量：文本、情绪、风格、动作语义</span>
+          </div>
+          <div class="metric">
+            <strong>15D</strong>
+            <span>动作向量：V2 上肢关节角</span>
+          </div>
+          <div class="metric">
+            <strong>CFM</strong>
+            <span>Conditional Flow Matching 轨迹生成</span>
+          </div>
+          <div class="metric">
+            <strong>0</strong>
+            <span>当前版本不使用视觉输入</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <div>
+          <h2>网络结构</h2>
+        </div>
+        <p>
+          语言和情绪先变成条件向量，再驱动 Action Expert 从噪声生成整段上肢轨迹。
+          黄色模块冻结，绿色模块训练。
+        </p>
+      </div>
+
+      <div class="paper-figure" aria-label="ULA-FM neural network diagram">
+        <svg viewBox="0 0 1120 420" role="img">
+          <defs>
+            <marker id="arrowHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#344054"></path>
+            </marker>
+            <marker id="greenArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#3f7d20"></path>
+            </marker>
+            <filter id="softShadow" x="-10%" y="-20%" width="120%" height="150%">
+              <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#1c2024" flood-opacity="0.10"></feDropShadow>
+            </filter>
+          </defs>
+
+          <rect x="32" y="42" width="146" height="72" rx="8" fill="#fff" stroke="#cfd6df" filter="url(#softShadow)"></rect>
+          <text x="105" y="72" text-anchor="middle" font-size="15" font-weight="800" fill="#1c2024">Text Prompt</text>
+          <text x="105" y="94" text-anchor="middle" font-size="12" fill="#667085">情绪与动作描述</text>
+
+          <rect x="32" y="154" width="146" height="72" rx="8" fill="#fff" stroke="#cfd6df" filter="url(#softShadow)"></rect>
+          <text x="105" y="184" text-anchor="middle" font-size="15" font-weight="800" fill="#1c2024">Semantic Tags</text>
+          <text x="105" y="206" text-anchor="middle" font-size="12" fill="#667085">affect / style / gesture</text>
+
+          <rect x="32" y="266" width="146" height="72" rx="8" fill="#f2f4f7" stroke="#cfd6df" stroke-dasharray="6 5"></rect>
+          <text x="105" y="296" text-anchor="middle" font-size="15" font-weight="800" fill="#1c2024">Audio Future</text>
+          <text x="105" y="318" text-anchor="middle" font-size="12" fill="#667085">prosody / rhythm</text>
+
+          <rect x="254" y="70" width="172" height="132" rx="10" fill="#fff3cd" stroke="#e2b93b" filter="url(#softShadow)"></rect>
+          <text x="340" y="110" text-anchor="middle" font-size="16" font-weight="800" fill="#3b2f00">Frozen Language</text>
+          <text x="340" y="134" text-anchor="middle" font-size="16" font-weight="800" fill="#3b2f00">Encoder</text>
+          <text x="340" y="166" text-anchor="middle" font-size="12" fill="#5c4300">当前不训练</text>
+
+          <rect x="254" y="238" width="172" height="100" rx="10" fill="#f2f4f7" stroke="#aeb7c2" stroke-dasharray="6 5"></rect>
+          <text x="340" y="280" text-anchor="middle" font-size="16" font-weight="800" fill="#344054">Speech Encoder</text>
+          <text x="340" y="306" text-anchor="middle" font-size="12" fill="#667085">下一步接入</text>
+
+          <rect x="508" y="116" width="184" height="126" rx="10" fill="#e7f6ec" stroke="#86c09a" filter="url(#softShadow)"></rect>
+          <text x="600" y="154" text-anchor="middle" font-size="16" font-weight="800" fill="#0f5132">Condition Fusion</text>
+          <text x="600" y="179" text-anchor="middle" font-size="12" fill="#2f6f49">text + emotion + style</text>
+          <text x="600" y="202" text-anchor="middle" font-size="12" fill="#2f6f49">+ future audio prosody</text>
+
+          <rect x="774" y="48" width="144" height="78" rx="10" fill="#e7f6ec" stroke="#86c09a"></rect>
+          <text x="846" y="80" text-anchor="middle" font-size="15" font-weight="800" fill="#0f5132">Planner Heads</text>
+          <text x="846" y="102" text-anchor="middle" font-size="12" fill="#2f6f49">duration / transition</text>
+
+          <rect x="748" y="174" width="206" height="118" rx="12" fill="#e7f6ec" stroke="#86c09a" filter="url(#softShadow)"></rect>
+          <text x="851" y="211" text-anchor="middle" font-size="17" font-weight="900" fill="#0f5132">Conditional Flow</text>
+          <text x="851" y="237" text-anchor="middle" font-size="17" font-weight="900" fill="#0f5132">Action Expert</text>
+          <text x="851" y="265" text-anchor="middle" font-size="12" fill="#2f6f49">noise + time -> joint velocity</text>
+
+          <rect x="1000" y="174" width="90" height="118" rx="12" fill="#eee9ff" stroke="#b7a4f6" filter="url(#softShadow)"></rect>
+          <text x="1045" y="218" text-anchor="middle" font-size="15" font-weight="900" fill="#53389e">V2</text>
+          <text x="1045" y="242" text-anchor="middle" font-size="15" font-weight="900" fill="#53389e">Joints</text>
+          <text x="1045" y="266" text-anchor="middle" font-size="12" fill="#6941c6">15D</text>
+
+          <rect x="526" y="310" width="148" height="62" rx="8" fill="#fff" stroke="#cfd6df"></rect>
+          <text x="600" y="336" text-anchor="middle" font-size="14" font-weight="800" fill="#1c2024">Noisy Trajectory</text>
+          <text x="600" y="356" text-anchor="middle" font-size="12" fill="#667085">x_t, t</text>
+
+          <path d="M178 78 C210 78, 218 120, 254 120" fill="none" stroke="#344054" stroke-width="2" marker-end="url(#arrowHead)"></path>
+          <path d="M178 190 C216 190, 220 158, 254 154" fill="none" stroke="#344054" stroke-width="2" marker-end="url(#arrowHead)"></path>
+          <path d="M178 302 C216 302, 222 288, 254 288" fill="none" stroke="#98a2b3" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrowHead)"></path>
+          <path d="M426 136 C466 136, 466 162, 508 162" fill="none" stroke="#3f7d20" stroke-width="2.2" marker-end="url(#greenArrow)"></path>
+          <path d="M426 288 C476 288, 468 210, 508 205" fill="none" stroke="#98a2b3" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrowHead)"></path>
+          <path d="M692 160 C740 160, 730 88, 774 88" fill="none" stroke="#3f7d20" stroke-width="2.2" marker-end="url(#greenArrow)"></path>
+          <path d="M692 210 C724 210, 720 232, 748 232" fill="none" stroke="#3f7d20" stroke-width="2.2" marker-end="url(#greenArrow)"></path>
+          <path d="M674 341 C718 341, 710 258, 748 258" fill="none" stroke="#344054" stroke-width="2" marker-end="url(#arrowHead)"></path>
+          <path d="M954 233 L1000 233" fill="none" stroke="#344054" stroke-width="2.3" marker-end="url(#arrowHead)"></path>
+
+          <text x="600" y="32" text-anchor="middle" font-size="14" font-weight="800" fill="#344054">ULA-FM: language-conditioned upper-body trajectory generator</text>
+          <text x="850" y="324" text-anchor="middle" font-size="12" fill="#667085">训练目标：预测从噪声到真实动作的速度场</text>
+        </svg>
+        <div class="figure-caption">
+          <span>图中虚线音频分支是下一步扩展，不影响当前文本情绪模型训练。</span>
+          <span>训练时重点更新绿色模块；黄色语言头保持冻结。</span>
+        </div>
+      </div>
+
+      <div class="network">
+        <article class="module">
+          <span class="tag">INPUT</span>
+          <h3>文本与情绪条件</h3>
+          <p>训练样本携带文本描述、情绪状态、动作语义和风格。</p>
+          <div class="mini-list">
+            <span>intent / affect / style</span>
+            <span>gesture / arousal / valence</span>
+          </div>
+        </article>
+
+        <article class="module frozen">
+          <span class="tag">FROZEN</span>
+          <h3>语言编码头</h3>
+          <p>当前阶段冻结，不和动作模型一起训练；它只把文本转成稳定向量。</p>
+          <div class="mini-list">
+            <span>text embedding</span>
+            <span>semantic one-hot</span>
+          </div>
+        </article>
+
+        <article class="module train">
+          <span class="tag">TRAIN</span>
+          <h3>条件融合层</h3>
+          <p>把语言、情绪、风格和强度融合成统一条件，送入轨迹生成器。</p>
+          <div class="mini-list">
+            <span>MLP condition adapter</span>
+            <span>time / frame embedding</span>
+          </div>
+        </article>
+
+        <article class="module train">
+          <span class="tag">TRAIN</span>
+          <h3>Action Expert</h3>
+          <p>Transformer 风格的 Flow Matching 模型，学习从噪声流向真实动作轨迹。</p>
+          <div class="mini-list">
+            <span>velocity prediction</span>
+            <span>trajectory denoising flow</span>
+          </div>
+        </article>
+
+        <article class="module output">
+          <span class="tag">OUTPUT</span>
+          <h3>V2 上肢轨迹</h3>
+          <p>输出连续关节角，经过限位、平滑和 MuJoCo 预览检查。</p>
+          <div class="mini-list">
+            <span>joint CSV / parquet</span>
+            <span>MuJoCo playback video</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <div>
+          <h2>下一步：音频接入</h2>
+        </div>
+        <p>
+          音频不替代文本，而是补充节奏、语速、停顿和强弱变化，让动作和说话同步。
+        </p>
+      </div>
+
+      <div class="audio-band">
+        <div class="note">
+          <h3>接入方式</h3>
+          <ul>
+            <li>先使用冻结语音编码器提取 prosody/rhythm 特征。</li>
+            <li>训练一个小的 audio adapter，把音频特征并入 condition fusion。</li>
+            <li>Action Expert 不需要重写，只需要多一个音频条件通道。</li>
+          </ul>
+        </div>
+
+        <div class="audio-flow">
+          <div class="audio-row">
+            <div class="audio-node"><strong>Audio</strong>语音能量、节奏、停顿</div>
+            <div class="arrow">-></div>
+            <div class="audio-node"><strong>Speech Encoder</strong>冻结或轻量微调</div>
+          </div>
+          <div class="audio-row">
+            <div class="audio-node"><strong>Prosody Adapter</strong>对齐动作频率</div>
+            <div class="arrow">-></div>
+            <div class="audio-node"><strong>Condition Fusion</strong>文本 + 情绪 + 音频</div>
+          </div>
+          <div class="audio-row">
+            <div class="audio-node"><strong>Sync Loss</strong>动作能量跟随语音节奏</div>
+            <div class="arrow">-></div>
+            <div class="audio-node"><strong>Action Expert</strong>生成同步上肢动作</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <div>
+          <h2>训练流程</h2>
+        </div>
+        <p>
+          训练使用 LeRobot parquet 数据。每个样本是一段清洗后的 V2 上肢轨迹，加上对应语义和情绪条件。
+        </p>
+      </div>
+
+      <div class="steps">
+        <article class="step">
+          <span class="num">1</span>
+          <h3>读取样本</h3>
+          <p>从 clean parquet 取动作窗口和文本条件，动作已经按新版 URDF 重定向并清洗。</p>
+        </article>
+
+        <article class="step">
+          <span class="num">2</span>
+          <h3>构造 Flow 任务</h3>
+          <p>随机采样噪声和时间 t，让模型学习从噪声轨迹走向真实轨迹的速度。</p>
+        </article>
+
+        <article class="step">
+          <span class="num">3</span>
+          <h3>更新可训练模块</h3>
+          <p>只更新条件融合层、Action Expert、duration head 和 transition head。</p>
+        </article>
+
+        <article class="step">
+          <span class="num">4</span>
+          <h3>定期验证</h3>
+          <p>每隔固定 steps 生成长程动作，用 MuJoCo 录制，检查跳变、翻转、穿模和情绪连贯性。</p>
+        </article>
+      </div>
+
+      <div class="split" style="margin-top: 16px;">
+        <div class="note">
+          <h3>主要损失</h3>
+          <ul>
+            <li>Flow loss：生成轨迹的速度场是否接近真实动作方向。</li>
+            <li>Planner loss：动作持续时间和情绪转场是否合理。</li>
+            <li>Joint limit clamp：推理时保证关节不越界。</li>
+          </ul>
+        </div>
+
+        <div class="note">
+          <h3>推理方式</h3>
+          <ul>
+            <li>输入一句文本和情绪状态。</li>
+            <li>模型先估计持续时间与转场。</li>
+            <li>Action Expert 从噪声积分生成整段动作。</li>
+            <li>输出 CSV，并用 MuJoCo 渲染为机器人视频。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <div>
+          <h2>周报要点</h2>
+        </div>
+        <p>
+          这页只用于说明方案：现在先把文本和情绪做好，后续把音频作为并行条件接入同一个动作生成器。
+        </p>
+      </div>
+
+      <div class="split">
+        <div class="note">
+          <h3>当前版本</h3>
+          <ul>
+            <li>无视觉头，只做文本/情绪到上肢动作。</li>
+            <li>语言头冻结，训练 Action Expert 和规划头。</li>
+            <li>输出用 V2 机器人和 MuJoCo 检查动作质量。</li>
+          </ul>
+        </div>
+
+        <div class="note">
+          <h3>下一阶段</h3>
+          <ul>
+            <li>加入音频节奏和语气条件。</li>
+            <li>让动作长度、转场和语音自然同步。</li>
+            <li>保留同一套 Flow Matching 动作生成框架。</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="footer">
+        周报结论：网络主体已经确定，关键质量指标是动作连续性、左右一致性、关节不翻转，以及长程情绪表达是否自然。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

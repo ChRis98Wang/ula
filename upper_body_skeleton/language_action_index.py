@@ -193,6 +193,8 @@ def infer_observed_affect(internal_state_text, transcript, affect_stats=None):
                 return "nervous"
             if valence < -0.35:
                 return "sad_like"
+            if valence > 0.25:
+                return "friendly"
     return "neutral" if internal_state_text else "low_confidence_unknown"
 
 
@@ -209,6 +211,67 @@ def semantic_gesture_keyword(action_text):
     if "arms" in text or "hands" in text:
         return "upper_body_gesture"
     return "null"
+
+
+def gesture_function_from_semantics(intent_label, semantic_gesture, action_text):
+    text = " ".join([intent_label, semantic_gesture, action_text]).lower()
+    if any(word in text for word in ("hello", "hi", "welcome", "greeting", "wave")):
+        return "social"
+    if any(word in text for word in ("refus", "guard", "cross", "fold", "protect")):
+        return "self_protective"
+    if any(word in text for word in ("warn", "careful", "stop", "danger")):
+        return "regulatory"
+    if any(word in text for word in ("point", "show", "indicate", "explain", "describe")):
+        return "representational"
+    if semantic_gesture in {"upper_body_gesture", "shrugging"}:
+        return "beat_or_emphasis"
+    return "none"
+
+
+def affect_bucket(observed_affect, arousal, valence):
+    if observed_affect and observed_affect != "low_confidence_unknown":
+        return observed_affect
+    if arousal is None or valence is None:
+        return "neutral"
+    if arousal > 0.55 and valence < -0.15:
+        return "nervous"
+    if arousal > 0.55 and valence > 0.15:
+        return "excited"
+    if valence < -0.35:
+        return "sad_like"
+    if valence > 0.25:
+        return "friendly"
+    return "neutral"
+
+
+def motion_control_codes(intent_label, observed_affect, semantic_gesture, action_text, affect_stats, motion_style, motion_energy, duration_sec):
+    arousal = affect_stats.get("arousal") if affect_stats else None
+    valence = affect_stats.get("valence") if affect_stats else None
+    emotion = affect_bucket(observed_affect, arousal, valence)
+    if arousal is not None:
+        intensity = "high" if arousal > 0.62 else "medium" if arousal > 0.38 else "low"
+    else:
+        intensity = "high" if motion_energy > 0.06 else "medium" if motion_energy > 0.025 else "low"
+    speed = "fast" if motion_energy > 0.06 else "medium" if motion_energy > 0.025 else "slow"
+    text = action_text.lower()
+    closed_hint = any(word in text for word in ("cross", "fold", "guard", "tight", "chest", "protect"))
+    open_hint = any(word in text for word in ("open", "wide", "wave", "welcome", "point"))
+    openness = "closed" if closed_hint or semantic_gesture == "crossed_arms" else "open" if open_hint else "neutral"
+    tense_affects = {"nervous", "angry_like", "uncertain"}
+    tension = "high" if emotion in tense_affects or closed_hint else "medium" if intensity == "medium" else "low"
+    transition = "end" if duration_sec <= WINDOW_SEC + 1e-6 else "continue"
+    return {
+        "communicative_intent": intent_label,
+        "gesture_function": gesture_function_from_semantics(intent_label, semantic_gesture, action_text),
+        "emotion_trajectory": f"{emotion}_sustained",
+        "intensity": intensity,
+        "speed": speed,
+        "openness": openness,
+        "tension": tension,
+        "duration_sec": float(duration_sec),
+        "transition": transition,
+        "semantic_confidence": 0.9 if action_text and action_text != "upper-body conversational gesture" else 0.45,
+    }
 
 
 def choose_intent_and_descriptions(transcript, annotations, affect_stats=None):
@@ -288,6 +351,18 @@ def build_records(manifest_path, output_jsonl, max_records=None, window_sec=WIND
                 affect = npz_affect_stats(row["npz_path"], start_sec, end_sec, fps=fps)
                 motion_style, motion_energy = motion_style_from_csv(row["joint_csv"], start_row, end_row)
                 text = choose_intent_and_descriptions(transcript, annotations, affect_stats=affect)
+                semantic_gesture = text["meta_semantics"]["semantic_gesture"]
+                duration_sec = float(end_sec - start_sec)
+                control_codes = motion_control_codes(
+                    text["intent_label"],
+                    text["observed_affect"],
+                    semantic_gesture,
+                    text["action_description"],
+                    affect,
+                    motion_style,
+                    motion_energy,
+                    duration_sec,
+                )
                 sample_id = f"{row['sample']}__{start_row}_{end_row}".replace("/", "__")
                 record = {
                     "sample_id": sample_id,
@@ -314,8 +389,18 @@ def build_records(manifest_path, output_jsonl, max_records=None, window_sec=WIND
                     },
                     "labels": {
                         "intent": text["intent_label"],
+                        "communicative_intent": control_codes["communicative_intent"],
                         "observed_affect": text["observed_affect"],
+                        "gesture_function": control_codes["gesture_function"],
+                        "emotion_trajectory": control_codes["emotion_trajectory"],
                         "motion_style": motion_style,
+                        "intensity": control_codes["intensity"],
+                        "speed": control_codes["speed"],
+                        "openness": control_codes["openness"],
+                        "tension": control_codes["tension"],
+                        "duration_sec": control_codes["duration_sec"],
+                        "transition": control_codes["transition"],
+                        "semantic_confidence": control_codes["semantic_confidence"],
                         "arousal": affect["arousal"],
                         "valence": affect["valence"],
                         "arousal_token": affect["arousal_token"],
@@ -336,6 +421,11 @@ def build_records(manifest_path, output_jsonl, max_records=None, window_sec=WIND
                             "motion_style": motion_style,
                             "motion_energy": motion_energy,
                             "semantic_gesture": text["meta_semantics"]["semantic_gesture"],
+                        },
+                        "body_expression": {
+                            **control_codes,
+                            "semantic_gesture": semantic_gesture,
+                            "no_face_or_head": True,
                         },
                     },
                     "action": {

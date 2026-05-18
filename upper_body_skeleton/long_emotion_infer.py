@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from upper_body_skeleton.mujoco_playback import render_motion
+from upper_body_skeleton.mujoco_playback import play_motion, render_motion
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_infer import load_model
 from upper_body_skeleton.ula_training import (
@@ -18,6 +18,8 @@ from upper_body_skeleton.ula_training import (
 )
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_LONG_EMOTION_OUTPUT_DIR = REPO_ROOT / "deliverables" / "long_emotion_previews" / "manual"
 TRANSITION_NAMES = {value: key for key, value in TRANSITION_IDS.items()}
 
 
@@ -40,6 +42,63 @@ def _predict_plan(model, condition, device):
     return duration, transition_id, probs
 
 
+def limit_joint_velocity(trajectory, *, fps=30.0, max_velocity_rad_s=3.0):
+    arr = np.asarray(trajectory, dtype=np.float32).copy()
+    if len(arr) < 2:
+        return arr
+    max_delta = float(max_velocity_rad_s) / float(fps)
+    for index in range(1, len(arr)):
+        delta = np.clip(arr[index] - arr[index - 1], -max_delta, max_delta)
+        arr[index] = arr[index - 1] + delta
+    return arr
+
+
+def smooth_trajectory(trajectory, window=5, *, fps=30.0, max_velocity_rad_s=3.0):
+    arr = np.asarray(trajectory, dtype=np.float32)
+    window = int(max(1, window))
+    if window <= 1 or len(arr) < 3:
+        return arr.copy()
+    if window % 2 == 0:
+        window += 1
+    radius = window // 2
+    padded = np.pad(arr, ((radius, radius), (0, 0)), mode="edge")
+    out = np.empty_like(arr)
+    for index in range(len(arr)):
+        out[index] = np.mean(padded[index : index + window], axis=0)
+    out[0] = arr[0]
+    # Re-apply velocity limiting because moving averages can introduce a small
+    # start-frame jump when the raw second frame is far away.
+    return limit_joint_velocity(out, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
+
+
+def postprocess_trajectory(trajectory, *, fps=30.0, max_velocity_rad_s=3.0, smooth_window=5):
+    limited = limit_joint_velocity(trajectory, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
+    smoothed = smooth_trajectory(limited, window=smooth_window, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
+    return limit_joint_velocity(smoothed, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
+
+
+def trajectory_quality(trajectory, *, fps=30.0):
+    arr = np.asarray(trajectory, dtype=np.float32)
+    if len(arr) < 2:
+        return {
+            "frames": int(arr.shape[0]),
+            "max_delta_rad_per_frame": 0.0,
+            "mean_delta_rad_per_frame": 0.0,
+            "max_velocity_rad_s": 0.0,
+            "mean_velocity_rad_s": 0.0,
+        }
+    delta = np.abs(np.diff(arr, axis=0))
+    max_delta = float(delta.max())
+    mean_delta = float(delta.mean())
+    return {
+        "frames": int(arr.shape[0]),
+        "max_delta_rad_per_frame": max_delta,
+        "mean_delta_rad_per_frame": mean_delta,
+        "max_velocity_rad_s": float(max_delta * float(fps)),
+        "mean_velocity_rad_s": float(mean_delta * float(fps)),
+    }
+
+
 def generate_long_emotion_motion(
     model,
     *,
@@ -57,6 +116,11 @@ def generate_long_emotion_motion(
     render=True,
     width=1280,
     height=720,
+    max_velocity_rad_s=3.0,
+    smooth_window=5,
+    play=False,
+    play_loops=0,
+    play_realtime=True,
 ):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -138,7 +202,13 @@ def generate_long_emotion_motion(
             }
         )
 
-    trajectory = np.concatenate(trajectories, axis=0).astype(np.float32)
+    raw_trajectory = np.concatenate(trajectories, axis=0).astype(np.float32)
+    trajectory = postprocess_trajectory(
+        raw_trajectory,
+        fps=fps,
+        max_velocity_rad_s=max_velocity_rad_s,
+        smooth_window=smooth_window,
+    ).astype(np.float32)
     csv_path = output_dir / "long_motion.csv"
     npz_path = output_dir / "long_motion.npz"
     plan_path = output_dir / "plan.json"
@@ -149,6 +219,7 @@ def generate_long_emotion_motion(
     np.savez_compressed(
         npz_path,
         trajectory=trajectory,
+        raw_trajectory=raw_trajectory,
         joint_order=np.asarray(JOINT_ORDER, dtype=object),
         text=text,
         fps=np.asarray(fps, dtype=np.float32),
@@ -159,6 +230,9 @@ def generate_long_emotion_motion(
     if render:
         render_summary = render_motion(csv_path, mp4_path, fps=fps, width=width, height=height)
         rendered_mp4 = str(mp4_path)
+    viewer_summary = None
+    if play:
+        viewer_summary = play_motion(csv_path, fps=fps, loops=play_loops, realtime=play_realtime)
 
     plan = {
         "text": text,
@@ -168,6 +242,7 @@ def generate_long_emotion_motion(
         "csv": str(csv_path),
         "npz": str(npz_path),
         "rendered_mp4": rendered_mp4,
+        "viewer": viewer_summary,
     }
     plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {
@@ -181,6 +256,15 @@ def generate_long_emotion_motion(
         "plan_json": str(plan_path),
         "rendered_mp4": rendered_mp4,
         "render": render_summary,
+        "viewer": viewer_summary,
+        "postprocess": {
+            "max_velocity_rad_s": float(max_velocity_rad_s),
+            "smooth_window": int(smooth_window),
+        },
+        "trajectory_quality": {
+            "raw": trajectory_quality(raw_trajectory, fps=fps),
+            "processed": trajectory_quality(trajectory, fps=fps),
+        },
         "last_pose": [float(v) for v in trajectory[-1]],
     }
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -191,7 +275,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate long-horizon emotion-aware V2 upper-body motion")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--text", required=True)
-    parser.add_argument("--output-dir", default="/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/manual")
+    parser.add_argument("--output-dir", default=str(DEFAULT_LONG_EMOTION_OUTPUT_DIR))
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--max-duration-sec", type=float, default=30.0)
     parser.add_argument("--min-segment-sec", type=float, default=2.0)
@@ -203,7 +287,12 @@ def main():
     parser.add_argument("--device", default="auto")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
+    parser.add_argument("--max-velocity-rad-s", type=float, default=3.0)
+    parser.add_argument("--smooth-window", type=int, default=5)
     parser.add_argument("--no-render", action="store_true")
+    parser.add_argument("--viewer", action="store_true", help="Open a MuJoCo viewer and play the generated motion")
+    parser.add_argument("--viewer-loops", type=int, default=0, help="Viewer loops to play; 0 means until the viewer closes")
+    parser.add_argument("--viewer-no-realtime", action="store_true", help="Play in the viewer as fast as possible")
     args = parser.parse_args()
 
     device = choose_device(args.device)
@@ -224,6 +313,11 @@ def main():
         render=not args.no_render,
         width=args.width,
         height=args.height,
+        max_velocity_rad_s=args.max_velocity_rad_s,
+        smooth_window=args.smooth_window,
+        play=args.viewer,
+        play_loops=args.viewer_loops,
+        play_realtime=not args.viewer_no_realtime,
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

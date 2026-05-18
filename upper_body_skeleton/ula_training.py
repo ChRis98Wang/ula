@@ -235,6 +235,24 @@ class SinusoidalTimeEmbedding(nn.Module):
         return emb
 
 
+class SinusoidalFrameEmbedding(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, frame_count, device):
+        half = self.dim // 2
+        if half == 0:
+            return torch.zeros((frame_count, self.dim), dtype=torch.float32, device=device)
+        positions = torch.linspace(0.0, 1.0, int(frame_count), device=device)
+        freqs = torch.exp(torch.linspace(math.log(1.0), math.log(1000.0), half, device=device))
+        angles = positions[:, None] * freqs[None, :]
+        emb = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
+        if emb.shape[-1] < self.dim:
+            emb = torch.cat([emb, torch.zeros_like(emb[:, :1])], dim=-1)
+        return emb
+
+
 class UlaFmModel(nn.Module):
     def __init__(self, action_dim=15, condition_dim=BASE_CONDITION_DIM + TEXT_EMBED_DIM, hidden_dim=256, layers=4):
         super().__init__()
@@ -242,6 +260,7 @@ class UlaFmModel(nn.Module):
         self.condition_dim = condition_dim
         self.input = nn.Linear(action_dim, hidden_dim)
         self.time = SinusoidalTimeEmbedding(hidden_dim)
+        self.frame = SinusoidalFrameEmbedding(hidden_dim)
         self.cond = nn.Sequential(nn.Linear(condition_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, hidden_dim))
         self.plan = nn.Sequential(nn.Linear(condition_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, hidden_dim), nn.SiLU())
         self.duration_head = nn.Linear(hidden_dim, 1)
@@ -260,7 +279,8 @@ class UlaFmModel(nn.Module):
         h = self.input(x_t)
         cond = self.cond(condition)[:, None, :]
         time = self.time(t)[:, None, :]
-        h = h + cond + time
+        frame = self.frame(x_t.shape[1], x_t.device)[None, :, :]
+        h = h + cond + time + frame
         return self.output(self.blocks(h))
 
     def plan_condition(self, condition):
@@ -324,15 +344,61 @@ def write_training_preview(
     seed,
     width=1280,
     height=720,
+    preview_mode="long",
+    long_duration_sec=24.0,
+    min_segment_sec=3.0,
+    max_segment_sec=3.0,
+    min_segments=8,
+    max_segments=8,
+    max_velocity_rad_s=3.0,
+    smooth_window=5,
 ):
-    # Import lazily so training-only tests and environments do not need a renderer
-    # until preview generation is explicitly requested.
-    from upper_body_skeleton.mujoco_playback import render_motion
-
     preview_dir = Path(preview_root) / f"step_{int(step):06d}"
     preview_dir.mkdir(parents=True, exist_ok=True)
+
+    if preview_mode == "long":
+        from upper_body_skeleton.long_emotion_infer import generate_long_emotion_motion
+
+        summary = generate_long_emotion_motion(
+            model,
+            text=text,
+            output_dir=preview_dir,
+            fps=fps,
+            max_duration_sec=long_duration_sec,
+            min_segment_sec=min_segment_sec,
+            max_segment_sec=max_segment_sec,
+            min_segments=min_segments,
+            max_segments=max_segments,
+            sampling_steps=sampling_steps,
+            device=device,
+            seed=seed,
+            render=True,
+            width=width,
+            height=height,
+            max_velocity_rad_s=max_velocity_rad_s,
+            smooth_window=smooth_window,
+        )
+        summary.update(
+            {
+                "step": int(step),
+                "preview_mode": "long",
+                "generated_csv": summary["csv"],
+                "generated_npz": summary["npz"],
+                "preview_mp4": summary["rendered_mp4"],
+                "sampling_steps": int(sampling_steps),
+                "fps": float(fps),
+            }
+        )
+        (preview_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+        return summary
+
+    # Import lazily so training-only tests and environments do not need a renderer
+    # until preview generation is explicitly requested.
+    from upper_body_skeleton.long_emotion_infer import postprocess_trajectory, trajectory_quality
+    from upper_body_skeleton.mujoco_playback import render_motion
+
     condition = build_condition_from_text(text)
-    trajectory = sample_trajectory(
+    raw_trajectory = sample_trajectory(
         model,
         condition=condition,
         frames=frames,
@@ -340,6 +406,12 @@ def write_training_preview(
         steps=sampling_steps,
         device=device,
         seed=seed,
+    )
+    trajectory = postprocess_trajectory(
+        raw_trajectory,
+        fps=fps,
+        max_velocity_rad_s=max_velocity_rad_s,
+        smooth_window=smooth_window,
     )
     csv_path = preview_dir / "generated.csv"
     npz_path = preview_dir / "generated.npz"
@@ -349,6 +421,7 @@ def write_training_preview(
     np.savez_compressed(
         npz_path,
         trajectory=trajectory.astype(np.float32),
+        raw_trajectory=raw_trajectory.astype(np.float32),
         joint_order=np.asarray(JOINT_ORDER, dtype=object),
         text=text,
         fps=np.asarray(fps, dtype=np.float32),
@@ -361,12 +434,21 @@ def write_training_preview(
         "generated_csv": str(csv_path),
         "generated_npz": str(npz_path),
         "preview_mp4": str(mp4_path),
+        "preview_mode": "chunk",
         "frames": int(trajectory.shape[0]),
         "sampling_steps": int(sampling_steps),
         "fps": float(fps),
         "render": render_summary,
+        "postprocess": {
+            "max_velocity_rad_s": float(max_velocity_rad_s),
+            "smooth_window": int(smooth_window),
+        },
+        "trajectory_quality": {
+            "raw": trajectory_quality(raw_trajectory, fps=fps),
+            "processed": trajectory_quality(trajectory, fps=fps),
+        },
     }
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return summary
 
 
@@ -415,6 +497,14 @@ def train_steps(
     preview_seed=7,
     preview_width=1280,
     preview_height=720,
+    preview_mode="long",
+    preview_duration_sec=24.0,
+    preview_min_segment_sec=3.0,
+    preview_max_segment_sec=3.0,
+    preview_min_segments=8,
+    preview_max_segments=8,
+    preview_max_velocity_rad_s=3.0,
+    preview_smooth_window=5,
 ):
     model.to(device)
     model.train()
@@ -451,6 +541,14 @@ def train_steps(
                 seed=preview_seed + step,
                 width=preview_width,
                 height=preview_height,
+                preview_mode=preview_mode,
+                long_duration_sec=preview_duration_sec,
+                min_segment_sec=preview_min_segment_sec,
+                max_segment_sec=preview_max_segment_sec,
+                min_segments=preview_min_segments,
+                max_segments=preview_max_segments,
+                max_velocity_rad_s=preview_max_velocity_rad_s,
+                smooth_window=preview_smooth_window,
             )
             print(json.dumps({"preview": summary["preview_mp4"], "step": step}), flush=True)
     return losses
@@ -471,7 +569,7 @@ def write_training_log(path, config, losses):
     path.write_text(json.dumps({"config": config, "losses": losses, "final_loss": losses[-1] if losses else None}, indent=2), encoding="utf-8")
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Train a minimal body-only ULA-FM model from LeRobot parquet")
     parser.add_argument("--dataset-dir", required=True)
     parser.add_argument("--output-dir", required=True)
@@ -486,13 +584,21 @@ def main():
     parser.add_argument("--preview-every-steps", type=int, default=0)
     parser.add_argument("--preview-text", default="紧张地解释，同时双手做克制的上肢手势")
     parser.add_argument("--preview-dir")
-    parser.add_argument("--preview-frames", type=int, default=120)
+    parser.add_argument("--preview-mode", choices=["long", "chunk"], default="long")
+    parser.add_argument("--preview-frames", type=int, default=120, help="Used only when --preview-mode chunk")
     parser.add_argument("--preview-sampling-steps", type=int, default=32)
     parser.add_argument("--preview-fps", type=float, default=30.0)
     parser.add_argument("--preview-seed", type=int, default=7)
     parser.add_argument("--preview-width", type=int, default=1280)
     parser.add_argument("--preview-height", type=int, default=720)
-    args = parser.parse_args()
+    parser.add_argument("--preview-duration-sec", type=float, default=24.0)
+    parser.add_argument("--preview-min-segment-sec", type=float, default=3.0)
+    parser.add_argument("--preview-max-segment-sec", type=float, default=3.0)
+    parser.add_argument("--preview-min-segments", type=int, default=8)
+    parser.add_argument("--preview-max-segments", type=int, default=8)
+    parser.add_argument("--preview-max-velocity-rad-s", type=float, default=3.0)
+    parser.add_argument("--preview-smooth-window", type=int, default=5)
+    args = parser.parse_args(argv)
     device = choose_device(args.device)
     episodes = load_lerobot_episodes(args.dataset_dir, max_episodes=args.max_episodes)
     if not episodes:
@@ -523,6 +629,14 @@ def main():
         preview_seed=args.preview_seed,
         preview_width=args.preview_width,
         preview_height=args.preview_height,
+        preview_mode=args.preview_mode,
+        preview_duration_sec=args.preview_duration_sec,
+        preview_min_segment_sec=args.preview_min_segment_sec,
+        preview_max_segment_sec=args.preview_max_segment_sec,
+        preview_min_segments=args.preview_min_segments,
+        preview_max_segments=args.preview_max_segments,
+        preview_max_velocity_rad_s=args.preview_max_velocity_rad_s,
+        preview_smooth_window=args.preview_smooth_window,
     )
     torch.save(
         {

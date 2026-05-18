@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
-from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF
+from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF, resolve_mujoco_urdf
 
 
 def preview_output_path(sample_key, output_dir):
@@ -81,6 +81,7 @@ def update_renderer_scene(renderer, data, camera=None):
 
 
 def render_robot_frames(joint_csv, urdf_path=DEFAULT_URDF, width=640, height=480, max_frames=None, camera=None):
+    urdf_path = resolve_mujoco_urdf(urdf_path)
     model = mujoco.MjModel.from_xml_path(str(urdf_path))
     data = mujoco.MjData(model)
     renderer = mujoco.Renderer(model, height=height, width=width)
@@ -168,7 +169,11 @@ def select_rows(rows, sample_keys=None, limit=10):
         wanted = set(sample_keys)
         selected = [row for row in rows if row["sample"] in wanted]
         return selected[:limit]
-    processed = [row for row in rows if row.get("status") in {"processed", "skipped_existing"}]
+    processed = [
+        row
+        for row in rows
+        if row.get("status") == "skipped_existing" or str(row.get("status", "")).startswith("processed")
+    ]
     scored = sorted(
         processed,
         key=lambda row: (

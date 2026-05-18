@@ -144,6 +144,18 @@ def test_ula_model_predicts_duration_and_transition_logits():
     assert torch.all(plan["duration_sec"] > 0.0)
 
 
+def test_ula_model_uses_frame_position_signal():
+    condition = torch.zeros(1, 92)
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    model.eval()
+    identical_frames = torch.zeros(1, 6, len(JOINT_ORDER))
+
+    with torch.no_grad():
+        output = model(identical_frames, torch.tensor([0.5]), condition)
+
+    assert not torch.allclose(output[:, 0, :], output[:, 1, :])
+
+
 def test_planner_loss_uses_duration_and_transition_targets():
     condition = torch.randn(2, 92)
     model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
@@ -173,11 +185,24 @@ def test_training_preview_writes_mujoco_video_folder(tmp_path):
         seed=3,
         width=160,
         height=120,
+        preview_mode="long",
+        long_duration_sec=0.6,
+        min_segment_sec=0.2,
+        max_segment_sec=0.2,
+        min_segments=3,
+        max_segments=3,
+        max_velocity_rad_s=3.0,
+        smooth_window=3,
     )
 
     preview_dir = tmp_path / "previews" / "step_001000"
     assert summary["step"] == 1000
-    assert (preview_dir / "generated.csv").is_file()
-    assert (preview_dir / "generated.npz").is_file()
+    assert summary["preview_mode"] == "long"
+    assert summary["duration_sec"] > 0.4
+    assert summary["frames"] > 4
+    assert (preview_dir / "long_motion.csv").is_file()
+    assert (preview_dir / "long_motion.npz").is_file()
+    assert (preview_dir / "plan.json").is_file()
     assert (preview_dir / "summary.json").is_file()
-    assert (preview_dir / "preview.mp4").is_file()
+    assert (preview_dir / "long_motion_original_v2.mp4").is_file()
+    assert summary["trajectory_quality"]["processed"]["max_velocity_rad_s"] <= 3.0 + 1e-5

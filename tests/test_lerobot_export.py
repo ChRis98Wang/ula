@@ -44,8 +44,17 @@ def test_export_lerobot_dataset_writes_v3_parquet_layout(tmp_path):
         },
         "labels": {
             "intent": "greeting",
+            "communicative_intent": "greeting",
             "observed_affect": "friendly",
+            "gesture_function": "social",
+            "emotion_trajectory": "friendly_sustained",
             "motion_style": "relaxed",
+            "intensity": "low",
+            "speed": "slow",
+            "openness": "open",
+            "tension": "low",
+            "duration_sec": 4.0 / 30.0,
+            "transition": "end",
             "arousal": 0.2,
             "valence": 0.5,
             "arousal_token": 1,
@@ -55,6 +64,17 @@ def test_export_lerobot_dataset_writes_v3_parquet_layout(tmp_path):
         },
         "meta_semantics": {
             "semantic_gesture": "waving",
+            "body_expression": {
+                "communicative_intent": "greeting",
+                "gesture_function": "social",
+                "emotion_trajectory": "friendly_sustained",
+                "intensity": "low",
+                "speed": "slow",
+                "openness": "open",
+                "tension": "low",
+                "duration_sec": 4.0 / 30.0,
+                "transition": "end",
+            },
             "body_motion": {
                 "joint_space": "v2_upper_body_15d",
                 "action_shape": [4, 15],
@@ -110,3 +130,10 @@ def test_export_lerobot_dataset_writes_v3_parquet_layout(tmp_path):
     episode_rows = pq.read_table(out_dir / "meta" / "episodes" / "chunk-000" / "file-000.parquet").to_pylist()
     assert episode_rows[0]["sample_id"] == "sample__0_4"
     assert episode_rows[0]["length"] == 4
+    assert episode_rows[0]["communicative_intent"] == "greeting"
+    assert episode_rows[0]["gesture_function"] == "social"
+    assert episode_rows[0]["emotion_trajectory"] == "friendly_sustained"
+    assert episode_rows[0]["transition"] == "end"
+    semantic_rows = pq.read_table(out_dir / "meta" / "semantic_index.parquet").to_pylist()
+    assert semantic_rows[0]["openness"] == "open"
+    assert semantic_rows[0]["tension"] == "low"

@@ -8,7 +8,7 @@ import mujoco
 import numpy as np
 
 from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER, retarget_frame, write_joint_csv
-from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF
+from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF, resolve_mujoco_urdf
 
 
 IK_JOINTS = [
@@ -43,13 +43,18 @@ ROBOT_FOREARM_LENGTH = 0.092
 ROBOT_ARM_NEUTRAL_DEPTH = 0.12
 ROBOT_CROSS_BODY_DEPTH_OFFSET = 0.05
 ROBOT_TORSO_FRONT_X = 0.055
-ARM_POINT_CLEARANCE = 0.075
+ARM_POINT_CLEARANCE = 0.035
+WRIST_CONVERGENCE_SOURCE_YZ_M = 0.14
+WRIST_CONVERGENCE_TARGET_YZ_M = 0.04
+WRIST_CONVERGENCE_SOURCE_SCALE = 0.72
 VIDEO_PLANE_AXES = np.array([1, 2], dtype=int)
 UNKNOWN_DEPTH_WEIGHT = 0.35
+WRIST_PAIR_WEIGHT = 8.0
 ARM_CLEARANCE_WEIGHT = 3.5
 TORSO_FRONT_WEIGHT = 5.0
 CONTACT_VIOLATION_WEIGHT = 220.0
 CONTACT_CLEARANCE_MARGIN = 0.006
+MAX_JOINT_STEP_RAD = 0.24
 
 LEFT_ARM_PREFIXES = ("link_lShoulder", "link_lElbow", "link_lWrist")
 RIGHT_ARM_PREFIXES = ("link_rShoulder", "link_rElbow", "link_rWrist")
@@ -87,6 +92,30 @@ def normalized_arm_targets(landmarks):
         wrist[0] = depth
         targets[f"{side}_elbow"] = elbow
         targets[f"{side}_wrist"] = wrist
+    apply_wrist_convergence(targets, landmarks)
+    return targets
+
+
+def apply_wrist_convergence(targets, landmarks):
+    source_delta = _vec(landmarks["left_wrist"]) - _vec(landmarks["right_wrist"])
+    source_yz_distance = float(np.linalg.norm(source_delta[VIDEO_PLANE_AXES]))
+    if source_yz_distance >= WRIST_CONVERGENCE_SOURCE_YZ_M:
+        return targets
+    left = targets["left_wrist"].copy()
+    right = targets["right_wrist"].copy()
+    midpoint = (left[VIDEO_PLANE_AXES] + right[VIDEO_PLANE_AXES]) * 0.5
+    delta = left[VIDEO_PLANE_AXES] - right[VIDEO_PLANE_AXES]
+    norm = float(np.linalg.norm(delta))
+    if norm < 1e-9:
+        unit = np.array([-1.0, 0.0])
+    else:
+        unit = delta / norm
+    source_scaled_distance = source_yz_distance * WRIST_CONVERGENCE_SOURCE_SCALE
+    desired_distance = min(norm, max(WRIST_CONVERGENCE_TARGET_YZ_M, source_scaled_distance))
+    left[VIDEO_PLANE_AXES] = midpoint + unit * desired_distance * 0.5
+    right[VIDEO_PLANE_AXES] = midpoint - unit * desired_distance * 0.5
+    targets["left_wrist"] = left
+    targets["right_wrist"] = right
     return targets
 
 
@@ -216,6 +245,10 @@ def _loss(model, data, qpos, qpos_addr, body_ids, targets, regularization_qpos):
         if body_name in body_ids
     }
     if len(points) == len(BODY_TARGETS):
+        robot_wrist_delta = points["left_wrist"][VIDEO_PLANE_AXES] - points["right_wrist"][VIDEO_PLANE_AXES]
+        target_wrist_delta = targets["left_wrist"][VIDEO_PLANE_AXES] - targets["right_wrist"][VIDEO_PLANE_AXES]
+        pair_delta = robot_wrist_delta - target_wrist_delta
+        total += WRIST_PAIR_WEIGHT * float(pair_delta @ pair_delta)
         total += ARM_CLEARANCE_WEIGHT * arm_clearance_penalty(points)
         total += TORSO_FRONT_WEIGHT * torso_front_penalty(points)
     total += CONTACT_VIOLATION_WEIGHT * contact_violation_penalty(_contacts_from_data(model, data))
@@ -266,17 +299,35 @@ def optimize_frame(model, data, qpos_addr, body_ids, frame, previous_qpos=None, 
     return row, qpos
 
 
+def limit_joint_step(row, previous_row, max_step=MAX_JOINT_STEP_RAD):
+    if previous_row is None:
+        return row
+    limited = dict(row)
+    for joint in IK_JOINTS:
+        if joint not in row or joint not in previous_row:
+            continue
+        delta = float(row[joint]) - float(previous_row[joint])
+        if abs(delta) > max_step:
+            limited[joint] = _clip_joint(joint, float(previous_row[joint]) + float(np.sign(delta)) * max_step)
+    return limited
+
+
 def retarget_payload_to_rows_ik(payload, urdf_path=DEFAULT_URDF, max_frames=None):
+    urdf_path = resolve_mujoco_urdf(urdf_path)
     model = mujoco.MjModel.from_xml_path(str(urdf_path))
     data = mujoco.MjData(model)
     qpos_addr, body_ids = _maps(model)
     rows = []
     previous_qpos = None
+    previous_row = None
     frames = payload.get("frames", [])
     if max_frames is not None:
         frames = frames[:max_frames]
     for frame in frames:
         row, previous_qpos = optimize_frame(model, data, qpos_addr, body_ids, frame, previous_qpos=previous_qpos)
+        row = limit_joint_step(row, previous_row)
+        previous_qpos = _qpos_from_row(model, qpos_addr, row)
+        previous_row = row
         rows.append(row)
     return rows
 

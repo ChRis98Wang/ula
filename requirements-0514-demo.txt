@@ -1,0 +1,8 @@
+torch
+numpy
+mujoco
+mediapy
+imageio-ffmpeg
+pyarrow
+pyyaml
+pytest
