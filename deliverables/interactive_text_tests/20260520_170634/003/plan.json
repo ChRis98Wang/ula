@@ -1,0 +1,71 @@
+{
+  "text": "停止挥手",
+  "fps": 30.0,
+  "max_duration_sec": 12.0,
+  "segments": [
+    {
+      "segment_index": 0,
+      "start_sec": 0.0,
+      "end_sec": 3.0,
+      "frames": 90,
+      "predicted_duration_sec": 2.9269161224365234,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.186889403470559e-05,
+        "emotion_change": 1.1558546248124912e-05,
+        "action_change": 1.1470149729575496e-05,
+        "end": 0.9999650716781616
+      }
+    },
+    {
+      "segment_index": 1,
+      "start_sec": 3.0,
+      "end_sec": 6.0,
+      "frames": 90,
+      "predicted_duration_sec": 2.925230026245117,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.189438899018569e-05,
+        "emotion_change": 1.1583827472350094e-05,
+        "action_change": 1.149673971667653e-05,
+        "end": 0.9999650716781616
+      }
+    },
+    {
+      "segment_index": 2,
+      "start_sec": 6.0,
+      "end_sec": 9.0,
+      "frames": 90,
+      "predicted_duration_sec": 2.9187514781951904,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.3181529538996983e-05,
+        "emotion_change": 1.2823657016269863e-05,
+        "action_change": 1.2729761692753527e-05,
+        "end": 0.999961256980896
+      }
+    },
+    {
+      "segment_index": 3,
+      "start_sec": 9.0,
+      "end_sec": 12.0,
+      "frames": 90,
+      "predicted_duration_sec": 2.924577474594116,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.1846776033053175e-05,
+        "emotion_change": 1.1538249054865446e-05,
+        "action_change": 1.145199712482281e-05,
+        "end": 0.9999651908874512
+      }
+    }
+  ],
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/003/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/003/long_motion.npz",
+  "rendered_mp4": null,
+  "viewer": null
+}

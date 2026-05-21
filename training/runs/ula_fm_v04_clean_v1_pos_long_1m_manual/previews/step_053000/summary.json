@@ -1,0 +1,67 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000",
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "segments": 8,
+  "frames": 720,
+  "duration_sec": 24.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/plan.json",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion_original_v2.mp4",
+  "render": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion.csv",
+    "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion_original_v2.mp4",
+    "frames": 720,
+    "duration_sec": 24.0,
+    "fps": 30.0,
+    "width": 1280,
+    "height": 720,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/video/seamless_interaction_50g/upper_body_skeletons/mujoco_robot_v2_meshdir.urdf",
+    "model_nq": 25,
+    "model_nbody": 29
+  },
+  "postprocess": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "trajectory_quality": {
+    "raw": {
+      "frames": 720,
+      "max_delta_rad_per_frame": 1.3739683628082275,
+      "mean_delta_rad_per_frame": 0.04206822067499161,
+      "max_velocity_rad_s": 41.219050884246826,
+      "mean_velocity_rad_s": 1.2620466202497482
+    },
+    "processed": {
+      "frames": 720,
+      "max_delta_rad_per_frame": 0.10000002384185791,
+      "mean_delta_rad_per_frame": 0.02081589214503765,
+      "max_velocity_rad_s": 3.0000007152557373,
+      "mean_velocity_rad_s": 0.6244767643511295
+    }
+  },
+  "last_pose": [
+    -0.01167864166200161,
+    0.03703804314136505,
+    0.010232912376523018,
+    -0.4661189913749695,
+    -1.0300204753875732,
+    0.4077660143375397,
+    -1.1347841024398804,
+    -0.002377172466367483,
+    0.002140764845535159,
+    -0.09013690799474716,
+    -1.0855748653411865,
+    -0.26935261487960815,
+    0.7589542269706726,
+    -0.015996167436242104,
+    -0.02168818935751915
+  ],
+  "step": 53000,
+  "preview_mode": "long",
+  "generated_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion.csv",
+  "generated_npz": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion.npz",
+  "preview_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_053000/long_motion_original_v2.mp4",
+  "sampling_steps": 32,
+  "fps": 30.0
+}

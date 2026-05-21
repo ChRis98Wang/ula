@@ -1,0 +1,36 @@
+{
+  "config": {
+    "dataset_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/datasets/lerobot_v2_upper_body_body_only_clean_v1",
+    "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/_smoke_v04_preview_debug",
+    "steps": 1,
+    "batch_size": 2,
+    "lr": 0.0001,
+    "max_episodes": 4,
+    "hidden_dim": 64,
+    "layers": 1,
+    "device": "cpu",
+    "log_interval": 1,
+    "preview_every_steps": 1,
+    "preview_text": "\u7d27\u5f20\u5730\u89e3\u91ca\u4e00\u4ef6\u56f0\u96be\u7684\u4e8b\u60c5\uff0c\u7136\u540e\u9010\u6e10\u7f13\u548c\u4e0b\u6765\uff0c\u52a8\u4f5c\u8981\u4f53\u73b0\u957f\u7a0b\u60c5\u7eea\u53d8\u5316",
+    "preview_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/_smoke_v04_preview_debug/previews",
+    "preview_mode": "long",
+    "preview_frames": 120,
+    "preview_sampling_steps": 2,
+    "preview_fps": 30.0,
+    "preview_seed": 7,
+    "preview_width": 320,
+    "preview_height": 180,
+    "preview_duration_sec": 1.0,
+    "preview_min_segment_sec": 0.5,
+    "preview_max_segment_sec": 0.5,
+    "preview_min_segments": 2,
+    "preview_max_segments": 2,
+    "preview_max_velocity_rad_s": 3.0,
+    "preview_smooth_window": 3,
+    "episodes_loaded": 4
+  },
+  "losses": [
+    2.4074039459228516
+  ],
+  "final_loss": 2.4074039459228516
+}

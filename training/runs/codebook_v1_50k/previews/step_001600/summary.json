@@ -1,0 +1,18 @@
+{
+  "step": 1600,
+  "text": "\u7d27\u5f20\u5730\u89e3\u91ca\uff0c\u540c\u65f6\u53cc\u624b\u505a\u514b\u5236\u7684\u4e0a\u80a2\u624b\u52bf",
+  "generated_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_50k/previews/step_001600/generated.csv",
+  "generated_npz": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_50k/previews/step_001600/generated.npz",
+  "preview_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_50k/previews/step_001600/preview.mp4",
+  "frames": 120,
+  "sampling_steps": 32,
+  "fps": 30.0,
+  "render": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_50k/previews/step_001600/generated.csv",
+    "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_50k/previews/step_001600/preview.mp4",
+    "frames": 120,
+    "fps": 30.0,
+    "width": 1280,
+    "height": 720
+  }
+}

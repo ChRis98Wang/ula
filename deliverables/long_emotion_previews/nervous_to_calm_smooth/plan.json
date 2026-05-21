@@ -1,0 +1,55 @@
+{
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "fps": 30.0,
+  "max_duration_sec": 24.0,
+  "segments": [
+    {
+      "segment_index": 0,
+      "start_sec": 0.0,
+      "end_sec": 3.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9542823433876038,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 0.24492181837558746,
+        "emotion_change": 0.24515746533870697,
+        "action_change": 0.25242412090301514,
+        "end": 0.25749653577804565
+      }
+    },
+    {
+      "segment_index": 1,
+      "start_sec": 3.0,
+      "end_sec": 6.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9543857574462891,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 0.24490314722061157,
+        "emotion_change": 0.2459368109703064,
+        "action_change": 0.25245216488838196,
+        "end": 0.2567078471183777
+      }
+    },
+    {
+      "segment_index": 2,
+      "start_sec": 6.0,
+      "end_sec": 9.0,
+      "frames": 90,
+      "predicted_duration_sec": 0.9537768363952637,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 0.24510517716407776,
+        "emotion_change": 0.2461986243724823,
+        "action_change": 0.2519684433937073,
+        "end": 0.2567276954650879
+      }
+    }
+  ],
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smooth/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smooth/long_motion.npz",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/nervous_to_calm_smooth/long_motion_original_v2.mp4"
+}

@@ -1,0 +1,50 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/viewer_cli_smoke",
+  "text": "开心的挥手",
+  "segments": 1,
+  "frames": 30,
+  "duration_sec": 1.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/viewer_cli_smoke/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/viewer_cli_smoke/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/viewer_cli_smoke/plan.json",
+  "rendered_mp4": null,
+  "render": null,
+  "viewer": null,
+  "postprocess": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "trajectory_quality": {
+    "raw": {
+      "frames": 30,
+      "max_delta_rad_per_frame": 0.48838508129119873,
+      "mean_delta_rad_per_frame": 0.06567920744419098,
+      "max_velocity_rad_s": 14.651552438735962,
+      "mean_velocity_rad_s": 1.9703762233257294
+    },
+    "processed": {
+      "frames": 30,
+      "max_delta_rad_per_frame": 0.10000002384185791,
+      "mean_delta_rad_per_frame": 0.02220459282398224,
+      "max_velocity_rad_s": 3.0000007152557373,
+      "mean_velocity_rad_s": 0.6661377847194672
+    }
+  },
+  "last_pose": [
+    -0.005690075922757387,
+    0.020861398428678513,
+    0.03054657019674778,
+    -0.35583871603012085,
+    -1.160186529159546,
+    0.656058669090271,
+    -1.3649678230285645,
+    -0.022894246503710747,
+    -0.03552413731813431,
+    -0.2510942816734314,
+    -1.1066522598266602,
+    -0.46624988317489624,
+    -1.0973351001739502,
+    0.041890040040016174,
+    -0.035097360610961914
+  ]
+}

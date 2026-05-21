@@ -87,6 +87,36 @@ def test_long_emotion_generation_can_open_mujoco_viewer(tmp_path, monkeypatch):
     assert calls[0][1]["realtime"] is False
 
 
+def test_long_emotion_generation_accepts_explicit_kimodo_condition_ids(tmp_path):
+    from upper_body_skeleton.ula_training import KIMODO_CONDITION_DIM
+
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=KIMODO_CONDITION_DIM, hidden_dim=64)
+
+    summary = generate_long_emotion_motion(
+        model,
+        text="开心地向主人打招呼",
+        behavior_id="Behavior.GreetingOwner01",
+        emotion_id="happy",
+        output_dir=tmp_path / "kimodo_preview",
+        fps=30.0,
+        max_duration_sec=0.2,
+        min_segment_sec=0.1,
+        max_segment_sec=0.1,
+        min_segments=1,
+        max_segments=1,
+        sampling_steps=2,
+        device="cpu",
+        seed=11,
+        render=False,
+    )
+
+    plan = json.loads((tmp_path / "kimodo_preview" / "plan.json").read_text(encoding="utf-8"))
+    assert summary["behavior_id"] == "Behavior.GreetingOwner01"
+    assert summary["emotion_id"] == "happy"
+    assert plan["behavior_id"] == "Behavior.GreetingOwner01"
+    assert plan["emotion_id"] == "happy"
+
+
 def test_joint_velocity_limiter_removes_large_frame_jumps():
     trajectory = np.zeros((6, len(JOINT_ORDER)), dtype=np.float32)
     trajectory[1, 3] = 3.0

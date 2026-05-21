@@ -6,10 +6,13 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from upper_body_skeleton.kimodo_semantics import kimodo_condition_metadata
 from upper_body_skeleton.mujoco_playback import play_motion, render_motion
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_infer import load_model
 from upper_body_skeleton.ula_training import (
+    KIMODO_CONDITION_DIM,
+    LEGACY_CONDITION_DIM,
     TRANSITION_IDS,
     build_condition_from_text,
     choose_device,
@@ -27,9 +30,14 @@ def _clamp(value, low, high):
     return max(float(low), min(float(high), float(value)))
 
 
-def _condition_for_segment(text, segment_index, previous_transition):
+def _condition_for_segment(text, segment_index, previous_transition, *, behavior_id=None, emotion_id=None, condition_dim=KIMODO_CONDITION_DIM):
     suffix = f" segment {segment_index}; previous transition {previous_transition}"
-    return build_condition_from_text(text + suffix)
+    return build_condition_from_text(
+        text + suffix,
+        behavior_id=behavior_id,
+        emotion_id=emotion_id,
+        condition_dim=condition_dim,
+    )
 
 
 def _predict_plan(model, condition, device):
@@ -103,6 +111,8 @@ def generate_long_emotion_motion(
     model,
     *,
     text,
+    behavior_id=None,
+    emotion_id=None,
     output_dir,
     fps=30.0,
     max_duration_sec=30.0,
@@ -126,6 +136,10 @@ def generate_long_emotion_motion(
     output_dir.mkdir(parents=True, exist_ok=True)
     model.to(device)
     model.eval()
+    condition_dim = int(getattr(model, "condition_dim", KIMODO_CONDITION_DIM))
+    kimodo_meta = kimodo_condition_metadata(behavior_id=behavior_id, emotion_id=emotion_id, text=text)
+    behavior_id = kimodo_meta["behavior_id"] if condition_dim != LEGACY_CONDITION_DIM else behavior_id
+    emotion_id = kimodo_meta["emotion_id"] if condition_dim != LEGACY_CONDITION_DIM else emotion_id
 
     segments = []
     trajectories = []
@@ -134,7 +148,14 @@ def generate_long_emotion_motion(
     last_pose = None
 
     for segment_index in range(int(max_segments)):
-        condition = _condition_for_segment(text, segment_index, previous_transition)
+        condition = _condition_for_segment(
+            text,
+            segment_index,
+            previous_transition,
+            behavior_id=behavior_id,
+            emotion_id=emotion_id,
+            condition_dim=condition_dim,
+        )
         predicted_duration, transition_id, transition_probs = _predict_plan(model, condition, device)
         remaining = max(0.0, float(max_duration_sec) - elapsed)
         if remaining <= 1.0 / float(fps):
@@ -175,7 +196,12 @@ def generate_long_emotion_motion(
             break
 
     if not trajectories:
-        condition = build_condition_from_text(text)
+        condition = build_condition_from_text(
+            text,
+            behavior_id=behavior_id,
+            emotion_id=emotion_id,
+            condition_dim=condition_dim,
+        )
         frames = max(2, int(round(float(min_segment_sec) * float(fps))))
         trajectories.append(
             sample_trajectory(
@@ -236,6 +262,8 @@ def generate_long_emotion_motion(
 
     plan = {
         "text": text,
+        "behavior_id": behavior_id,
+        "emotion_id": emotion_id,
         "fps": float(fps),
         "max_duration_sec": float(max_duration_sec),
         "segments": segments,
@@ -243,11 +271,14 @@ def generate_long_emotion_motion(
         "npz": str(npz_path),
         "rendered_mp4": rendered_mp4,
         "viewer": viewer_summary,
+        "kimodo_condition": kimodo_meta,
     }
     plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {
         "output_dir": str(output_dir),
         "text": text,
+        "behavior_id": behavior_id,
+        "emotion_id": emotion_id,
         "segments": len(segments),
         "frames": int(trajectory.shape[0]),
         "duration_sec": float(trajectory.shape[0] / float(fps)),
@@ -257,6 +288,7 @@ def generate_long_emotion_motion(
         "rendered_mp4": rendered_mp4,
         "render": render_summary,
         "viewer": viewer_summary,
+        "kimodo_condition": kimodo_meta,
         "postprocess": {
             "max_velocity_rad_s": float(max_velocity_rad_s),
             "smooth_window": int(smooth_window),
@@ -275,6 +307,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate long-horizon emotion-aware V2 upper-body motion")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--text", required=True)
+    parser.add_argument("--behavior-id")
+    parser.add_argument("--emotion-id")
     parser.add_argument("--output-dir", default=str(DEFAULT_LONG_EMOTION_OUTPUT_DIR))
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--max-duration-sec", type=float, default=30.0)
@@ -300,6 +334,8 @@ def main():
     summary = generate_long_emotion_motion(
         model,
         text=args.text,
+        behavior_id=args.behavior_id,
+        emotion_id=args.emotion_id,
         output_dir=args.output_dir,
         fps=args.fps,
         max_duration_sec=args.max_duration_sec,

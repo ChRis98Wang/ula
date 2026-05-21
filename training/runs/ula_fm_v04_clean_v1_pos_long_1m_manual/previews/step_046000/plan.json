@@ -1,0 +1,130 @@
+{
+  "text": "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化",
+  "fps": 30.0,
+  "max_duration_sec": 24.0,
+  "segments": [
+    {
+      "segment_index": 0,
+      "start_sec": 0.0,
+      "end_sec": 3.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.9233298301696777,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.7044231981344637e-07,
+        "emotion_change": 1.691280147042562e-07,
+        "action_change": 1.734250076879107e-07,
+        "end": 0.9999995231628418
+      }
+    },
+    {
+      "segment_index": 1,
+      "start_sec": 3.0,
+      "end_sec": 6.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.9211297035217285,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.692122424401532e-07,
+        "emotion_change": 1.6879319275631133e-07,
+        "action_change": 1.7255261752779916e-07,
+        "end": 0.9999995231628418
+      }
+    },
+    {
+      "segment_index": 2,
+      "start_sec": 6.0,
+      "end_sec": 9.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.919609546661377,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 2.2426254986385175e-07,
+        "emotion_change": 2.2371698094048043e-07,
+        "action_change": 2.2938162658192596e-07,
+        "end": 0.9999992847442627
+      }
+    },
+    {
+      "segment_index": 3,
+      "start_sec": 9.0,
+      "end_sec": 12.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.9245197772979736,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.605082076139297e-07,
+        "emotion_change": 1.599718189027044e-07,
+        "action_change": 1.6377310885218321e-07,
+        "end": 0.9999995231628418
+      }
+    },
+    {
+      "segment_index": 4,
+      "start_sec": 12.0,
+      "end_sec": 15.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.9247021675109863,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 1.76837417598108e-07,
+        "emotion_change": 1.763912251817601e-07,
+        "action_change": 1.801732594230998e-07,
+        "end": 0.9999995231628418
+      }
+    },
+    {
+      "segment_index": 5,
+      "start_sec": 15.0,
+      "end_sec": 18.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.908721685409546,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 3.852152019589994e-07,
+        "emotion_change": 3.832357720057189e-07,
+        "action_change": 3.9660039874434005e-07,
+        "end": 0.9999988079071045
+      }
+    },
+    {
+      "segment_index": 6,
+      "start_sec": 18.0,
+      "end_sec": 21.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.9176905155181885,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 2.4270357812383736e-07,
+        "emotion_change": 2.4087546535156434e-07,
+        "action_change": 2.4843305368449364e-07,
+        "end": 0.9999992847442627
+      }
+    },
+    {
+      "segment_index": 7,
+      "start_sec": 21.0,
+      "end_sec": 24.0,
+      "frames": 90,
+      "predicted_duration_sec": 3.919527292251587,
+      "used_duration_sec": 3.0,
+      "transition": "end",
+      "transition_probs": {
+        "continue": 2.397895570993569e-07,
+        "emotion_change": 2.389645032963017e-07,
+        "action_change": 2.453074898767227e-07,
+        "end": 0.9999992847442627
+      }
+    }
+  ],
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_046000/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_046000/long_motion.npz",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m_manual/previews/step_046000/long_motion_original_v2.mp4"
+}

@@ -41,6 +41,8 @@ PREVIEW_DEFAULTS = {
     "sampling_steps": 32,
     "width": 1280,
     "height": 720,
+    "behavior_id": None,
+    "emotion_id": None,
 }
 
 
@@ -81,6 +83,8 @@ def training_args_from_config(config):
         log_interval=int(values["log_interval"]),
         preview_every_steps=int(preview["every_steps"]),
         preview_text=str(preview["text"]),
+        preview_behavior_id=preview.get("behavior_id"),
+        preview_emotion_id=preview.get("emotion_id"),
         preview_dir=str(preview_dir),
         preview_mode=str(preview["mode"]),
         preview_frames=int(preview["frames"]),
@@ -154,6 +158,10 @@ def argv_from_training_args(args):
         "--preview-smooth-window",
         str(args.preview_smooth_window),
     ]
+    if args.preview_behavior_id:
+        argv.extend(["--preview-behavior-id", str(args.preview_behavior_id)])
+    if args.preview_emotion_id:
+        argv.extend(["--preview-emotion-id", str(args.preview_emotion_id)])
     if args.max_episodes is not None:
         argv.extend(["--max-episodes", str(args.max_episodes)])
     return argv

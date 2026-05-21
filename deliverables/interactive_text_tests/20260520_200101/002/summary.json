@@ -1,0 +1,62 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_200101/002",
+  "text": "开心挥手",
+  "segments": 4,
+  "frames": 360,
+  "duration_sec": 12.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_200101/002/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_200101/002/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_200101/002/plan.json",
+  "rendered_mp4": null,
+  "render": null,
+  "viewer": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_200101/002/long_motion.csv",
+    "frames": 360,
+    "frames_played": 360,
+    "loops_completed": 1,
+    "interrupted": false,
+    "fps": 30.0,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+    "model_nq": 40,
+    "model_nbody": 44
+  },
+  "postprocess": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "trajectory_quality": {
+    "raw": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 0.6247464418411255,
+      "mean_delta_rad_per_frame": 0.04307115450501442,
+      "max_velocity_rad_s": 18.742393255233765,
+      "mean_velocity_rad_s": 1.2921346351504326
+    },
+    "processed": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 0.10000002384185791,
+      "mean_delta_rad_per_frame": 0.015369369648396969,
+      "max_velocity_rad_s": 3.0000007152557373,
+      "mean_velocity_rad_s": 0.46108108945190907
+    }
+  },
+  "last_pose": [
+    0.005376172251999378,
+    0.026462186127901077,
+    0.012335598468780518,
+    -0.3569915294647217,
+    -1.3291795253753662,
+    0.3496719002723694,
+    -0.8344281315803528,
+    -4.435516893863678e-05,
+    -0.029509592801332474,
+    -0.13334064185619354,
+    -1.2412776947021484,
+    -0.3957592248916626,
+    -0.9419498443603516,
+    0.04728681966662407,
+    -0.013120962306857109
+  ],
+  "generation_ms": 252.597,
+  "generated_at": "2026-05-20T20:01:25"
+}

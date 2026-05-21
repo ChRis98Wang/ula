@@ -30,7 +30,7 @@ Use Python 3.13 with these packages available:
 python -m pip install -r requirements-0514-demo.txt
 ```
 
-On macOS, use `mjpython` for commands that open the MuJoCo viewer.
+On macOS, use `mjpython` for commands that open the MuJoCo viewer. If `mjpython` is not on `PATH`, call the venv binary directly, for example `/Users/demo/Desktop/mjlab/.venv/bin/mjpython`.
 
 ## Generate Motion And MP4
 
@@ -66,7 +66,7 @@ deliverables/long_emotion_previews/clone_demo/long_motion_original_v2.mp4
 Use `mjpython` on macOS:
 
 ```zsh
-env PYTHONPATH="$PWD" mjpython -m upper_body_skeleton.long_emotion_infer \
+env PYTHONPATH="$PWD" /Users/demo/Desktop/mjlab/.venv/bin/mjpython -m upper_body_skeleton.long_emotion_infer \
   --checkpoint "$PWD/training/runs/ula_fm_0514_close_v2_1m/ula_fm_checkpoint.pt" \
   --text "开心地挥手" \
   --output-dir "$PWD/deliverables/long_emotion_previews/clone_viewer" \
@@ -81,10 +81,31 @@ env PYTHONPATH="$PWD" mjpython -m upper_body_skeleton.long_emotion_infer \
   --viewer-loops 0
 ```
 
+## Stream Text Into One MuJoCo Viewer
+
+For repeated manual testing, start one viewer and keep typing new text prompts:
+
+```zsh
+cd /Users/demo/Desktop/upper_body_motion_roadmap
+
+env PYTHONPATH="$PWD" /Users/demo/Desktop/mjlab/.venv/bin/mjpython -m upper_body_skeleton.interactive_text_viewer \
+  --checkpoint "$PWD/training/runs/ula_fm_0514_close_v2_1m/ula_fm_checkpoint.pt" \
+  --output-root "$PWD/deliverables/interactive_text_tests" \
+  --min-segment-sec 3 \
+  --max-segment-sec 3 \
+  --min-segments 4 \
+  --max-segments 4 \
+  --max-duration-sec 12 \
+  --sampling-steps 16 \
+  --loops 1
+```
+
+Then type one prompt per line. Each completed generation prints one JSON line with `generation_ms`, which measures model generation and postprocessing time only, not MuJoCo playback time. If a new prompt arrives while a motion is playing, playback stops on the next frame and switches to the newest prompt. If text changes while inference is still generating, the stale generated motion is skipped. Use `:q` to exit.
+
 To play an existing generated CSV:
 
 ```zsh
-env PYTHONPATH="$PWD" mjpython -m upper_body_skeleton.mujoco_playback \
+env PYTHONPATH="$PWD" /Users/demo/Desktop/mjlab/.venv/bin/mjpython -m upper_body_skeleton.mujoco_playback \
   --joint-csv "$PWD/deliverables/long_emotion_previews/clone_demo/long_motion.csv" \
   --viewer \
   --loops 0

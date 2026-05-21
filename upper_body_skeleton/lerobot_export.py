@@ -142,6 +142,8 @@ def episode_schema():
             pa.field("transition", pa.string()),
             pa.field("semantic_confidence", pa.float32()),
             pa.field("semantic_gesture", pa.string()),
+            pa.field("behavior_id", pa.string()),
+            pa.field("emotion_id", pa.string()),
             pa.field("arousal", pa.float32()),
             pa.field("valence", pa.float32()),
             pa.field("arousal_token", pa.int64()),
@@ -182,6 +184,8 @@ def semantic_schema():
             pa.field("transition", pa.string()),
             pa.field("semantic_confidence", pa.float32()),
             pa.field("semantic_gesture", pa.string()),
+            pa.field("behavior_id", pa.string()),
+            pa.field("emotion_id", pa.string()),
             pa.field("arousal", pa.float32()),
             pa.field("valence", pa.float32()),
             pa.field("arousal_token", pa.int64()),
@@ -295,6 +299,8 @@ def flatten_episode_record(record, episode_index, task_index, length):
     quality = record.get("quality", {})
     action = record.get("action", {})
     meta = record.get("meta_semantics", {})
+    behavior_id = labels.get("behavior_id") or meta.get("behavior_id", "")
+    emotion_id = labels.get("emotion_id") or meta.get("emotion_id", "")
     return {
         "episode_index": episode_index,
         "task_index": task_index,
@@ -327,6 +333,8 @@ def flatten_episode_record(record, episode_index, task_index, length):
         "transition": labels.get("transition", ""),
         "semantic_confidence": optional_float(labels.get("semantic_confidence")),
         "semantic_gesture": meta.get("semantic_gesture", ""),
+        "behavior_id": behavior_id,
+        "emotion_id": emotion_id,
         "arousal": optional_float(labels.get("arousal")),
         "valence": optional_float(labels.get("valence")),
         "arousal_token": optional_int(labels.get("arousal_token")),
@@ -346,6 +354,8 @@ def flatten_semantic_record(record, episode_index):
     meta = record.get("meta_semantics", {})
     source = record.get("source", {})
     action = record.get("action", {})
+    behavior_id = labels.get("behavior_id") or meta.get("behavior_id", "")
+    emotion_id = labels.get("emotion_id") or meta.get("emotion_id", "")
     return {
         "episode_index": episode_index,
         "sample_id": record.get("sample_id", ""),
@@ -370,6 +380,8 @@ def flatten_semantic_record(record, episode_index):
         "transition": labels.get("transition", ""),
         "semantic_confidence": optional_float(labels.get("semantic_confidence")),
         "semantic_gesture": meta.get("semantic_gesture", ""),
+        "behavior_id": behavior_id,
+        "emotion_id": emotion_id,
         "arousal": optional_float(labels.get("arousal")),
         "valence": optional_float(labels.get("valence")),
         "arousal_token": optional_int(labels.get("arousal_token")),

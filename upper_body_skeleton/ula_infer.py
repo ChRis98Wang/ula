@@ -8,6 +8,7 @@ import torch
 
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_training import (
+    KIMODO_CONDITION_DIM,
     UlaFmModel,
     build_condition_from_text,
     choose_device,
@@ -43,6 +44,8 @@ def main():
     parser.add_argument("--affect")
     parser.add_argument("--style")
     parser.add_argument("--gesture")
+    parser.add_argument("--behavior-id")
+    parser.add_argument("--emotion-id")
     parser.add_argument("--frames", type=int, default=120)
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--sampling-steps", type=int, default=32)
@@ -52,16 +55,20 @@ def main():
 
     device = choose_device(args.device)
     model, checkpoint = load_model(args.checkpoint, device)
+    expected_condition_dim = checkpoint.get("condition_dim", KIMODO_CONDITION_DIM)
     condition = build_condition_from_text(
         args.text,
         intent=args.intent,
         affect=args.affect,
         style=args.style,
         gesture=args.gesture,
+        behavior_id=args.behavior_id,
+        emotion_id=args.emotion_id,
+        condition_dim=expected_condition_dim,
     )
-    if condition.shape[0] != checkpoint.get("condition_dim", condition.shape[0]):
+    if condition.shape[0] != expected_condition_dim:
         raise SystemExit(
-            f"condition dim mismatch: built {condition.shape[0]}, checkpoint expects {checkpoint.get('condition_dim')}"
+            f"condition dim mismatch: built {condition.shape[0]}, checkpoint expects {expected_condition_dim}"
         )
     trajectory = sample_trajectory(
         model,
@@ -92,6 +99,8 @@ def main():
         "fps": float(args.fps),
         "device": device,
         "seed": args.seed,
+        "behavior_id": args.behavior_id,
+        "emotion_id": args.emotion_id,
     }
     if args.summary_json:
         Path(args.summary_json).parent.mkdir(parents=True, exist_ok=True)

@@ -33,14 +33,14 @@ paths in metadata remain valid.
 Use this for training:
 
 ```text
-/Users/demo/Desktop/upper_body_motion_roadmap/datasets/lerobot_v2_upper_body_body_only_final
+/Users/demo/Desktop/upper_body_motion_roadmap/datasets/lerobot_v2_upper_body_body_only_clean_v1
 ```
 
 Useful dataset files:
 
-- `datasets/semantic_index.parquet`
-- `datasets/language_action_index.body_final.jsonl`
-- `datasets/retarget_manifest.csv`
+- `datasets/lerobot_v2_upper_body_body_only_clean_v1/meta/semantic_index.parquet`
+- `datasets/lerobot_v2_upper_body_body_only_clean_v1/data/chunk-000/*.parquet`
+- `datasets/lerobot_v2_upper_body_body_only_clean_v1/cleaning_summary.json`
 
 ## Data-Making Folder
 
@@ -62,9 +62,15 @@ Current recommended run:
 
 Manual scripts:
 
+- `training/scripts/train_ula_fm.py`
 - `training/scripts/train_codebook_v1_long.sh`
 - `training/scripts/infer_codebook_v1.sh`
 - `training/scripts/render_generated_motion.sh`
+
+Server/S3 training:
+
+- `configs/train_v04_s3_example.yaml`
+- `docs/roadmap/12_server_s3_training.md`
 
 ## Training With Automatic MuJoCo Previews
 
@@ -75,32 +81,18 @@ For example, every 1,000 steps:
 cd /Users/demo/Desktop/upper_body_motion_roadmap
 
 PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
-/Users/demo/Desktop/mjlab/.venv/bin/python -m upper_body_skeleton.ula_training \
-  --dataset-dir /Users/demo/Desktop/upper_body_motion_roadmap/datasets/lerobot_v2_upper_body_body_only_final \
-  --output-dir /Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_long \
-  --steps 20000 \
-  --batch-size 32 \
-  --max-episodes 51101 \
-  --hidden-dim 384 \
-  --layers 6 \
-  --device auto \
-  --log-interval 200 \
-  --preview-every-steps 1000 \
-  --preview-dir /Users/demo/Desktop/upper_body_motion_roadmap/training/runs/codebook_v1_long/previews \
-  --preview-text "紧张地解释，同时双手做克制的上肢手势" \
-  --preview-frames 120 \
-  --preview-sampling-steps 32 \
-  --preview-width 1280 \
-  --preview-height 720
+/Users/demo/Desktop/mjlab/.venv/bin/python -u -m training.scripts.train_ula_fm \
+  --config configs/train_v04_s3_example.yaml
 ```
 
 Each preview is written to:
 
 ```text
-training/runs/codebook_v1_long/previews/step_001000/
-  generated.csv
-  generated.npz
-  preview.mp4
+training/runs/ula_fm_v04_clean_v1_pos_long_1m/previews/step_001000/
+  long_motion.csv
+  long_motion.npz
+  long_motion_original_v2.mp4
+  plan.json
   summary.json
 ```
 

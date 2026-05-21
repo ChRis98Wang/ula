@@ -3,7 +3,13 @@ from pathlib import Path
 
 import numpy as np
 
-from upper_body_skeleton.mujoco_playback import build_preview_model, play_motion, read_joint_csv, render_motion
+from upper_body_skeleton.mujoco_playback import (
+    MujocoMotionPlayer,
+    build_preview_model,
+    play_motion,
+    read_joint_csv,
+    render_motion,
+)
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF, NEW_URDF_SOURCE, ensure_mujoco_urdf
 
@@ -110,3 +116,74 @@ def test_play_motion_streams_joint_frames_to_mujoco_viewer(tmp_path, monkeypatch
     assert summary["frames_played"] == 3
     assert summary["loops_completed"] == 1
     assert len(sync_calls) == 3
+
+
+def test_reusable_player_streams_multiple_trajectories_through_one_viewer(monkeypatch):
+    launch_calls = []
+    sync_calls = []
+
+    class FakeViewer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def is_running(self):
+            return True
+
+        def sync(self):
+            sync_calls.append(1)
+
+    def fake_launch(model, data):
+        launch_calls.append((model, data))
+        return FakeViewer()
+
+    monkeypatch.setattr("upper_body_skeleton.mujoco_playback._launch_passive_viewer", fake_launch)
+
+    first = np.zeros((2, len(JOINT_ORDER)), dtype=np.float32)
+    second = np.ones((3, len(JOINT_ORDER)), dtype=np.float32) * 0.05
+
+    with MujocoMotionPlayer(simplified=True) as player:
+        first_summary = player.play_trajectory(first, loops=1, realtime=False)
+        second_summary = player.play_trajectory(second, loops=1, realtime=False)
+
+    assert len(launch_calls) == 1
+    assert first_summary["frames_played"] == 2
+    assert second_summary["frames_played"] == 3
+    assert len(sync_calls) == 5
+
+
+def test_player_can_stop_playback_mid_trajectory(monkeypatch):
+    sync_calls = []
+
+    class StopAfterTwo:
+        def __init__(self):
+            self.calls = 0
+
+        def is_set(self):
+            self.calls += 1
+            return self.calls > 2
+
+    class FakeViewer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def is_running(self):
+            return True
+
+        def sync(self):
+            sync_calls.append(1)
+
+    monkeypatch.setattr("upper_body_skeleton.mujoco_playback._launch_passive_viewer", lambda model, data: FakeViewer())
+
+    trajectory = np.zeros((10, len(JOINT_ORDER)), dtype=np.float32)
+    with MujocoMotionPlayer(simplified=True) as player:
+        summary = player.play_trajectory(trajectory, loops=1, realtime=False, stop_event=StopAfterTwo())
+
+    assert summary["interrupted"] is True
+    assert summary["frames_played"] == 1
+    assert len(sync_calls) == 1

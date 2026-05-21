@@ -1,0 +1,59 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/002",
+  "text": "悲伤的挥手",
+  "segments": 4,
+  "frames": 360,
+  "duration_sec": 12.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/002/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/002/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/002/plan.json",
+  "rendered_mp4": null,
+  "render": null,
+  "viewer": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/002/long_motion.csv",
+    "frames": 360,
+    "frames_played": 360,
+    "loops_completed": 1,
+    "fps": 30.0,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+    "model_nq": 40,
+    "model_nbody": 44
+  },
+  "postprocess": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "trajectory_quality": {
+    "raw": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 1.0012518167495728,
+      "mean_delta_rad_per_frame": 0.041576605290174484,
+      "max_velocity_rad_s": 30.037554502487183,
+      "mean_velocity_rad_s": 1.2472981587052345
+    },
+    "processed": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 0.10000002384185791,
+      "mean_delta_rad_per_frame": 0.017984891310334206,
+      "max_velocity_rad_s": 3.0000007152557373,
+      "mean_velocity_rad_s": 0.5395467393100262
+    }
+  },
+  "last_pose": [
+    0.0012461583828553557,
+    0.015112200751900673,
+    0.007917354814708233,
+    -0.48227041959762573,
+    -1.3059771060943604,
+    0.9319369196891785,
+    -1.1515772342681885,
+    0.00180476950481534,
+    -0.024847447872161865,
+    -0.31682905554771423,
+    -1.2723972797393799,
+    -0.932435154914856,
+    -1.1570011377334595,
+    0.030609583482146263,
+    -0.015922803431749344
+  ]
+}

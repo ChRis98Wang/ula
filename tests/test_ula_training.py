@@ -6,6 +6,9 @@ import torch
 from upper_body_skeleton.lerobot_export import export_lerobot_dataset
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_training import (
+    BASE_CONDITION_DIM,
+    KIMODO_CONDITION_DIM,
+    LEGACY_CONDITION_DIM,
     UlaFmModel,
     build_condition_from_text,
     load_lerobot_episodes,
@@ -57,8 +60,10 @@ def make_lerobot_fixture(tmp_path, rows_per_file=100):
                     "valence_token": 2,
                     "motion_energy": 0.01,
                     "label_sources": [],
+                    "behavior_id": "Behavior.GreetingOwner01",
+                    "emotion_id": "happy",
                 },
-                "meta_semantics": {"semantic_gesture": "upper_body_gesture"},
+                "meta_semantics": {"semantic_gesture": "upper_body_gesture", "behavior_id": "Behavior.GreetingOwner01", "emotion_id": "happy"},
                 "action": {"retarget_csv_path": str(csv_path), "start_row": 0, "end_row": 6, "fps": 30.0, "joint_order": JOINT_ORDER},
                 "quality": {"accepted_for_training": True, "frame_count": 6, "flagged_frame_count": 0, "max_elbow_overfold": 0, "max_yaw_under_response": 0},
             }
@@ -76,7 +81,9 @@ def test_lerobot_episode_loader_returns_action_chunks(tmp_path):
 
     assert len(episodes) == 2
     assert episodes[0]["actions"].shape == (6, len(JOINT_ORDER))
-    assert episodes[0]["condition"].shape[0] > len(JOINT_ORDER)
+    assert episodes[0]["condition"].shape[0] == KIMODO_CONDITION_DIM
+    assert episodes[0]["meta"]["behavior_id"] == "Behavior.GreetingOwner01"
+    assert episodes[0]["meta"]["emotion_id"] == "happy"
 
 
 def test_lerobot_episode_loader_stops_after_requested_episode_count(tmp_path):
@@ -106,8 +113,30 @@ def test_text_condition_builder_uses_codes_and_text_signal():
     energetic = build_condition_from_text("wave excitedly", style="energetic", affect="excited", gesture="waving")
 
     assert neutral.shape == energetic.shape
-    assert neutral.shape[0] > 28
+    assert neutral.shape[0] == KIMODO_CONDITION_DIM
     assert not torch.equal(torch.tensor(neutral), torch.tensor(energetic))
+
+
+def test_text_condition_builder_can_emit_legacy_condition_for_old_checkpoints():
+    legacy = build_condition_from_text("开心地挥手", condition_dim=LEGACY_CONDITION_DIM)
+
+    assert legacy.shape == (LEGACY_CONDITION_DIM,)
+
+
+def test_text_condition_builder_uses_explicit_kimodo_behavior_and_emotion():
+    greeting = build_condition_from_text(
+        "开心地挥手",
+        behavior_id="Behavior.GreetingOwner01",
+        emotion_id="happy",
+    )
+    alert = build_condition_from_text(
+        "开心地挥手",
+        behavior_id="Behavior.Alert",
+        emotion_id="happy",
+    )
+
+    assert greeting.shape == (KIMODO_CONDITION_DIM,)
+    assert not torch.equal(torch.tensor(greeting[BASE_CONDITION_DIM:]), torch.tensor(alert[BASE_CONDITION_DIM:]))
 
 
 def test_flow_sampler_exports_generated_joint_csv(tmp_path):

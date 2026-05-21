@@ -1,0 +1,9 @@
+{"step": 1, "steps": 1000000, "loss": 1.8658257722854614}
+{"step": 200, "steps": 1000000, "loss": 0.28393685817718506}
+{"step": 400, "steps": 1000000, "loss": 0.1524522453546524}
+{"step": 600, "steps": 1000000, "loss": 0.2021077275276184}
+{"step": 800, "steps": 1000000, "loss": 0.11311731487512589}
+{"step": 1000, "steps": 1000000, "loss": 0.15022911131381989}
+{"preview": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_1m/previews/step_001000/long_motion_original_v2.mp4", "step": 1000}
+{"step": 1200, "steps": 1000000, "loss": 0.11036781221628189}
+{"step": 1400, "steps": 1000000, "loss": 0.08589603751897812}

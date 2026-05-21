@@ -162,6 +162,93 @@ def _launch_passive_viewer(model, data):
     return mujoco.viewer.launch_passive(model, data)
 
 
+class MujocoMotionPlayer:
+    def __init__(self, *, fps=30.0, urdf_path=DEFAULT_URDF, simplified=False):
+        self.fps = float(fps)
+        self.model, self.joint_to_qpos, self.model_source = load_preview_model(
+            urdf_path=urdf_path,
+            simplified=simplified,
+        )
+        self.data = mujoco.MjData(self.model)
+        self._viewer_context = None
+        self.viewer = None
+
+    def __enter__(self):
+        self._viewer_context = _launch_passive_viewer(self.model, self.data)
+        self.viewer = self._viewer_context.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if self._viewer_context is not None:
+                return self._viewer_context.__exit__(exc_type, exc, tb)
+            return False
+        finally:
+            self.viewer = None
+            self._viewer_context = None
+
+    def play_csv(self, joint_csv, *, loops=1, realtime=True, stop_event=None):
+        return self.play_trajectory(
+            read_joint_csv(joint_csv),
+            loops=loops,
+            realtime=realtime,
+            input_csv=joint_csv,
+            stop_event=stop_event,
+        )
+
+    def play_trajectory(self, trajectory, *, loops=1, realtime=True, input_csv=None, stop_event=None):
+        if self.viewer is None:
+            raise RuntimeError("MujocoMotionPlayer must be used as a context manager")
+        trajectory = np.asarray(trajectory, dtype=np.float32)
+        frame_period = 1.0 / self.fps if self.fps else 0.0
+        frames_played = 0
+        loops_completed = 0
+        interrupted = False
+
+        while self.viewer.is_running():
+            loop_finished = True
+            for values in trajectory:
+                if stop_event is not None and stop_event.is_set():
+                    interrupted = True
+                    loop_finished = False
+                    break
+                if not self.viewer.is_running():
+                    loop_finished = False
+                    break
+                start = time.monotonic()
+                self.data.qpos[:] = 0.0
+                for action_index, value in enumerate(values):
+                    self.data.qpos[self.joint_to_qpos[action_index]] = float(value)
+                mujoco.mj_forward(self.model, self.data)
+                self.viewer.sync()
+                frames_played += 1
+                if stop_event is not None and stop_event.is_set():
+                    interrupted = True
+                    loop_finished = False
+                    break
+                if realtime and frame_period > 0:
+                    elapsed = time.monotonic() - start
+                    if elapsed < frame_period:
+                        time.sleep(frame_period - elapsed)
+            if not loop_finished:
+                break
+            loops_completed += 1
+            if loops and loops_completed >= int(loops):
+                break
+
+        return {
+            "input_csv": str(input_csv) if input_csv is not None else None,
+            "frames": int(trajectory.shape[0]),
+            "frames_played": int(frames_played),
+            "loops_completed": int(loops_completed),
+            "interrupted": bool(interrupted),
+            "fps": float(self.fps),
+            "model_source": self.model_source,
+            "model_nq": int(self.model.nq),
+            "model_nbody": int(self.model.nbody),
+        }
+
+
 def play_motion(
     joint_csv,
     *,
@@ -171,43 +258,8 @@ def play_motion(
     loops=0,
     realtime=True,
 ):
-    trajectory = read_joint_csv(joint_csv)
-    model, joint_to_qpos, model_source = load_preview_model(urdf_path=urdf_path, simplified=simplified)
-    data = mujoco.MjData(model)
-    frame_period = 1.0 / float(fps) if fps else 0.0
-    frames_played = 0
-    loops_completed = 0
-
-    with _launch_passive_viewer(model, data) as viewer:
-        while viewer.is_running():
-            for values in trajectory:
-                if not viewer.is_running():
-                    break
-                start = time.monotonic()
-                data.qpos[:] = 0.0
-                for action_index, value in enumerate(values):
-                    data.qpos[joint_to_qpos[action_index]] = float(value)
-                mujoco.mj_forward(model, data)
-                viewer.sync()
-                frames_played += 1
-                if realtime and frame_period > 0:
-                    elapsed = time.monotonic() - start
-                    if elapsed < frame_period:
-                        time.sleep(frame_period - elapsed)
-            loops_completed += 1
-            if loops and loops_completed >= int(loops):
-                break
-
-    return {
-        "input_csv": str(joint_csv),
-        "frames": int(trajectory.shape[0]),
-        "frames_played": int(frames_played),
-        "loops_completed": int(loops_completed),
-        "fps": float(fps),
-        "model_source": model_source,
-        "model_nq": int(model.nq),
-        "model_nbody": int(model.nbody),
-    }
+    with MujocoMotionPlayer(fps=fps, urdf_path=urdf_path, simplified=simplified) as player:
+        return player.play_csv(joint_csv, loops=loops, realtime=realtime)
 
 
 def main():

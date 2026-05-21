@@ -1,0 +1,59 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/004",
+  "text": "开始挥手",
+  "segments": 4,
+  "frames": 360,
+  "duration_sec": 12.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/004/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/004/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/004/plan.json",
+  "rendered_mp4": null,
+  "render": null,
+  "viewer": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/interactive_text_tests/20260520_170634/004/long_motion.csv",
+    "frames": 360,
+    "frames_played": 360,
+    "loops_completed": 1,
+    "fps": 30.0,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+    "model_nq": 40,
+    "model_nbody": 44
+  },
+  "postprocess": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "trajectory_quality": {
+    "raw": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 1.0995776653289795,
+      "mean_delta_rad_per_frame": 0.04130130633711815,
+      "max_velocity_rad_s": 32.987329959869385,
+      "mean_velocity_rad_s": 1.2390391901135445
+    },
+    "processed": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 0.10000002384185791,
+      "mean_delta_rad_per_frame": 0.017846427857875824,
+      "max_velocity_rad_s": 3.0000007152557373,
+      "mean_velocity_rad_s": 0.5353928357362747
+    }
+  },
+  "last_pose": [
+    -0.007803475018590689,
+    0.013618765398859978,
+    0.013421413488686085,
+    -0.41190844774246216,
+    -1.3619844913482666,
+    0.7828739881515503,
+    -1.117095708847046,
+    -0.010756592266261578,
+    -0.019107451662421227,
+    -0.2134106457233429,
+    -1.2326029539108276,
+    -0.7403546571731567,
+    -1.1312421560287476,
+    0.012405457906425,
+    -0.03270622342824936
+  ]
+}

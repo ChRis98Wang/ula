@@ -52,6 +52,26 @@ preview:
     assert args.preview_max_velocity_rad_s == 2.5
 
 
+def test_training_config_passes_kimodo_preview_condition_ids(tmp_path):
+    config_path = tmp_path / "train.yaml"
+    config_path.write_text(
+        """
+dataset_dir: /tmp/dataset
+output_dir: /tmp/output
+preview:
+  text: "开心地向主人打招呼"
+  behavior_id: Behavior.GreetingOwner01
+  emotion_id: happy
+""",
+        encoding="utf-8",
+    )
+
+    args = training_args_from_config(load_train_config(config_path))
+
+    assert args.preview_behavior_id == "Behavior.GreetingOwner01"
+    assert args.preview_emotion_id == "happy"
+
+
 def test_training_config_requires_dataset_and_output(tmp_path):
     config_path = tmp_path / "bad.json"
     config_path.write_text(json.dumps({"steps": 10}), encoding="utf-8")

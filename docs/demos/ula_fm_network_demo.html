@@ -1054,6 +1054,7 @@
         <a href="#dataset-shape">数据集</a>
         <a href="#meta-original">Meta 原论文</a>
         <a href="#network">网络结构</a>
+        <a href="#training-diagnosis">训练诊断</a>
         <a href="#long-emotion">长程情绪</a>
         <a href="#codebook-fusion">Codebook</a>
         <a href="#language-head">语言头</a>
@@ -1105,6 +1106,138 @@
             <strong>Codes</strong>
             <span>intent / gesture / A-V / style 中间控制码</span>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="training-diagnosis">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Training Diagnosis v0.4</div>
+            <h2>为什么 loss 下降但预览视频仍然跳变</h2>
+          </div>
+          <p class="section-note">
+            上一轮 50k step 的 loss 从约 2.0 降到 0.067，但最后预览仍有明显跳变。原因不是 parquet 清洗失败，
+            而是训练预览和模型结构本身还缺少长程、时间位置和速度约束。
+          </p>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <strong>4.0s</strong>
+            <span>旧训练预览由 120 frames / 30Hz 固定产生</span>
+          </div>
+          <div class="metric">
+            <strong>4.02</strong>
+            <span>旧最终预览最大单帧跳变 rad/frame</span>
+          </div>
+          <div class="metric">
+            <strong>120.6</strong>
+            <span>旧最终预览最大速度 rad/s</span>
+          </div>
+          <div class="metric">
+            <strong>0.20</strong>
+            <span>clean_v1 数据清洗后最大单帧跳变上限</span>
+          </div>
+          <div class="metric">
+            <strong>24s</strong>
+            <span>新训练预览默认长程录像时长</span>
+          </div>
+          <div class="metric">
+            <strong>3.0</strong>
+            <span>新预览 processed 轨迹默认限速 rad/s</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <table>
+            <thead>
+              <tr>
+                <th>诊断点</th>
+                <th>证据</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>预览固定 4 秒</td>
+                <td>旧命令使用 <code>--preview-frames 120</code>，30Hz 下只能录出 4 秒，无法观察长程紧张到缓和。</td>
+              </tr>
+              <tr>
+                <td>生成采样无速度约束</td>
+                <td>旧预览在 <code>joint_lShoulderPitch</code> 出现 4.02 rad 单帧跳变；clean_v1 parquet 本身没有这种跳变。</td>
+              </tr>
+              <tr>
+                <td>Transformer 缺少帧位置编码</td>
+                <td>同一输入的不同帧会得到相同输出，模型不知道第 1 帧和第 100 帧的顺序，loss 下降也可能学不到连续动作。</td>
+              </tr>
+              <tr>
+                <td>语义分布偏弱</td>
+                <td>训练集中 neutral / unknown / null gesture 占多数，loss 下降不能直接证明模型学会了“紧张解释、逐渐平复”。</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                <th>v0.4 改动</th>
+                <th>训练与预览影响</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Sinusoidal frame embedding</td>
+                <td>Action Expert 在每一帧看到不同时间位置；旧权重需要重新训练，不能只看旧 checkpoint。</td>
+              </tr>
+              <tr>
+                <td>训练预览默认 long mode</td>
+                <td>每次 preview 生成多段 long_motion，总时长默认 24 秒，不再只看 4 秒窗口。</td>
+              </tr>
+              <tr>
+                <td>预览后处理</td>
+                <td>保存 raw_trajectory 和 processed trajectory；processed 经过 velocity limit + smoothing，再录制 V2 MuJoCo。</td>
+              </tr>
+              <tr>
+                <td>质量统计写入 summary</td>
+                <td><code>summary.json</code> 记录 raw/processed 的 max_delta、mean_delta、max_velocity、mean_velocity。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title">
+            <h3>v0.4 正式重训命令</h3>
+            <span class="badge">No .sh · Long Preview by Default</span>
+          </div>
+          <pre class="json-sample">cd /Users/demo/Desktop/upper_body_motion_roadmap
+
+PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
+/Users/demo/Desktop/mjlab/.venv/bin/python -m upper_body_skeleton.ula_training \
+  --dataset-dir /Users/demo/Desktop/upper_body_motion_roadmap/datasets/lerobot_v2_upper_body_body_only_clean_v1 \
+  --output-dir /Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_50k \
+  --steps 50000 \
+  --batch-size 32 \
+  --max-episodes 51101 \
+  --hidden-dim 384 \
+  --layers 6 \
+  --device auto \
+  --log-interval 200 \
+  --preview-every-steps 1000 \
+  --preview-dir /Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v04_clean_v1_pos_long_50k/previews \
+  --preview-text "紧张地解释一件困难的事情，然后逐渐缓和下来，动作要体现长程情绪变化" \
+  --preview-mode long \
+  --preview-duration-sec 24 \
+  --preview-min-segment-sec 3 \
+  --preview-max-segment-sec 3 \
+  --preview-min-segments 8 \
+  --preview-max-segments 8 \
+  --preview-max-velocity-rad-s 3.0 \
+  --preview-smooth-window 5 \
+  --preview-sampling-steps 32 \
+  --preview-width 1280 \
+  --preview-height 720</pre>
         </div>
       </div>
     </section>
@@ -2464,7 +2597,11 @@ PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
               </tr>
               <tr>
                 <td>Action Expert</td>
-                <td>x_t、t、cond_emb → vθ，形状保持 [120, 15]。</td>
+                <td>x_t、t、cond_emb → vθ；当前训练窗口 [120,15]，长程推理时按 planner duration 生成 [segment_T,15]。</td>
+              </tr>
+              <tr>
+                <td>Planner Head</td>
+                <td>cond_emb → duration_sec + transition_logits[continue, emotion_change, action_change, end]。</td>
               </tr>
               <tr>
                 <td>Safety Decoder</td>
@@ -2487,7 +2624,7 @@ PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
               </tr>
               <tr>
                 <td>window</td>
-                <td>当前数据是 4 秒、30Hz、120 行；训练时可保持 [120,15]，或重采样到 60Hz 后改 horizon。</td>
+                <td>当前训练数据是 4 秒、30Hz、120 行；v0.3 长程输出由多个 segment 拼成，总长度为 T。</td>
               </tr>
               <tr>
                 <td>text fields</td>
@@ -2499,7 +2636,7 @@ PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
               </tr>
               <tr>
                 <td>derived codes</td>
-                <td>intent_code、gesture_code、arousal_bucket、valence_bucket、style_code、semantic_confidence。</td>
+                <td>intent_code、gesture_code、arousal_bucket、valence_bucket、style_code、duration_sec、transition_id。</td>
               </tr>
               <tr>
                 <td>quality gate</td>
@@ -2530,7 +2667,7 @@ PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
           </div>
           <div class="milestone">
             <strong>2. Model</strong>
-            <span>Frozen text encoder + code adapter + condition fusion + 8 层 Transformer flow expert。</span>
+            <span>Frozen text encoder + code adapter + condition fusion + planner head + Transformer flow expert。</span>
           </div>
           <div class="milestone">
             <strong>3. Train</strong>
@@ -2538,11 +2675,11 @@ PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
           </div>
           <div class="milestone">
             <strong>4. Sample</strong>
-            <span>prompt 先生成可解释 code，再生成候选轨迹，guidance 控制文本/code 强度。</span>
+            <span>prompt 先生成可解释 code、duration、transition，再循环生成多段长程轨迹。</span>
           </div>
           <div class="milestone">
             <strong>5. Validate</strong>
-            <span>MuJoCo 安全过滤，导出并排预览，人工筛选高质量样本。</span>
+            <span>用原 V2 MuJoCo 录制 long_motion_original_v2.mp4，人工筛选高质量长程样本。</span>
           </div>
         </div>
       </div>
@@ -2551,7 +2688,7 @@ PYTHONPATH=/Users/demo/Desktop/upper_body_motion_roadmap \
 
   <footer>
     <div class="shell">
-      Codebook-Guided ULA-FM v0.2 演示页 · 面向 V2 机器人上肢 · 条件式 Flow Matching 动作专家 · 不含视觉输入
+      Codebook-Guided ULA-FM v0.3 演示页 · 面向 V2 机器人上肢 · 长程情绪 Planner + 条件式 Flow Matching 动作专家 · 不含视觉输入
     </div>
   </footer>
 </body>

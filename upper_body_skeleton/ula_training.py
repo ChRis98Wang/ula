@@ -13,6 +13,10 @@ import pyarrow.parquet as pq
 import torch
 from torch import nn
 
+from upper_body_skeleton.kimodo_semantics import (
+    KIMODO_CONDITION_EXTRA_DIM,
+    build_kimodo_condition_extra,
+)
 from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER
 
 
@@ -22,6 +26,8 @@ STYLE_IDS = {"restrained": 0, "relaxed": 1, "energetic": 2}
 GESTURE_IDS = {"null": 0, "upper_body_gesture": 1, "pointing": 2, "crossed_arms": 3, "shrugging": 4, "waving": 5}
 BASE_CONDITION_DIM = len(INTENT_IDS) + len(AFFECT_IDS) + len(STYLE_IDS) + len(GESTURE_IDS) + 5
 TEXT_EMBED_DIM = 64
+LEGACY_CONDITION_DIM = BASE_CONDITION_DIM + TEXT_EMBED_DIM
+KIMODO_CONDITION_DIM = LEGACY_CONDITION_DIM + KIMODO_CONDITION_EXTRA_DIM
 TRANSITION_IDS = {"continue": 0, "emotion_change": 1, "action_change": 2, "end": 3}
 
 
@@ -135,7 +141,13 @@ def condition_vector(meta_row):
         ],
         dtype=np.float32,
     )
-    return np.concatenate([*labels, scalars, frozen_text_embedding(text)], axis=0)
+    legacy = np.concatenate([*labels, scalars, frozen_text_embedding(text)], axis=0)
+    kimodo_extra = build_kimodo_condition_extra(
+        behavior_id=meta_row.get("behavior_id") or None,
+        emotion_id=meta_row.get("emotion_id") or None,
+        prompt=text,
+    )
+    return np.concatenate([legacy, kimodo_extra], axis=0)
 
 
 def build_condition_from_text(
@@ -151,6 +163,9 @@ def build_condition_from_text(
     valence_token=None,
     motion_energy=0.05,
     text_dim=TEXT_EMBED_DIM,
+    behavior_id=None,
+    emotion_id=None,
+    condition_dim=KIMODO_CONDITION_DIM,
 ):
     codes = infer_codes_from_text(text)
     if intent is not None:
@@ -175,11 +190,25 @@ def build_condition_from_text(
         "motion_energy": motion_energy,
         "arousal_token": default_arousal_token if arousal_token is None else arousal_token,
         "valence_token": default_valence_token if valence_token is None else valence_token,
+        "behavior_id": behavior_id,
+        "emotion_id": emotion_id,
     }
+    if condition_dim == LEGACY_CONDITION_DIM and text_dim == TEXT_EMBED_DIM:
+        return np.concatenate(
+            [
+                condition_vector(meta_row)[:BASE_CONDITION_DIM],
+                frozen_text_embedding(text),
+            ],
+            axis=0,
+        )
     base = condition_vector(meta_row)
-    if text_dim == TEXT_EMBED_DIM:
-        return base
-    return np.concatenate([base[:BASE_CONDITION_DIM], frozen_text_embedding(text, dim=text_dim)], axis=0)
+    if text_dim != TEXT_EMBED_DIM:
+        base = np.concatenate([base[:BASE_CONDITION_DIM], frozen_text_embedding(text, dim=text_dim), base[LEGACY_CONDITION_DIM:]], axis=0)
+    if condition_dim is not None and base.shape[0] != int(condition_dim):
+        if int(condition_dim) == LEGACY_CONDITION_DIM:
+            return base[:LEGACY_CONDITION_DIM]
+        raise ValueError(f"condition dim mismatch: built {base.shape[0]}, requested {condition_dim}")
+    return base
 
 
 def load_lerobot_episodes(dataset_dir, max_episodes=None):
@@ -198,6 +227,7 @@ def load_lerobot_episodes(dataset_dir, max_episodes=None):
                 "episode_index": episode_index,
                 "actions": actions,
                 "condition": condition_vector(meta),
+                "meta": meta,
                 "task_index": frame_rows[0]["task_index"] if frame_rows else 0,
                 "duration_sec": float(len(actions) / max(1e-6, float(meta.get("fps") or 30.0))),
                 "fps": float(meta.get("fps") or 30.0),
@@ -345,6 +375,8 @@ def write_training_preview(
     width=1280,
     height=720,
     preview_mode="long",
+    behavior_id=None,
+    emotion_id=None,
     long_duration_sec=24.0,
     min_segment_sec=3.0,
     max_segment_sec=3.0,
@@ -362,6 +394,8 @@ def write_training_preview(
         summary = generate_long_emotion_motion(
             model,
             text=text,
+            behavior_id=behavior_id,
+            emotion_id=emotion_id,
             output_dir=preview_dir,
             fps=fps,
             max_duration_sec=long_duration_sec,
@@ -397,7 +431,12 @@ def write_training_preview(
     from upper_body_skeleton.long_emotion_infer import postprocess_trajectory, trajectory_quality
     from upper_body_skeleton.mujoco_playback import render_motion
 
-    condition = build_condition_from_text(text)
+    condition = build_condition_from_text(
+        text,
+        behavior_id=behavior_id,
+        emotion_id=emotion_id,
+        condition_dim=getattr(model, "condition_dim", KIMODO_CONDITION_DIM),
+    )
     raw_trajectory = sample_trajectory(
         model,
         condition=condition,
@@ -431,6 +470,8 @@ def write_training_preview(
     summary = {
         "step": int(step),
         "text": text,
+        "behavior_id": behavior_id,
+        "emotion_id": emotion_id,
         "generated_csv": str(csv_path),
         "generated_npz": str(npz_path),
         "preview_mp4": str(mp4_path),
@@ -498,6 +539,8 @@ def train_steps(
     preview_width=1280,
     preview_height=720,
     preview_mode="long",
+    preview_behavior_id=None,
+    preview_emotion_id=None,
     preview_duration_sec=24.0,
     preview_min_segment_sec=3.0,
     preview_max_segment_sec=3.0,
@@ -534,6 +577,8 @@ def train_steps(
                 preview_root=preview_root,
                 step=step,
                 text=preview_text,
+                behavior_id=preview_behavior_id,
+                emotion_id=preview_emotion_id,
                 frames=preview_frames,
                 sampling_steps=preview_sampling_steps,
                 fps=preview_fps,
@@ -583,6 +628,8 @@ def main(argv=None):
     parser.add_argument("--log-interval", type=int, default=100)
     parser.add_argument("--preview-every-steps", type=int, default=0)
     parser.add_argument("--preview-text", default="紧张地解释，同时双手做克制的上肢手势")
+    parser.add_argument("--preview-behavior-id")
+    parser.add_argument("--preview-emotion-id")
     parser.add_argument("--preview-dir")
     parser.add_argument("--preview-mode", choices=["long", "chunk"], default="long")
     parser.add_argument("--preview-frames", type=int, default=120, help="Used only when --preview-mode chunk")
@@ -630,6 +677,8 @@ def main(argv=None):
         preview_width=args.preview_width,
         preview_height=args.preview_height,
         preview_mode=args.preview_mode,
+        preview_behavior_id=args.preview_behavior_id,
+        preview_emotion_id=args.preview_emotion_id,
         preview_duration_sec=args.preview_duration_sec,
         preview_min_segment_sec=args.preview_min_segment_sec,
         preview_max_segment_sec=args.preview_max_segment_sec,

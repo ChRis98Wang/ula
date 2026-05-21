@@ -1,0 +1,60 @@
+{
+  "output_dir": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test",
+  "text": "紧张地解释一件困难的事情，然后逐渐平静下来，动作要克制但能看到情绪变化",
+  "segments": 4,
+  "frames": 360,
+  "duration_sec": 12.0,
+  "csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test/long_motion.csv",
+  "npz": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test/long_motion.npz",
+  "plan_json": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test/plan.json",
+  "rendered_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test/long_motion_original_v2.mp4",
+  "render": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test/long_motion.csv",
+    "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/deliverables/long_emotion_previews/0514_1m_manual_test/long_motion_original_v2.mp4",
+    "frames": 360,
+    "duration_sec": 12.0,
+    "fps": 30.0,
+    "width": 960,
+    "height": 540,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+    "model_nq": 40,
+    "model_nbody": 44
+  },
+  "postprocess": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "trajectory_quality": {
+    "raw": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 1.483574390411377,
+      "mean_delta_rad_per_frame": 0.033103350549936295,
+      "max_velocity_rad_s": 44.50723171234131,
+      "mean_velocity_rad_s": 0.9931005164980888
+    },
+    "processed": {
+      "frames": 360,
+      "max_delta_rad_per_frame": 0.10000002384185791,
+      "mean_delta_rad_per_frame": 0.017920533195137978,
+      "max_velocity_rad_s": 3.0000007152557373,
+      "mean_velocity_rad_s": 0.5376159958541393
+    }
+  },
+  "last_pose": [
+    -0.0015204919036477804,
+    0.013112099841237068,
+    0.004717313684523106,
+    -0.812704861164093,
+    -1.383258581161499,
+    1.537215232849121,
+    -1.1859524250030518,
+    -0.009355482645332813,
+    -0.011855004355311394,
+    -0.7758945226669312,
+    -1.4249213933944702,
+    -1.3733364343643188,
+    -1.157012939453125,
+    0.008007502183318138,
+    -0.014146173372864723
+  ]
+}

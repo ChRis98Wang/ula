@@ -1,0 +1,22 @@
+{
+  "step": 3200,
+  "text": "\u7d27\u5f20\u5730\u89e3\u91ca\u4e00\u4ef6\u56f0\u96be\u7684\u4e8b\u60c5\uff0c\u7136\u540e\u9010\u6e10\u7f13\u548c\u4e0b\u6765\uff0c\u52a8\u4f5c\u8981\u4f53\u73b0\u957f\u7a0b\u60c5\u7eea\u53d8\u5316",
+  "generated_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v03_clean_v1_50k/previews/step_003200/generated.csv",
+  "generated_npz": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v03_clean_v1_50k/previews/step_003200/generated.npz",
+  "preview_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v03_clean_v1_50k/previews/step_003200/preview.mp4",
+  "frames": 120,
+  "sampling_steps": 32,
+  "fps": 30.0,
+  "render": {
+    "input_csv": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v03_clean_v1_50k/previews/step_003200/generated.csv",
+    "output_mp4": "/Users/demo/Desktop/upper_body_motion_roadmap/training/runs/ula_fm_v03_clean_v1_50k/previews/step_003200/preview.mp4",
+    "frames": 120,
+    "duration_sec": 4.0,
+    "fps": 30.0,
+    "width": 1280,
+    "height": 720,
+    "model_source": "/Users/demo/Desktop/upper_body_motion_roadmap/video/seamless_interaction_50g/upper_body_skeletons/mujoco_robot_v2_meshdir.urdf",
+    "model_nq": 25,
+    "model_nbody": 29
+  }
+}
