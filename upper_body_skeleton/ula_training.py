@@ -29,6 +29,8 @@ TEXT_EMBED_DIM = 64
 LEGACY_CONDITION_DIM = BASE_CONDITION_DIM + TEXT_EMBED_DIM
 KIMODO_CONDITION_DIM = LEGACY_CONDITION_DIM + KIMODO_CONDITION_EXTRA_DIM
 TRANSITION_IDS = {"continue": 0, "emotion_change": 1, "action_change": 2, "end": 3}
+ULA_FM_LEGACY_ARCHITECTURE = "ula_fm_legacy"
+ULA_MMDIT_LITE_ARCHITECTURE = "ula_mmdit_lite"
 
 
 INTENT_KEYWORDS = [
@@ -286,8 +288,11 @@ class SinusoidalFrameEmbedding(nn.Module):
 class UlaFmModel(nn.Module):
     def __init__(self, action_dim=15, condition_dim=BASE_CONDITION_DIM + TEXT_EMBED_DIM, hidden_dim=256, layers=4):
         super().__init__()
+        self.architecture = ULA_FM_LEGACY_ARCHITECTURE
         self.action_dim = action_dim
         self.condition_dim = condition_dim
+        self.hidden_dim = hidden_dim
+        self.layers = layers
         self.input = nn.Linear(action_dim, hidden_dim)
         self.time = SinusoidalTimeEmbedding(hidden_dim)
         self.frame = SinusoidalFrameEmbedding(hidden_dim)
@@ -319,6 +324,90 @@ class UlaFmModel(nn.Module):
         h = self.plan(condition)
         duration_sec = torch.nn.functional.softplus(self.duration_head(h).squeeze(-1)) + 0.25
         return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
+
+
+class UlaMMDiTLiteModel(nn.Module):
+    def __init__(self, action_dim=15, condition_dim=KIMODO_CONDITION_DIM, hidden_dim=256, layers=4, semantic_tokens=4):
+        super().__init__()
+        self.architecture = ULA_MMDIT_LITE_ARCHITECTURE
+        self.action_dim = action_dim
+        self.condition_dim = condition_dim
+        self.hidden_dim = hidden_dim
+        self.layers = layers
+        self.semantic_tokens = int(semantic_tokens)
+        if self.semantic_tokens <= 0:
+            raise ValueError("semantic_tokens must be positive")
+        self.input = nn.Linear(action_dim, hidden_dim)
+        self.time = SinusoidalTimeEmbedding(hidden_dim)
+        self.frame = SinusoidalFrameEmbedding(hidden_dim)
+        self.condition_tokens = nn.Sequential(
+            nn.Linear(condition_dim, hidden_dim * self.semantic_tokens),
+            nn.SiLU(),
+            nn.Linear(hidden_dim * self.semantic_tokens, hidden_dim * self.semantic_tokens),
+        )
+        self.plan = nn.Sequential(nn.Linear(condition_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, hidden_dim), nn.SiLU())
+        self.duration_head = nn.Linear(hidden_dim, 1)
+        self.transition_head = nn.Linear(hidden_dim, len(TRANSITION_IDS))
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=4,
+            dim_feedforward=hidden_dim * 4,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.blocks = nn.TransformerEncoder(encoder_layer, num_layers=layers)
+        self.output = nn.Linear(hidden_dim, action_dim)
+        self.last_joint_sequence_shape = None
+
+    def semantic_condition_tokens(self, condition):
+        tokens = self.condition_tokens(condition)
+        return tokens.reshape(condition.shape[0], self.semantic_tokens, self.hidden_dim)
+
+    def forward(self, x_t, t, condition):
+        motion = self.input(x_t)
+        time = self.time(t)[:, None, :]
+        frame = self.frame(x_t.shape[1], x_t.device)[None, :, :]
+        motion = motion + time + frame
+        semantic = self.semantic_condition_tokens(condition)
+        h = torch.cat([semantic, motion], dim=1)
+        self.last_joint_sequence_shape = tuple(h.shape)
+        h = self.blocks(h)
+        motion_h = h[:, self.semantic_tokens :, :]
+        return self.output(motion_h)
+
+    def plan_condition(self, condition):
+        if condition.ndim == 1:
+            condition = condition[None, :]
+        h = self.plan(condition)
+        duration_sec = torch.nn.functional.softplus(self.duration_head(h).squeeze(-1)) + 0.25
+        return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
+
+
+def create_ula_model(
+    architecture=ULA_FM_LEGACY_ARCHITECTURE,
+    *,
+    action_dim=15,
+    condition_dim=KIMODO_CONDITION_DIM,
+    hidden_dim=256,
+    layers=4,
+    semantic_tokens=4,
+):
+    if architecture in (None, "", ULA_FM_LEGACY_ARCHITECTURE):
+        return UlaFmModel(
+            action_dim=action_dim,
+            condition_dim=condition_dim,
+            hidden_dim=hidden_dim,
+            layers=layers,
+        )
+    if architecture == ULA_MMDIT_LITE_ARCHITECTURE:
+        return UlaMMDiTLiteModel(
+            action_dim=action_dim,
+            condition_dim=condition_dim,
+            hidden_dim=hidden_dim,
+            layers=layers,
+            semantic_tokens=semantic_tokens,
+        )
+    raise ValueError(f"unknown ULA architecture: {architecture}")
 
 
 def joint_limit_tensors(device, action_dim):
@@ -624,6 +713,8 @@ def main(argv=None):
     parser.add_argument("--max-episodes", type=int)
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--layers", type=int, default=4)
+    parser.add_argument("--architecture", choices=[ULA_FM_LEGACY_ARCHITECTURE, ULA_MMDIT_LITE_ARCHITECTURE], default=ULA_FM_LEGACY_ARCHITECTURE)
+    parser.add_argument("--semantic-tokens", type=int, default=4)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--log-interval", type=int, default=100)
     parser.add_argument("--preview-every-steps", type=int, default=0)
@@ -650,11 +741,13 @@ def main(argv=None):
     episodes = load_lerobot_episodes(args.dataset_dir, max_episodes=args.max_episodes)
     if not episodes:
         raise SystemExit("no episodes loaded")
-    model = UlaFmModel(
+    model = create_ula_model(
+        args.architecture,
         action_dim=len(JOINT_ORDER),
         condition_dim=episodes[0]["condition"].shape[0],
         hidden_dim=args.hidden_dim,
         layers=args.layers,
+        semantic_tokens=args.semantic_tokens,
     )
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -693,6 +786,7 @@ def main(argv=None):
             "joint_order": JOINT_ORDER,
             "condition_dim": episodes[0]["condition"].shape[0],
             "action_dim": len(JOINT_ORDER),
+            "architecture": model.architecture,
             "config": vars(args) | {"device": device, "episodes_loaded": len(episodes)},
         },
         out / "ula_fm_checkpoint.pt",

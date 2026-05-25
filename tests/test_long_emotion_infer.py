@@ -12,7 +12,7 @@ from upper_body_skeleton.long_emotion_infer import (
 )
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_infer import load_model
-from upper_body_skeleton.ula_training import UlaFmModel
+from upper_body_skeleton.ula_training import KIMODO_CONDITION_DIM, UlaFmModel, UlaMMDiTLiteModel
 
 
 def test_default_long_emotion_output_dir_is_repo_relative():
@@ -155,3 +155,30 @@ def test_old_checkpoint_without_planner_heads_loads_strict_false(tmp_path):
     assert loaded["condition_dim"] == 92
     assert plan["duration_sec"].shape == (1,)
     assert plan["transition_logits"].shape == (1, 4)
+
+
+def test_mmdit_lite_checkpoint_loads_architecture_from_config(tmp_path):
+    checkpoint = tmp_path / "mmdit_checkpoint.pt"
+    source = UlaMMDiTLiteModel(
+        action_dim=len(JOINT_ORDER),
+        condition_dim=KIMODO_CONDITION_DIM,
+        hidden_dim=32,
+        layers=1,
+        semantic_tokens=3,
+    )
+    torch.save(
+        {
+            "model_state_dict": source.state_dict(),
+            "action_dim": len(JOINT_ORDER),
+            "condition_dim": KIMODO_CONDITION_DIM,
+            "architecture": "ula_mmdit_lite",
+            "config": {"hidden_dim": 32, "layers": 1, "semantic_tokens": 3},
+        },
+        checkpoint,
+    )
+
+    model, loaded = load_model(checkpoint, "cpu")
+
+    assert isinstance(model, UlaMMDiTLiteModel)
+    assert loaded["architecture"] == "ula_mmdit_lite"
+    assert model.semantic_tokens == 3

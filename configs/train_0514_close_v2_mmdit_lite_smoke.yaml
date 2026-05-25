@@ -1,0 +1,30 @@
+dataset_dir: datasets/lerobot_v2_upper_body_0514_close_v2_clean
+output_dir: training/runs/_smoke_0514_close_v2_mmdit_lite
+
+steps: 2
+batch_size: 2
+lr: 0.0001
+max_episodes: 8
+architecture: ula_mmdit_lite
+semantic_tokens: 4
+hidden_dim: 64
+layers: 2
+device: auto
+log_interval: 1
+
+preview:
+  every_steps: 0
+  text: "开心地向主人打招呼"
+  behavior_id: Behavior.GreetingOwner01
+  emotion_id: happy
+  mode: long
+  duration_sec: 6
+  min_segment_sec: 2
+  max_segment_sec: 2
+  min_segments: 3
+  max_segments: 3
+  max_velocity_rad_s: 3.0
+  smooth_window: 3
+  sampling_steps: 8
+  width: 640
+  height: 360

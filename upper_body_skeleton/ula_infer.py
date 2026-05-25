@@ -9,9 +9,10 @@ import torch
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_training import (
     KIMODO_CONDITION_DIM,
-    UlaFmModel,
+    ULA_FM_LEGACY_ARCHITECTURE,
     build_condition_from_text,
     choose_device,
+    create_ula_model,
     sample_trajectory,
     write_generated_csv,
 )
@@ -20,11 +21,13 @@ from upper_body_skeleton.ula_training import (
 def load_model(checkpoint_path, device):
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     config = checkpoint.get("config", {})
-    model = UlaFmModel(
+    model = create_ula_model(
+        checkpoint.get("architecture", ULA_FM_LEGACY_ARCHITECTURE),
         action_dim=checkpoint.get("action_dim", len(JOINT_ORDER)),
         condition_dim=checkpoint.get("condition_dim", 92),
         hidden_dim=int(config.get("hidden_dim", 256)),
         layers=int(config.get("layers", 4)),
+        semantic_tokens=int(config.get("semantic_tokens", 4)),
     )
     missing, unexpected = model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     if unexpected:
@@ -99,6 +102,7 @@ def main():
         "fps": float(args.fps),
         "device": device,
         "seed": args.seed,
+        "architecture": getattr(model, "architecture", ULA_FM_LEGACY_ARCHITECTURE),
         "behavior_id": args.behavior_id,
         "emotion_id": args.emotion_id,
     }

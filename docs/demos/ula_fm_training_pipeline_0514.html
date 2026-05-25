@@ -116,6 +116,7 @@
     .pill.train { color: #0f5132; background: #dff3e7; }
     .pill.frozen { color: #5c4300; background: #fff1c2; }
     .pill.output { color: #53389e; background: #eee9ff; }
+    .pill.next { color: #1d4ed8; background: #dbeafe; }
 
     .metric-grid {
       display: grid;
@@ -271,6 +272,10 @@
       gap: 14px;
     }
 
+    .steps.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
     .step {
       min-height: 166px;
       border-radius: 8px;
@@ -312,6 +317,77 @@
       color: #46515d;
       font-size: 14px;
       line-height: 1.6;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .path-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+      padding: 18px;
+    }
+
+    .path-card h3 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .path-card .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eef2f5;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .path-card .badge.next {
+      color: #1d4ed8;
+      background: #dbeafe;
+    }
+
+    .path-card p {
+      margin: 0;
+      color: #46515d;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .token-flow {
+      display: grid;
+      grid-template-columns: 0.95fr 1.1fr 0.95fr;
+      gap: 12px;
+      align-items: stretch;
+      margin-top: 16px;
+    }
+
+    .token-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #46515d;
+    }
+
+    .token-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--ink);
+      font-size: 15px;
     }
 
     .command {
@@ -402,6 +478,8 @@
     @media (max-width: 980px) {
       .hero,
       .split,
+      .compare-grid,
+      .token-flow,
       .audio-band {
         grid-template-columns: 1fr;
       }
@@ -456,13 +534,14 @@
             <span class="pill frozen">冻结：文本编码</span>
             <span class="pill train">训练：Action Expert</span>
             <span class="pill train">训练：时长/转场头</span>
+            <span class="pill next">新分支：MMDiT-lite</span>
             <span class="pill output">输出：V2 上肢动作</span>
           </div>
         </div>
         <div class="metric-grid">
           <div class="metric">
-            <strong>92D</strong>
-            <span>条件向量：文本、情绪、风格、动作语义</span>
+            <strong>136D</strong>
+            <span>Kimodo 条件向量：文本、行为、情绪、动作族</span>
           </div>
           <div class="metric">
             <strong>15D</strong>
@@ -470,7 +549,7 @@
           </div>
           <div class="metric">
             <strong>CFM</strong>
-            <span>Conditional Flow Matching 轨迹生成</span>
+            <span>Flow Matching 目标保持不变</span>
           </div>
           <div class="metric">
             <strong>0</strong>
@@ -618,6 +697,77 @@
             <span>MuJoCo playback video</span>
           </div>
         </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <div>
+          <h2>从 Legacy 条件向量到 MMDiT-lite</h2>
+        </div>
+        <p>
+          当前 1M checkpoint 使用全局条件向量注入；新分支保留 Flow Matching 训练目标，但把 Kimodo 语义改成 token，
+          让行为和情绪在 Transformer 内部反复参与注意力。
+        </p>
+      </div>
+
+      <div class="compare-grid">
+        <article class="path-card">
+          <h3>当前 ULA-FM <span class="badge">legacy</span></h3>
+          <p>
+            文本、情绪、风格、gesture、Kimodo behavior/emotion 被压成一个 136D condition。
+            这个向量经过 MLP 后加到每个 motion frame token 上，然后 motion tokens 做 self-attention。
+            这种方式稳定、训练快，但语义容易平均化。
+          </p>
+          <div class="mini-list">
+            <span>condition vector -> MLP -> additive conditioning</span>
+            <span>motion tokens only self-attention</span>
+            <span>architecture: ula_fm_legacy</span>
+          </div>
+        </article>
+
+        <article class="path-card">
+          <h3>新分支 ULA-MMDiT-lite <span class="badge next">new</span></h3>
+          <p>
+            仍然从噪声轨迹学习到真实动作的速度场，但 condition 不再只作为一个全局偏置。
+            模型先把 Kimodo 条件投成多个 semantic tokens，再和 motion tokens 拼接做 joint attention，
+            最后只取 motion tokens 预测关节速度。
+          </p>
+          <div class="mini-list">
+            <span>condition vector -> semantic tokens</span>
+            <span>[semantic tokens + motion tokens] joint attention</span>
+            <span>architecture: ula_mmdit_lite</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="token-flow">
+        <div class="token-box">
+          <strong>Kimodo 语义输入</strong>
+          behavior_id、emotion_id、行为族、upper_body_only 和自由文本 hash embedding。
+        </div>
+        <div class="token-box">
+          <strong>Joint Attention</strong>
+          semantic tokens 与 noisy motion tokens 一起进入 Transformer；行为语义可以影响每一帧动作。
+        </div>
+        <div class="token-box">
+          <strong>Flow 输出不变</strong>
+          输出仍是 [T, 15] motion velocity，训练 loss、采样、MuJoCo 预览链路保持兼容。
+        </div>
+      </div>
+
+      <div class="command">
+        <div class="command-header">
+          <span>Kimodo 新训练建议配置</span>
+          <span>保留 legacy，新增 ula_mmdit_lite</span>
+        </div>
+        <pre><code>architecture: ula_mmdit_lite
+semantic_tokens: 4
+hidden_dim: 384
+layers: 6
+preview:
+  behavior_id: Behavior.GreetingOwner01
+  emotion_id: happy</code></pre>
       </div>
     </section>
 

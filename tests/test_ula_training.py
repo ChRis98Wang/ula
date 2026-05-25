@@ -9,8 +9,12 @@ from upper_body_skeleton.ula_training import (
     BASE_CONDITION_DIM,
     KIMODO_CONDITION_DIM,
     LEGACY_CONDITION_DIM,
+    ULA_FM_LEGACY_ARCHITECTURE,
+    ULA_MMDIT_LITE_ARCHITECTURE,
     UlaFmModel,
+    UlaMMDiTLiteModel,
     build_condition_from_text,
+    create_ula_model,
     load_lerobot_episodes,
     sample_trajectory,
     planner_loss,
@@ -183,6 +187,69 @@ def test_ula_model_uses_frame_position_signal():
         output = model(identical_frames, torch.tensor([0.5]), condition)
 
     assert not torch.allclose(output[:, 0, :], output[:, 1, :])
+
+
+def test_mmdit_lite_model_uses_semantic_tokens_and_preserves_motion_shape():
+    model = UlaMMDiTLiteModel(
+        action_dim=len(JOINT_ORDER),
+        condition_dim=KIMODO_CONDITION_DIM,
+        hidden_dim=64,
+        layers=2,
+        semantic_tokens=4,
+    )
+    x_t = torch.randn(2, 6, len(JOINT_ORDER))
+    condition = torch.randn(2, KIMODO_CONDITION_DIM)
+
+    output = model(x_t, torch.tensor([0.2, 0.8]), condition)
+    plan = model.plan_condition(condition)
+
+    assert output.shape == x_t.shape
+    assert model.architecture == ULA_MMDIT_LITE_ARCHITECTURE
+    assert model.semantic_tokens == 4
+    assert model.last_joint_sequence_shape == (2, 10, 64)
+    assert plan["duration_sec"].shape == (2,)
+    assert plan["transition_logits"].shape == (2, 4)
+
+
+def test_model_factory_keeps_legacy_and_mmdit_architectures_separate():
+    legacy = create_ula_model(
+        ULA_FM_LEGACY_ARCHITECTURE,
+        action_dim=len(JOINT_ORDER),
+        condition_dim=LEGACY_CONDITION_DIM,
+        hidden_dim=32,
+        layers=1,
+    )
+    mmdit = create_ula_model(
+        ULA_MMDIT_LITE_ARCHITECTURE,
+        action_dim=len(JOINT_ORDER),
+        condition_dim=KIMODO_CONDITION_DIM,
+        hidden_dim=32,
+        layers=1,
+        semantic_tokens=3,
+    )
+
+    assert isinstance(legacy, UlaFmModel)
+    assert isinstance(mmdit, UlaMMDiTLiteModel)
+    assert legacy.architecture == ULA_FM_LEGACY_ARCHITECTURE
+    assert mmdit.architecture == ULA_MMDIT_LITE_ARCHITECTURE
+
+
+def test_mmdit_lite_model_trains_one_flow_matching_step(tmp_path):
+    out_dir = make_lerobot_fixture(tmp_path)
+    episodes = load_lerobot_episodes(out_dir, max_episodes=2)
+    model = create_ula_model(
+        ULA_MMDIT_LITE_ARCHITECTURE,
+        action_dim=len(JOINT_ORDER),
+        condition_dim=episodes[0]["condition"].shape[0],
+        hidden_dim=64,
+        layers=1,
+        semantic_tokens=3,
+    )
+
+    losses = train_steps(model, episodes, steps=1, batch_size=2, lr=1e-3, device="cpu")
+
+    assert len(losses) == 1
+    assert torch.isfinite(torch.tensor(losses)).all()
 
 
 def test_planner_loss_uses_duration_and_transition_targets():

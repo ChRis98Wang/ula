@@ -20,6 +20,8 @@ hidden_dim: 128
 layers: 3
 device: cpu
 log_interval: 50
+architecture: ula_mmdit_lite
+semantic_tokens: 5
 preview:
   every_steps: 250
   text: "紧张地解释，然后逐渐平静"
@@ -45,6 +47,8 @@ preview:
     assert args.output_dir == str(output_dir)
     assert args.steps == 1234
     assert args.batch_size == 16
+    assert args.architecture == "ula_mmdit_lite"
+    assert args.semantic_tokens == 5
     assert args.preview_every_steps == 250
     assert args.preview_dir == str(output_dir / "previews")
     assert args.preview_text == "紧张地解释，然后逐渐平静"
