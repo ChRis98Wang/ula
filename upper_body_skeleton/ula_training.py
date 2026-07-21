@@ -34,9 +34,12 @@ BASE_CONDITION_DIM = len(INTENT_IDS) + len(AFFECT_IDS) + len(STYLE_IDS) + len(GE
 TEXT_EMBED_DIM = 64
 LEGACY_CONDITION_DIM = BASE_CONDITION_DIM + TEXT_EMBED_DIM
 KIMODO_CONDITION_DIM = LEGACY_CONDITION_DIM + KIMODO_CONDITION_EXTRA_DIM
+KIMODO_MOTION_LATENT_DIM = 128
+KIMODO_V2_CONDITION_DIM = KIMODO_CONDITION_DIM + KIMODO_MOTION_LATENT_DIM
 TRANSITION_IDS = {"continue": 0, "emotion_change": 1, "action_change": 2, "end": 3}
 ULA_FM_LEGACY_ARCHITECTURE = "ula_fm_legacy"
 ULA_MMDIT_LITE_ARCHITECTURE = "ula_mmdit_lite"
+ULA_MMDIT_V2_ARCHITECTURE = "ula_mmdit_v2"
 ULA_ADALN_LITE_ARCHITECTURE = "ula_adaln_lite"
 
 
@@ -478,6 +481,114 @@ class UlaMMDiTLiteModel(nn.Module):
         return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
 
 
+class UlaMMDiTV2Model(nn.Module):
+    """Structured motion transformer for semantic, style, and motion-latent conditioning."""
+
+    def __init__(
+        self,
+        action_dim=15,
+        condition_dim=KIMODO_V2_CONDITION_DIM,
+        hidden_dim=384,
+        layers=6,
+        semantic_tokens=7,
+    ):
+        super().__init__()
+        if int(condition_dim) != KIMODO_V2_CONDITION_DIM:
+            raise ValueError(
+                f"{ULA_MMDIT_V2_ARCHITECTURE} requires condition_dim={KIMODO_V2_CONDITION_DIM}"
+            )
+        self.architecture = ULA_MMDIT_V2_ARCHITECTURE
+        self.action_dim = int(action_dim)
+        self.condition_dim = int(condition_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.layers = int(layers)
+        self.semantic_tokens = int(semantic_tokens)
+        self.motion_latent_tokens = self.semantic_tokens - 5
+        if self.motion_latent_tokens <= 0:
+            raise ValueError("ula_mmdit_v2 semantic_tokens must be at least 6")
+
+        self.input = nn.Linear(self.action_dim, self.hidden_dim)
+        self.time = SinusoidalTimeEmbedding(self.hidden_dim)
+        self.frame = SinusoidalFrameEmbedding(self.hidden_dim)
+
+        def projection(input_dim, token_count=1):
+            output_dim = self.hidden_dim * int(token_count)
+            return nn.Sequential(
+                nn.Linear(int(input_dim), output_dim),
+                nn.SiLU(),
+                nn.Linear(output_dim, output_dim),
+            )
+
+        behavior_dim = len(KIMODO_BEHAVIOR_IDS)
+        emotion_dim = len(KIMODO_EMOTION_IDS)
+        family_dim = KIMODO_CONDITION_EXTRA_DIM - behavior_dim - emotion_dim - 3
+        self.legacy_condition = projection(LEGACY_CONDITION_DIM)
+        self.behavior_condition = projection(behavior_dim)
+        self.emotion_condition = projection(emotion_dim)
+        self.family_condition = projection(family_dim)
+        self.style_condition = projection(3)
+        self.motion_latent_condition = projection(
+            KIMODO_MOTION_LATENT_DIM,
+            token_count=self.motion_latent_tokens,
+        )
+
+        self.plan = nn.Sequential(
+            nn.Linear(self.condition_dim, self.hidden_dim),
+            nn.SiLU(),
+            nn.Linear(self.hidden_dim, self.hidden_dim),
+            nn.SiLU(),
+        )
+        self.duration_head = nn.Linear(self.hidden_dim, 1)
+        self.transition_head = nn.Linear(self.hidden_dim, len(TRANSITION_IDS))
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.hidden_dim,
+            nhead=8,
+            dim_feedforward=self.hidden_dim * 4,
+            batch_first=True,
+            activation="gelu",
+            norm_first=True,
+        )
+        self.blocks = nn.TransformerEncoder(encoder_layer, num_layers=self.layers)
+        self.output_norm = nn.LayerNorm(self.hidden_dim)
+        self.output = nn.Linear(self.hidden_dim, self.action_dim)
+        self.last_joint_sequence_shape = None
+
+    def semantic_condition_tokens(self, condition):
+        behavior_start = LEGACY_CONDITION_DIM
+        emotion_start = behavior_start + len(KIMODO_BEHAVIOR_IDS)
+        family_start = emotion_start + len(KIMODO_EMOTION_IDS)
+        style_start = KIMODO_CONDITION_DIM - 3
+        latent_start = KIMODO_CONDITION_DIM
+        tokens = [
+            self.legacy_condition(condition[:, :behavior_start])[:, None, :],
+            self.behavior_condition(condition[:, behavior_start:emotion_start])[:, None, :],
+            self.emotion_condition(condition[:, emotion_start:family_start])[:, None, :],
+            self.family_condition(condition[:, family_start:style_start])[:, None, :],
+            self.style_condition(condition[:, style_start:latent_start])[:, None, :],
+        ]
+        latent = self.motion_latent_condition(condition[:, latent_start:])
+        tokens.append(latent.reshape(condition.shape[0], self.motion_latent_tokens, self.hidden_dim))
+        return torch.cat(tokens, dim=1)
+
+    def forward(self, x_t, t, condition):
+        motion = self.input(x_t)
+        motion = motion + self.time(t)[:, None, :]
+        motion = motion + self.frame(x_t.shape[1], x_t.device)[None, :, :]
+        semantic = self.semantic_condition_tokens(condition)
+        h = torch.cat([semantic, motion], dim=1)
+        self.last_joint_sequence_shape = tuple(h.shape)
+        with stable_sdpa_context(h):
+            h = self.blocks(h)
+        return self.output(self.output_norm(h[:, self.semantic_tokens :, :]))
+
+    def plan_condition(self, condition):
+        if condition.ndim == 1:
+            condition = condition[None, :]
+        h = self.plan(condition)
+        duration_sec = torch.nn.functional.softplus(self.duration_head(h).squeeze(-1)) + 0.25
+        return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
+
+
 class AdaLNTransformerBlock(nn.Module):
     def __init__(self, hidden_dim, nhead=4):
         super().__init__()
@@ -571,6 +682,14 @@ def create_ula_model(
         )
     if architecture == ULA_MMDIT_LITE_ARCHITECTURE:
         return UlaMMDiTLiteModel(
+            action_dim=action_dim,
+            condition_dim=condition_dim,
+            hidden_dim=hidden_dim,
+            layers=layers,
+            semantic_tokens=semantic_tokens,
+        )
+    if architecture == ULA_MMDIT_V2_ARCHITECTURE:
+        return UlaMMDiTV2Model(
             action_dim=action_dim,
             condition_dim=condition_dim,
             hidden_dim=hidden_dim,
@@ -1027,7 +1146,12 @@ def main(argv=None):
     parser.add_argument("--layers", type=int, default=4)
     parser.add_argument(
         "--architecture",
-        choices=[ULA_FM_LEGACY_ARCHITECTURE, ULA_MMDIT_LITE_ARCHITECTURE, ULA_ADALN_LITE_ARCHITECTURE],
+        choices=[
+            ULA_FM_LEGACY_ARCHITECTURE,
+            ULA_MMDIT_LITE_ARCHITECTURE,
+            ULA_MMDIT_V2_ARCHITECTURE,
+            ULA_ADALN_LITE_ARCHITECTURE,
+        ],
         default=ULA_FM_LEGACY_ARCHITECTURE,
     )
     parser.add_argument("--semantic-tokens", type=int, default=4)

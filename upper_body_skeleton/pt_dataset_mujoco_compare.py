@@ -28,6 +28,7 @@ from upper_body_skeleton.pt_mujoco_infer import (
 )
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.semantic_adapter import AdapterConditionBuilder, load_semantic_adapter
+from upper_body_skeleton.ula_training import KIMODO_CONDITION_DIM
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -123,6 +124,22 @@ def _prioritize_diverse_rows(rows):
     return selected
 
 
+def _normalized_behavior_ids(value):
+    if value is None:
+        return None
+    values = [value] if isinstance(value, str) else list(value)
+    normalized = []
+    for item in values:
+        behavior_id = str(item).strip()
+        if not behavior_id:
+            raise ValueError("behavior_id cannot be empty")
+        if behavior_id not in normalized:
+            normalized.append(behavior_id)
+    if not normalized:
+        raise ValueError("at least one behavior_id is required")
+    return normalized
+
+
 def select_dataset_reference_rows(
     dataset_dir,
     split_checkpoint_path,
@@ -133,13 +150,14 @@ def select_dataset_reference_rows(
     emotion_id=None,
     count=1,
 ):
+    behavior_ids = _normalized_behavior_ids(behavior_id)
     split_names = ("train", "validation", "test")
     if motion_latent_split not in set(split_names):
         raise ValueError("motion_latent_split must be train, validation, or test")
-    if episode_index is not None and (behavior_id is not None or emotion_id is not None):
+    if episode_index is not None and (behavior_ids is not None or emotion_id is not None):
         raise ValueError("select by either episode_index or behavior/emotion labels, not both")
-    if (behavior_id is None) != (emotion_id is None):
-        raise ValueError("behavior_id and emotion_id must be provided together")
+    if emotion_id is not None and behavior_ids is None:
+        raise ValueError("emotion_id requires at least one behavior_id")
     count = int(count)
     if count <= 0:
         raise ValueError("count must be positive")
@@ -197,16 +215,18 @@ def select_dataset_reference_rows(
     rows = [row for row in rows if int(row["episode_index"]) in allowed_ids]
     if episode_index is not None:
         rows = [row for row in rows if int(row["episode_index"]) == int(episode_index)]
-    if behavior_id is not None:
+    if behavior_ids is not None:
+        behavior_id_set = set(behavior_ids)
         rows = [
             row
             for row in rows
-            if row["behavior_id"] == behavior_id and row["emotion_id"] == emotion_id
+            if row["behavior_id"] in behavior_id_set
+            and (emotion_id is None or row["emotion_id"] == emotion_id)
         ]
     rows.sort(key=lambda row: int(row["episode_index"]))
     if not rows:
         raise ValueError("no dataset reference matches the requested Motion Metric partition and labels")
-    if episode_index is None and behavior_id is None:
+    if episode_index is None and (behavior_ids is None or len(behavior_ids) > 1):
         rows = _prioritize_diverse_rows(rows)
     if len(rows) < count:
         raise ValueError(f"requested {count} comparisons but only {len(rows)} references match")
@@ -219,9 +239,56 @@ def select_dataset_reference_rows(
     return selected
 
 
-def load_reference_trajectories(dataset_dir, selected_rows):
+def load_reference_trajectories(dataset_dir, selected_rows, *, generator_checkpoint=None):
     requested = {int(row["episode_index"]) for row in selected_rows}
     episodes = load_motion_latent_episodes(dataset_dir)
+    stats_episodes = episodes
+    preprocessing = {"mode": "raw_legacy"}
+    if generator_checkpoint is not None and generator_checkpoint.get("v2_contracts") is not None:
+        from upper_body_skeleton.ula_v2_conditioning import (
+            clean_joint_trajectory,
+            extract_style_features,
+            normalize_style_features,
+            trim_episode,
+        )
+
+        contracts = generator_checkpoint["v2_contracts"]
+        processed = []
+        for episode in episodes:
+            item = dict(episode)
+            item["meta"] = dict(episode.get("meta") or {})
+            item["fps"] = float(item.get("fps") or item["meta"].get("fps") or 30.0)
+            item["actions"] = clean_joint_trajectory(
+                item["actions"],
+                fps=item["fps"],
+                preprocess_contract=contracts["preprocess"],
+            )
+            item = trim_episode(item, active_window_contract=contracts["active_window"])
+            item["style_features"] = extract_style_features(item["actions"], fps=item["fps"])
+            item["style_controls"] = normalize_style_features(
+                item["style_features"], contracts["style"]
+            )
+            processed.append(item)
+        episodes = processed
+        training_ids = {
+            int(value)
+            for value in (
+                generator_checkpoint.get("training_episode_indices")
+                or generator_checkpoint.get("split_episode_indices", {}).get("train")
+                or []
+            )
+        }
+        if not training_ids:
+            raise ValueError("V2 generator checkpoint does not record its training episode IDs")
+        stats_episodes = [episode for episode in episodes if int(episode["episode_index"]) in training_ids]
+        if len(stats_episodes) != len(training_ids):
+            raise ValueError("V2 generator training episode IDs do not match the comparison dataset")
+        preprocessing = {
+            "mode": "v2_contract",
+            "contracts_sha256": contracts["sha256"],
+            "preprocess_sha256": contracts["preprocess"]["sha256"],
+            "active_window_sha256": contracts["active_window"]["sha256"],
+        }
     by_index = {int(episode["episode_index"]): episode for episode in episodes if int(episode["episode_index"]) in requested}
     if set(by_index) != requested:
         raise ValueError("not all selected reference episodes were found in the LeRobot parquet data")
@@ -231,12 +298,14 @@ def load_reference_trajectories(dataset_dir, selected_rows):
             raise ValueError("reference behavior metadata mismatch")
         if episode["meta"]["emotion_id"] != row["emotion_id"]:
             raise ValueError("reference emotion metadata mismatch")
-    actions = np.concatenate([episode["actions"] for episode in episodes], axis=0).astype(np.float32)
+    actions = np.concatenate([episode["actions"] for episode in stats_episodes], axis=0).astype(np.float32)
     return by_index, {
-        "episode_count": len(episodes),
+        "dataset_episode_count": len(episodes),
+        "episode_count": len(stats_episodes),
         "frame_count": int(actions.shape[0]),
         "mean": actions.mean(axis=0),
         "std": actions.std(axis=0),
+        "preprocessing": preprocessing,
     }
 
 
@@ -337,7 +406,7 @@ def run_dataset_mujoco_comparison(
     sampling_steps=32,
     seed=7,
     max_velocity_rad_s=3.0,
-    smooth_window=5,
+    smooth_window=None,
     pane_width=640,
     pane_height=640,
     camera_view="upper",
@@ -346,6 +415,7 @@ def run_dataset_mujoco_comparison(
 ):
     dataset_dir = Path(dataset_dir)
     output_dir = Path(output_dir)
+    behavior_ids = _normalized_behavior_ids(behavior_id)
     dataset_contract = validate_dataset_contract(dataset_dir)
     selected_rows = select_dataset_reference_rows(
         dataset_dir,
@@ -356,8 +426,12 @@ def run_dataset_mujoco_comparison(
         emotion_id=emotion_id,
         count=count,
     )
-    references, dataset_action_stats = load_reference_trajectories(dataset_dir, selected_rows)
     generator = PtMotionGenerator.from_checkpoint(generator_checkpoint, device=device)
+    references, dataset_action_stats = load_reference_trajectories(
+        dataset_dir,
+        selected_rows,
+        generator_checkpoint=generator.checkpoint,
+    )
     semantic_adapter, semantic_checkpoint = load_semantic_adapter(
         semantic_adapter_checkpoint,
         device=semantic_device or device,
@@ -374,7 +448,7 @@ def run_dataset_mujoco_comparison(
     condition_builder = AdapterConditionBuilder(semantic_adapter, condition_bank=condition_bank)
 
     dataset_episode_count = pq.read_table(dataset_semantic_index, columns=["episode_index"]).num_rows
-    if dataset_action_stats["episode_count"] != dataset_episode_count:
+    if dataset_action_stats["dataset_episode_count"] != dataset_episode_count:
         raise ValueError("action parquet episode count does not match the semantic index")
     checkpoint_action_stats = generator.checkpoint.get("action_stats")
     if not isinstance(checkpoint_action_stats, dict):
@@ -395,10 +469,12 @@ def run_dataset_mujoco_comparison(
     action_data_validation = {
         "checkpoint_stats_match": True,
         "episode_count": int(dataset_action_stats["episode_count"]),
+        "dataset_episode_count": int(dataset_action_stats["dataset_episode_count"]),
         "frame_count": int(dataset_action_stats["frame_count"]),
         "mean_max_abs_error": action_stat_errors["mean"],
         "std_max_abs_error": action_stat_errors["std"],
         "parquet_manifest": _action_data_manifest(dataset_dir),
+        "preprocessing": dataset_action_stats["preprocessing"],
         "provenance_limit": (
             "The generator checkpoint records action statistics but not the original parquet hash; "
             "the manifest is recorded for reproducibility, while the statistics provide the available match check."
@@ -410,17 +486,32 @@ def run_dataset_mujoco_comparison(
         generator_episodes_loaded is not None
         and int(generator_episodes_loaded) == int(dataset_episode_count)
     )
+    training_episode_ids = {
+        int(value)
+        for value in (
+            generator.checkpoint.get("training_episode_indices")
+            or generator.checkpoint.get("split_episode_indices", {}).get("train")
+            or []
+        )
+    }
+    selected_episode_ids = {int(row["episode_index"]) for row in selected_rows}
+    overlap_ids = sorted(training_episode_ids & selected_episode_ids)
+    held_out = bool(training_episode_ids) and not overlap_ids
     generator_training_coverage = {
         "dataset_episode_count": int(dataset_episode_count),
         "generator_episodes_loaded": (
             None if generator_episodes_loaded is None else int(generator_episodes_loaded)
         ),
         "all_dataset_episodes_used": generator_used_all_episodes,
-        "reference_is_generator_held_out": False if generator_used_all_episodes else None,
+        "training_episode_indices_recorded": bool(training_episode_ids),
+        "reference_training_overlap": overlap_ids,
+        "reference_is_generator_held_out": held_out if training_episode_ids else (False if generator_used_all_episodes else None),
         "note": (
             "The current generator trained on every dataset episode; the Motion Metric partition below is "
             "reference selection only, not a held-out MMDiT generalization test."
             if generator_used_all_episodes
+            else "Generator episode membership is recorded; held-out status is computed by exact episode ID."
+            if training_episode_ids
             else "Generator episode membership is not recorded, so held-out status is unknown."
         ),
     }
@@ -434,16 +525,46 @@ def run_dataset_mujoco_comparison(
             "exact_episode"
             if episode_index is not None
             else "exact_behavior_emotion"
-            if behavior_id is not None
+            if behavior_ids is not None and emotion_id is not None
+            else "behavior_set_all_emotions"
+            if behavior_ids is not None
             else "diverse_behavior_round_robin"
         ),
     }
+    selection_request = {
+        "motion_latent_split": motion_latent_split,
+        "episode_index": episode_index,
+        "behavior_ids": behavior_ids,
+        "emotion_id": emotion_id,
+        "count": int(count),
+    }
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    dataset_selection_path = output_dir / "dataset_selection.json"
+    dataset_selection = {
+        "schema_version": 1,
+        "source_dataset": str(dataset_dir.resolve()),
+        "source_semantic_index_sha256": dataset_semantic_hash,
+        "motion_latent_partition": motion_partition,
+        "selection_request": selection_request,
+        "episodes": [
+            {
+                "episode_index": int(row["episode_index"]),
+                "sample_id": row["sample_id"],
+                "behavior_id": row["behavior_id"],
+                "emotion_id": row["emotion_id"],
+                "language_instruction": row["language_instruction"],
+                "frames": int(references[int(row["episode_index"])]["actions"].shape[0]),
+            }
+            for row in selected_rows
+        ],
+    }
+    _atomic_json_write(dataset_selection, dataset_selection_path)
     results = []
     for row in selected_rows:
         episode_index_value = int(row["episode_index"])
         reference = np.asarray(references[episode_index_value]["actions"], dtype=np.float32)
+        reference_style_controls = references[episode_index_value].get("style_controls")
         text = row["language_instruction"]
         motion = generator.infer(
             text,
@@ -454,6 +575,7 @@ def run_dataset_mujoco_comparison(
             max_velocity_rad_s=max_velocity_rad_s,
             smooth_window=smooth_window,
             condition_builder=condition_builder,
+            style_controls=reference_style_controls,
         )
         behavior_match = motion.behavior_id == row["behavior_id"]
         emotion_match = motion.emotion_id == row["emotion_id"]
@@ -499,6 +621,9 @@ def run_dataset_mujoco_comparison(
                 "emotion_confidence": motion.emotion_confidence,
                 "behavior_match": behavior_match,
                 "emotion_match": emotion_match,
+                "style_controls": None
+                if motion.style_controls is None
+                else list(motion.style_controls),
             },
             "generator": {
                 "checkpoint": str(generator_checkpoint),
@@ -532,11 +657,14 @@ def run_dataset_mujoco_comparison(
         "schema_version": 1,
         "layout": {"left": "network_output", "right": "dataset_reference"},
         "motion_latent_partition": motion_partition,
+        "selection_request": selection_request,
+        "dataset_selection_manifest": str(dataset_selection_path),
         "generator_training_coverage": generator_training_coverage,
         "action_data_validation": action_data_validation,
         "generator_scope": (
-            "Current 5k 136-dimensional Kimodo MMDiT generator. The completed 128-dimensional cross-modal "
-            "Qwen LoRA checkpoint is not generator-compatible and is not used in these videos."
+            "ULA MMDiT V2 with held-out generator splits, variable duration, motion prototypes, and explicit style controls."
+            if generator.info.condition_dim != KIMODO_CONDITION_DIM
+            else "Legacy 5k 136-dimensional Kimodo MMDiT generator."
         ),
         "results": results,
     }
@@ -560,7 +688,11 @@ def main(argv=None):
         help="Motion Metric Encoder partition used only to select dataset references",
     )
     parser.add_argument("--episode-index", type=int)
-    parser.add_argument("--behavior-id")
+    parser.add_argument(
+        "--behavior-id",
+        action="append",
+        help="Dataset behavior filter; repeat to select several behaviors",
+    )
     parser.add_argument("--emotion-id")
     parser.add_argument("--count", type=int, default=1)
     parser.add_argument("--device", default="auto")
@@ -569,7 +701,11 @@ def main(argv=None):
     parser.add_argument("--sampling-steps", type=int, default=32)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--max-velocity-rad-s", type=float, default=3.0)
-    parser.add_argument("--smooth-window", type=int, default=5)
+    parser.add_argument(
+        "--smooth-window",
+        type=int,
+        help="Defaults to the generator checkpoint preprocessing contract",
+    )
     parser.add_argument("--pane-width", type=int, default=640)
     parser.add_argument("--pane-height", type=int, default=640)
     parser.add_argument("--camera-view", choices=("front", "upper"), default="upper")

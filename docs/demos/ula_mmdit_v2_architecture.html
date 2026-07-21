@@ -1,0 +1,1908 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ULA MMDiT V2 | Architecture Workbench</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f2f4f3;
+      --surface: #ffffff;
+      --surface-soft: #f8faf9;
+      --ink: #172029;
+      --muted: #66717c;
+      --line: #d9dfdc;
+      --line-strong: #aeb9b4;
+      --teal: #087485;
+      --teal-soft: #dff2f3;
+      --green: #28785b;
+      --green-soft: #e3f1e9;
+      --amber: #a65b05;
+      --amber-soft: #fff0d5;
+      --violet: #6554a4;
+      --violet-soft: #eeeafd;
+      --coral: #b44b54;
+      --coral-soft: #fae8e8;
+      --blue: #315f91;
+      --blue-soft: #e4edf8;
+      --shadow: 0 12px 30px rgba(24, 36, 31, 0.08);
+      --radius: 6px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible {
+      outline: 3px solid rgba(8, 116, 133, 0.28);
+      outline-offset: 2px;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    code,
+    .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      min-height: 64px;
+      background: rgba(255, 255, 255, 0.96);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner {
+      width: min(1560px, calc(100% - 32px));
+      min-height: 64px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 235px;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--ink);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .brand-copy strong,
+    .brand-copy span {
+      display: block;
+      letter-spacing: 0;
+    }
+
+    .brand-copy strong {
+      font-size: 14px;
+    }
+
+    .brand-copy span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .top-metrics {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .top-metric {
+      min-width: 92px;
+      padding: 5px 10px;
+      border-left: 1px solid var(--line);
+    }
+
+    .top-metric strong,
+    .top-metric span {
+      display: block;
+      letter-spacing: 0;
+    }
+
+    .top-metric strong {
+      font-size: 13px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .top-metric span {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .run-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 5px 10px;
+      color: #18573f;
+      background: var(--green-soft);
+      border: 1px solid #b8dcc9;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .run-state::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .workspace {
+      width: min(1560px, 100%);
+      min-height: calc(100vh - 64px);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 64px;
+      align-self: start;
+      min-height: calc(100vh - 64px);
+      padding: 22px 16px;
+      border-right: 1px solid var(--line);
+      background: #ecefed;
+    }
+
+    .sidebar-label {
+      margin: 0 8px 8px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .view-nav {
+      display: grid;
+      gap: 4px;
+    }
+
+    .view-tab {
+      width: 100%;
+      min-height: 42px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .view-tab span:last-child {
+      color: #8a9590;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .view-tab:hover {
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .view-tab[aria-selected="true"] {
+      color: var(--teal);
+      background: var(--surface);
+      border-color: var(--line);
+      box-shadow: 0 4px 12px rgba(24, 36, 31, 0.05);
+    }
+
+    .sidebar-section {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid #cfd6d2;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      padding: 3px;
+      background: #dde2df;
+      border: 1px solid #cdd4d0;
+      border-radius: var(--radius);
+    }
+
+    .segment {
+      min-height: 32px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .segment[aria-pressed="true"] {
+      color: var(--teal);
+      background: var(--surface);
+      box-shadow: 0 2px 6px rgba(24, 36, 31, 0.08);
+    }
+
+    .shape-readout {
+      margin-top: 12px;
+      padding: 11px;
+      color: #32413a;
+      background: rgba(255, 255, 255, 0.52);
+      border: 1px solid #d5dbd8;
+      border-radius: var(--radius);
+      font-size: 11px;
+      line-height: 1.75;
+    }
+
+    .shape-readout strong {
+      color: var(--ink);
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(23, 32, 41, 0.12);
+    }
+
+    .main {
+      min-width: 0;
+      padding: 24px clamp(20px, 3vw, 44px) 48px;
+    }
+
+    .view[hidden] {
+      display: none;
+    }
+
+    .view-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 20px;
+    }
+
+    .view-kicker {
+      margin-bottom: 5px;
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .view-header p {
+      max-width: 620px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--surface);
+      margin-bottom: 20px;
+    }
+
+    .metric-cell {
+      min-height: 68px;
+      padding: 11px 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .metric-cell:last-child {
+      border-right: 0;
+    }
+
+    .metric-cell strong,
+    .metric-cell span {
+      display: block;
+    }
+
+    .metric-cell strong {
+      margin-bottom: 3px;
+      font-size: 20px;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-cell span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .map-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 285px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .architecture-frame,
+    .inspector,
+    .table-frame,
+    .attention-frame,
+    .training-workbench,
+    .source-frame {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .architecture-frame {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .stage-band {
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stage-band:last-child {
+      border-bottom: 0;
+    }
+
+    .stage-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 13px;
+    }
+
+    .stage-number {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: #edf0ee;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .stage-heading span:last-child {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .condition-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(100px, 1fr));
+      gap: 7px;
+    }
+
+    .condition-unit,
+    .core-unit,
+    .layer-unit {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+    }
+
+    .condition-unit:hover,
+    .core-unit:hover,
+    .layer-unit:hover {
+      border-color: var(--line-strong);
+      transform: translateY(-1px);
+    }
+
+    .condition-unit.is-active,
+    .core-unit.is-active,
+    .layer-unit.is-active {
+      border-color: var(--teal);
+      box-shadow: inset 0 0 0 1px var(--teal);
+    }
+
+    .condition-unit {
+      min-height: 88px;
+      padding: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .condition-unit::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      background: var(--accent, var(--teal));
+    }
+
+    .condition-unit strong,
+    .condition-unit span,
+    .condition-unit small {
+      display: block;
+      margin-left: 4px;
+    }
+
+    .condition-unit strong {
+      font-size: 13px;
+    }
+
+    .condition-unit span {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .condition-unit small {
+      margin-top: 8px;
+      color: var(--accent, var(--teal));
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .token-belt {
+      min-width: 0;
+      display: flex;
+      align-items: stretch;
+      gap: 5px;
+      overflow-x: auto;
+      padding-bottom: 3px;
+    }
+
+    .token-cell {
+      flex: 0 0 46px;
+      min-height: 54px;
+      display: grid;
+      place-items: center;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fafbfa;
+      font-size: 9px;
+      font-weight: 850;
+      text-align: center;
+    }
+
+    .token-cell.semantic {
+      color: var(--token-color, var(--teal));
+      background: var(--token-bg, var(--teal-soft));
+      border-color: color-mix(in srgb, var(--token-color, var(--teal)) 35%, white);
+    }
+
+    .token-separator {
+      flex: 0 0 14px;
+      display: grid;
+      place-items: center;
+      color: var(--line-strong);
+      font-size: 18px;
+    }
+
+    .motion-token-pack {
+      min-width: 270px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(12, minmax(14px, 1fr));
+      gap: 3px;
+      padding: 5px;
+      border: 1px solid #bdd8dc;
+      border-radius: 4px;
+      background: var(--teal-soft);
+      position: relative;
+    }
+
+    .motion-token-pack i {
+      min-height: 42px;
+      border-radius: 2px;
+      background: rgba(8, 116, 133, 0.2);
+    }
+
+    .motion-token-pack i:nth-child(3n) {
+      background: rgba(8, 116, 133, 0.34);
+    }
+
+    .motion-token-label {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #075665;
+      font-size: 11px;
+      font-weight: 900;
+      text-shadow: 0 1px 0 #fff;
+    }
+
+    .core-grid {
+      display: grid;
+      grid-template-columns: minmax(155px, 0.75fr) minmax(280px, 1.5fr) minmax(155px, 0.75fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .core-unit {
+      padding: 13px;
+      min-height: 215px;
+    }
+
+    .unit-label {
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .unit-title {
+      margin-top: 3px;
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .matrix-mini {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      margin: 16px 0;
+    }
+
+    .matrix-mini i {
+      aspect-ratio: 1;
+      border-radius: 2px;
+      background: #c9dde0;
+    }
+
+    .matrix-mini i:nth-child(4n + 1) {
+      background: #7dafb6;
+    }
+
+    .core-formula {
+      color: #34423c;
+      font-size: 10px;
+      line-height: 1.65;
+    }
+
+    .transformer-panel {
+      min-height: 215px;
+      padding: 12px;
+      border: 1px solid #c7c0e5;
+      border-radius: var(--radius);
+      background: #f8f6ff;
+    }
+
+    .transformer-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .transformer-head strong {
+      font-size: 13px;
+    }
+
+    .transformer-head span {
+      color: var(--violet);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .layer-stack {
+      display: grid;
+      gap: 5px;
+    }
+
+    .layer-unit {
+      min-height: 24px;
+      padding: 4px 8px;
+      display: grid;
+      grid-template-columns: 52px 1fr 1fr;
+      align-items: center;
+      gap: 7px;
+      background: #fff;
+      border-color: #d8d2ed;
+      color: #40366b;
+      font-size: 9px;
+    }
+
+    .layer-unit strong {
+      font-size: 10px;
+    }
+
+    .layer-unit span {
+      padding: 2px 5px;
+      border-left: 2px solid #a99ed3;
+    }
+
+    .output-bars {
+      display: grid;
+      gap: 5px;
+      margin: 15px 0;
+    }
+
+    .output-bars i {
+      height: 7px;
+      border-radius: 2px;
+      background: var(--coral-soft);
+      border-left: 3px solid var(--coral);
+    }
+
+    .output-bars i:nth-child(2) { width: 82%; }
+    .output-bars i:nth-child(3) { width: 67%; }
+    .output-bars i:nth-child(4) { width: 91%; }
+    .output-bars i:nth-child(5) { width: 74%; }
+
+    .planner-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    .planner-grid .core-unit {
+      min-height: 84px;
+      padding: 11px;
+    }
+
+    .planner-value {
+      margin-top: 8px;
+      font-size: 17px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .inspector {
+      position: sticky;
+      top: 88px;
+      min-height: 380px;
+      padding: 18px;
+    }
+
+    .inspector-kicker {
+      color: var(--teal);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .inspector h2 {
+      margin-top: 5px;
+      font-size: 20px;
+    }
+
+    .inspector-shape {
+      display: inline-block;
+      margin-top: 13px;
+      padding: 6px 8px;
+      color: #075665;
+      background: var(--teal-soft);
+      border: 1px solid #b9dade;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .inspector p {
+      margin: 16px 0;
+      color: #435049;
+      font-size: 12px;
+      line-height: 1.75;
+    }
+
+    .inspector-source {
+      padding-top: 13px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .tensor-layout,
+    .training-layout,
+    .inference-layout,
+    .source-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(310px, 0.75fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .table-frame,
+    .attention-frame,
+    .training-workbench,
+    .source-frame {
+      overflow: hidden;
+    }
+
+    .frame-head {
+      padding: 15px 17px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .frame-head span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 11px 15px;
+      border-bottom: 1px solid #e6eae8;
+      text-align: left;
+      font-size: 11px;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f7f9f8;
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    td.shape {
+      color: var(--teal);
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .attention-body {
+      padding: 17px;
+    }
+
+    .attention-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .attention-meta strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .attention-meta span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .heatmap {
+      display: grid;
+      grid-template-columns: repeat(18, 1fr);
+      gap: 2px;
+      aspect-ratio: 1;
+      padding: 5px;
+      background: #edf1ef;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+
+    .heatmap i {
+      border-radius: 1px;
+      background: rgba(8, 116, 133, var(--alpha));
+    }
+
+    .parameter-list,
+    .loss-list {
+      display: grid;
+      gap: 10px;
+      padding: 17px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 120px minmax(90px, 1fr) 80px;
+      gap: 10px;
+      align-items: center;
+      font-size: 10px;
+    }
+
+    .bar-track {
+      height: 8px;
+      overflow: hidden;
+      background: #e8ecea;
+      border-radius: 2px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: var(--width);
+      background: var(--bar-color, var(--teal));
+      border-radius: 2px;
+    }
+
+    .bar-value {
+      color: var(--muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .flow-lab {
+      padding: 18px;
+    }
+
+    .flow-topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 17px;
+    }
+
+    .flow-time {
+      color: var(--violet);
+      font-size: 22px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .flow-slider {
+      width: 100%;
+      accent-color: var(--violet);
+    }
+
+    .mix-track {
+      display: flex;
+      height: 54px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+
+    .mix-part {
+      min-width: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 850;
+      white-space: nowrap;
+      transition: width 120ms ease;
+    }
+
+    .mix-noise {
+      width: 50%;
+      background: var(--violet);
+    }
+
+    .mix-data {
+      width: 50%;
+      background: var(--green);
+    }
+
+    .formula-box {
+      margin-top: 14px;
+      padding: 12px;
+      background: #f5f3fb;
+      border-left: 3px solid var(--violet);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .training-pipeline,
+    .inference-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .process-tile {
+      min-height: 102px;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .process-tile .index {
+      display: block;
+      margin-bottom: 15px;
+      color: var(--teal);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .process-tile strong,
+    .process-tile span {
+      display: block;
+    }
+
+    .process-tile strong {
+      font-size: 12px;
+    }
+
+    .process-tile span {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.55;
+    }
+
+    .notice {
+      margin-top: 16px;
+      padding: 13px 15px;
+      color: #6f3b00;
+      background: var(--amber-soft);
+      border: 1px solid #ebcf9a;
+      border-left: 4px solid var(--amber);
+      border-radius: var(--radius);
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .inference-console {
+      padding: 18px;
+    }
+
+    .duration-display {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 12px;
+      align-items: center;
+      margin: 18px 0;
+    }
+
+    .duration-value {
+      padding: 14px;
+      background: var(--green-soft);
+      border: 1px solid #bfdccc;
+      border-radius: var(--radius);
+      text-align: center;
+    }
+
+    .duration-value strong,
+    .duration-value span {
+      display: block;
+    }
+
+    .duration-value strong {
+      font-size: 24px;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .duration-value span {
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .duration-op {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .runtime-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .runtime-band {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .runtime-band strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .runtime-band span {
+      display: block;
+      padding: 4px 0;
+      color: var(--muted);
+      border-bottom: 1px solid #edf0ee;
+      font-size: 10px;
+    }
+
+    .runtime-band span:last-child {
+      border-bottom: 0;
+    }
+
+    .source-table code {
+      color: var(--blue);
+      font-size: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .source-table a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .source-table a:hover {
+      text-decoration: underline;
+    }
+
+    .boundary-list {
+      display: grid;
+      gap: 8px;
+      padding: 17px;
+    }
+
+    .boundary-item {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e7ebe9;
+    }
+
+    .boundary-item:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .boundary-index {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      color: var(--coral);
+      background: var(--coral-soft);
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .boundary-item strong,
+    .boundary-item span {
+      display: block;
+    }
+
+    .boundary-item strong {
+      font-size: 11px;
+    }
+
+    .boundary-item span {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.55;
+    }
+
+    .result-band {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid #bcdacb;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--green-soft);
+    }
+
+    .result-cell {
+      padding: 13px;
+      border-right: 1px solid #c8dfd3;
+    }
+
+    .result-cell:last-child {
+      border-right: 0;
+    }
+
+    .result-cell strong,
+    .result-cell span {
+      display: block;
+    }
+
+    .result-cell strong {
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .result-cell span {
+      color: #4e6a5d;
+      font-size: 9px;
+    }
+
+    @media (max-width: 1180px) {
+      .top-metric:nth-child(4),
+      .top-metric:nth-child(5) {
+        display: none;
+      }
+
+      .condition-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .map-shell {
+        grid-template-columns: minmax(0, 1fr) 250px;
+      }
+
+      .core-grid {
+        grid-template-columns: 1fr 1.7fr;
+      }
+
+      .core-grid .core-unit:last-child {
+        grid-column: 1 / -1;
+        min-height: 120px;
+      }
+    }
+
+    @media (max-width: 880px) {
+      .topbar {
+        position: static;
+      }
+
+      .topbar-inner {
+        min-height: 72px;
+        gap: 12px;
+      }
+
+      .brand {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .top-metrics {
+        display: none;
+      }
+
+      .workspace {
+        display: block;
+      }
+
+      .sidebar {
+        position: static;
+        min-height: auto;
+        padding: 10px 14px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .sidebar > .sidebar-label,
+      .sidebar-section {
+        display: none;
+      }
+
+      .view-nav {
+        grid-template-columns: repeat(4, minmax(110px, 1fr));
+        overflow-x: auto;
+      }
+
+      .view-tab {
+        white-space: nowrap;
+      }
+
+      .main {
+        padding: 18px 16px 40px;
+      }
+
+      .view-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .metric-strip {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .metric-cell:nth-child(3) {
+        border-right: 0;
+      }
+
+      .metric-cell:nth-child(n + 4) {
+        border-top: 1px solid var(--line);
+      }
+
+      .map-shell,
+      .tensor-layout,
+      .training-layout,
+      .inference-layout,
+      .source-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .inspector {
+        position: static;
+        min-height: auto;
+      }
+
+      .training-pipeline,
+      .inference-steps {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar-inner {
+        width: calc(100% - 22px);
+      }
+
+      .run-state {
+        font-size: 10px;
+      }
+
+      .brand-copy span {
+        display: none;
+      }
+
+      .view-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        overflow-x: visible;
+      }
+
+      .view-tab span:last-child {
+        display: none;
+      }
+
+      h1 {
+        font-size: 23px;
+      }
+
+      .metric-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .metric-cell,
+      .metric-cell:nth-child(3) {
+        border-right: 1px solid var(--line);
+        border-top: 1px solid var(--line);
+      }
+
+      .metric-cell:nth-child(odd) {
+        border-right: 1px solid var(--line);
+      }
+
+      .metric-cell:nth-child(even) {
+        border-right: 0;
+      }
+
+      .metric-cell:first-child,
+      .metric-cell:nth-child(2) {
+        border-top: 0;
+      }
+
+      .metric-cell:last-child {
+        grid-column: 1 / -1;
+        border-right: 0;
+      }
+
+      .condition-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .core-grid,
+      .planner-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .core-grid .core-unit:last-child {
+        grid-column: auto;
+      }
+
+      .stage-band {
+        padding: 14px;
+      }
+
+      .layer-unit {
+        grid-template-columns: 50px 1fr;
+      }
+
+      .layer-unit span:last-child {
+        display: none;
+      }
+
+      .bar-row {
+        grid-template-columns: 95px minmax(70px, 1fr) 64px;
+      }
+
+      .training-pipeline,
+      .inference-steps,
+      .runtime-split,
+      .result-band {
+        grid-template-columns: 1fr;
+      }
+
+      .result-cell {
+        border-right: 0;
+        border-bottom: 1px solid #c8dfd3;
+      }
+
+      .result-cell:last-child {
+        border-bottom: 0;
+      }
+
+      .duration-display {
+        grid-template-columns: 1fr;
+      }
+
+      .duration-op {
+        text-align: center;
+      }
+
+      th,
+      td {
+        padding: 9px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark">V2</div>
+        <div class="brand-copy">
+          <strong>ULA MMDiT V2</strong>
+          <span>Architecture Workbench</span>
+        </div>
+      </div>
+      <div class="top-metrics" aria-label="模型摘要">
+        <div class="top-metric"><strong>12.394M</strong><span>parameters</span></div>
+        <div class="top-metric"><strong>264D</strong><span>condition</span></div>
+        <div class="top-metric"><strong>15 DoF</strong><span>motion frame</span></div>
+        <div class="top-metric"><strong>6 × 8</strong><span>layers × heads</span></div>
+        <div class="top-metric"><strong>384D</strong><span>hidden width</span></div>
+      </div>
+      <div class="run-state">50K COMPLETE</div>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-label">Views</div>
+      <nav class="view-nav" role="tablist" aria-label="架构视图">
+        <button class="view-tab" role="tab" aria-selected="true" aria-controls="view-map" data-view="map">
+          <span>网络地图</span><span>01</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-tensors" data-view="tensors">
+          <span>张量审计</span><span>02</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-training" data-view="training">
+          <span>训练目标</span><span>03</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-inference" data-view="inference">
+          <span>推理过程</span><span>04</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-source" data-view="source">
+          <span>源码索引</span><span>05</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Phase frames</div>
+        <div class="segmented" aria-label="训练帧数">
+          <button class="segment frame-option" aria-pressed="false" data-frames="64">64</button>
+          <button class="segment frame-option" aria-pressed="false" data-frames="96">96</button>
+          <button class="segment frame-option" aria-pressed="true" data-frames="128">128</button>
+        </div>
+        <div class="shape-readout mono">
+          motion&nbsp;&nbsp;<strong>[B, <span data-t>128</span>, 15]</strong><br>
+          tokens&nbsp;&nbsp;<strong>[B, <span data-seq>135</span>, 384]</strong><br>
+          attn/head&nbsp;<strong><span data-seq>135</span> × <span data-seq>135</span></strong>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Token families</div>
+        <div class="legend">
+          <div class="legend-row"><i class="legend-swatch" style="background:var(--blue-soft)"></i>语义与文本</div>
+          <div class="legend-row"><i class="legend-swatch" style="background:var(--amber-soft)"></i>离散标签</div>
+          <div class="legend-row"><i class="legend-swatch" style="background:var(--green-soft)"></i>动作风格</div>
+          <div class="legend-row"><i class="legend-swatch" style="background:var(--violet-soft)"></i>动作原型</div>
+          <div class="legend-row"><i class="legend-swatch" style="background:var(--teal-soft)"></i>动作帧</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="view" id="view-map" role="tabpanel" data-panel="map">
+        <div class="view-header">
+          <div>
+            <div class="view-kicker">Model anatomy</div>
+            <h1>条件槽位与动作层栈</h1>
+          </div>
+          <p>模型把 264 维条件拆成 7 个有固定语义的 token；每一帧的 15 个关节先合并为一个动作 token。两者共享同一组双向自注意力层。</p>
+        </div>
+
+        <div class="metric-strip">
+          <div class="metric-cell"><strong>7</strong><span>structured condition tokens</span></div>
+          <div class="metric-cell"><strong data-t>128</strong><span>motion tokens in this view</span></div>
+          <div class="metric-cell"><strong data-seq>135</strong><span>joint sequence length</span></div>
+          <div class="metric-cell"><strong>48</strong><span>dimensions per attention head</span></div>
+          <div class="metric-cell"><strong>15</strong><span>joint angles per output frame</span></div>
+        </div>
+
+        <div class="map-shell">
+          <div class="architecture-frame">
+            <div class="stage-band">
+              <div class="stage-heading"><span class="stage-number">01</span><h2>条件编码器</h2><span>264D → 7 × 384D</span></div>
+              <div class="condition-grid">
+                <button class="condition-unit inspectable" style="--accent:var(--blue)" data-title="Legacy condition" data-kicker="Condition encoder" data-shape="[B, 92] → [B, 1, 384]" data-body="包含 intent、affect、motion style、gesture、5 个连续标量和 64 维固定文本特征。它保留旧 ULA 条件空间的表达。" data-source="upper_body_skeleton/ula_training.py:525">
+                  <strong>Legacy</strong><span>语义 + 文本</span><small>92D · 1 token</small>
+                </button>
+                <button class="condition-unit inspectable" style="--accent:var(--amber)" data-title="Behavior condition" data-kicker="Condition encoder" data-shape="[B, 27] → [B, 1, 384]" data-body="27 个 Kimodo behavior_id 的 one-hot。独立投影让行为身份在进入注意力层前拥有自己的槽位。" data-source="upper_body_skeleton/ula_training.py:526">
+                  <strong>Behavior</strong><span>动作类别</span><small>27D · 1 token</small>
+                </button>
+                <button class="condition-unit inspectable" style="--accent:var(--coral)" data-title="Emotion condition" data-kicker="Condition encoder" data-shape="[B, 6] → [B, 1, 384]" data-body="neutral、sad、happy、angry、surprise、fear 六类情绪 one-hot。" data-source="upper_body_skeleton/ula_training.py:527">
+                  <strong>Emotion</strong><span>六类情绪</span><small>6D · 1 token</small>
+                </button>
+                <button class="condition-unit inspectable" style="--accent:var(--amber)" data-title="Behavior family" data-kicker="Condition encoder" data-shape="[B, 8] → [B, 1, 384]" data-body="把 27 个行为归为 idle、greeting、dance 等 8 个上层族，提供比单个 behavior 更平滑的共享结构。" data-source="upper_body_skeleton/ula_training.py:528">
+                  <strong>Family</strong><span>行为上层族</span><small>8D · 1 token</small>
+                </button>
+                <button class="condition-unit inspectable" style="--accent:var(--green)" data-title="Style controls" data-kicker="Condition encoder" data-shape="[B, 3] → [B, 1, 384]" data-body="三个 train-only 标准化特征：左右臂平衡、动作幅度、动作速度。推理时可以从同标签训练风格库采样或显式指定。" data-source="upper_body_skeleton/ula_training.py:529">
+                  <strong>Style</strong><span>平衡 · 幅度 · 速度</span><small>3D · 1 token</small>
+                </button>
+                <button class="condition-unit inspectable" style="--accent:var(--violet)" data-title="Motion prototype" data-kicker="Condition encoder" data-shape="[B, 128] → [B, 2, 384]" data-body="Motion Metric Encoder 为每个 behavior × emotion 组生成训练集动作原型。128D 经 768D MLP 后拆成两个 token。" data-source="upper_body_skeleton/ula_training.py:530">
+                  <strong>Prototype</strong><span>组级动作先验</span><small>128D · 2 tokens</small>
+                </button>
+              </div>
+            </div>
+
+            <div class="stage-band">
+              <div class="stage-heading"><span class="stage-number">02</span><h2>联合 token 序列</h2><span>空间顺序就是注意力输入顺序</span></div>
+              <div class="token-belt" aria-label="联合 token 序列">
+                <div class="token-cell semantic" style="--token-color:var(--blue);--token-bg:var(--blue-soft)">LEG</div>
+                <div class="token-cell semantic" style="--token-color:var(--amber);--token-bg:var(--amber-soft)">BEH</div>
+                <div class="token-cell semantic" style="--token-color:var(--coral);--token-bg:var(--coral-soft)">EMO</div>
+                <div class="token-cell semantic" style="--token-color:var(--amber);--token-bg:var(--amber-soft)">FAM</div>
+                <div class="token-cell semantic" style="--token-color:var(--green);--token-bg:var(--green-soft)">STY</div>
+                <div class="token-cell semantic" style="--token-color:var(--violet);--token-bg:var(--violet-soft)">P₁</div>
+                <div class="token-cell semantic" style="--token-color:var(--violet);--token-bg:var(--violet-soft)">P₂</div>
+                <div class="token-separator">│</div>
+                <div class="motion-token-pack" aria-label="动作 token">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                  <span class="motion-token-label">MOTION × <span data-t>128</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="stage-band">
+              <div class="stage-heading"><span class="stage-number">03</span><h2>生成主干</h2><span>单流、双向、Pre-LN</span></div>
+              <div class="core-grid">
+                <button class="core-unit inspectable" data-title="Motion embedding" data-kicker="Main branch input" data-shape="[B, T, 15] → [B, T, 384]" data-body="一帧的 15 个关节先经 Linear 混合成一个 384D token，再叠加无参数的 flow 时间编码和归一化帧位置编码。" data-source="upper_body_skeleton/ula_training.py:573">
+                  <div class="unit-label">Motion intake</div>
+                  <div class="unit-title">15 → 384</div>
+                  <div class="matrix-mini"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                  <div class="core-formula mono">Linear(x_t)<br>+ time(t)<br>+ frame(position)</div>
+                </button>
+
+                <div class="transformer-panel">
+                  <div class="transformer-head"><strong>Transformer Encoder Stack</strong><span>[B, <span data-seq>135</span>, 384]</span></div>
+                  <div class="layer-stack">
+                    <button class="layer-unit inspectable is-active" data-title="Transformer layer 1" data-kicker="Pre-LN encoder block" data-shape="[B, T+7, 384]" data-body="LayerNorm → 8-head self-attention → residual；LayerNorm → 384/1536/384 GELU FFN → residual。条件和所有动作帧可互相关注。" data-source="upper_body_skeleton/ula_training.py:543"><strong>Layer 1</strong><span>LN · 8H attention</span><span>LN · 4× FFN</span></button>
+                    <button class="layer-unit inspectable" data-title="Transformer layer 2" data-kicker="Pre-LN encoder block" data-shape="[B, T+7, 384]" data-body="第二个同构 block。没有 causal mask，因此当前帧可以读取整段动作上下文和全部条件 token。" data-source="upper_body_skeleton/ula_training.py:543"><strong>Layer 2</strong><span>LN · 8H attention</span><span>LN · 4× FFN</span></button>
+                    <button class="layer-unit inspectable" data-title="Transformer layer 3" data-kicker="Pre-LN encoder block" data-shape="[B, T+7, 384]" data-body="每头维度为 48。注意力的概念矩阵形状是 [B, 8, T+7, T+7]。" data-source="upper_body_skeleton/ula_training.py:543"><strong>Layer 3</strong><span>LN · 8H attention</span><span>LN · 4× FFN</span></button>
+                    <button class="layer-unit inspectable" data-title="Transformer layer 4" data-kicker="Pre-LN encoder block" data-shape="[B, T+7, 384]" data-body="CUDA 训练强制使用 math SDPA，以避免该项目曾出现的 fused attention backward 数值不稳定。" data-source="upper_body_skeleton/ula_training.py:377"><strong>Layer 4</strong><span>LN · 8H attention</span><span>LN · 4× FFN</span></button>
+                    <button class="layer-unit inspectable" data-title="Transformer layer 5" data-kicker="Pre-LN encoder block" data-shape="[B, T+7, 384]" data-body="PyTorch TransformerEncoderLayer 默认 dropout 为 0.1；验证和推理时切换为 eval 模式。" data-source="upper_body_skeleton/ula_training.py:543"><strong>Layer 5</strong><span>LN · 8H attention</span><span>LN · 4× FFN</span></button>
+                    <button class="layer-unit inspectable" data-title="Transformer layer 6" data-kicker="Pre-LN encoder block" data-shape="[B, T+7, 384]" data-body="最后一层仍保留条件位置，但输出头只截取后面的 T 个动作位置。六层主干共有 10,646,784 个参数。" data-source="upper_body_skeleton/ula_training.py:551"><strong>Layer 6</strong><span>LN · 8H attention</span><span>LN · 4× FFN</span></button>
+                  </div>
+                </div>
+
+                <button class="core-unit inspectable" data-title="Velocity field head" data-kicker="Main branch output" data-shape="[B, T, 384] → [B, T, 15]" data-body="丢弃前 7 个条件位置，仅保留动作位置。LayerNorm 和 Linear 输出每帧 15 维 flow 速度场，不是最终电机力矩。" data-source="upper_body_skeleton/ula_training.py:582">
+                  <div class="unit-label">Velocity field</div>
+                  <div class="unit-title">384 → 15</div>
+                  <div class="output-bars"><i></i><i></i><i></i><i></i><i></i></div>
+                  <div class="core-formula mono">vθ(x_t, t, c)<br>[B, <span data-t>128</span>, 15]</div>
+                </button>
+              </div>
+            </div>
+
+            <div class="stage-band">
+              <div class="stage-heading"><span class="stage-number">04</span><h2>并行规划分支</h2><span>不经过 Transformer 主干</span></div>
+              <div class="planner-grid">
+                <button class="core-unit inspectable" data-title="Planner MLP" data-kicker="Parallel condition branch" data-shape="[B, 264] → [B, 384]" data-body="完整 264D 条件经两层 384D SiLU MLP，得到时长与 transition 两个 head 共享的规划表示。" data-source="upper_body_skeleton/ula_training.py:535">
+                  <div class="unit-label">Shared planner</div><div class="unit-title">264 → 384 → 384</div><div class="planner-value">249,600 params</div>
+                </button>
+                <button class="core-unit inspectable" data-title="Duration head" data-kicker="Supervised planner output" data-shape="[B, 384] → [B] seconds" data-body="Linear 后执行 Softplus + 0.25。当前 V2 objective 使用 log1p SmoothL1 监督该输出，推理再按训练时长范围裁剪。" data-source="upper_body_skeleton/ula_training.py:588">
+                  <div class="unit-label">Duration</div><div class="unit-title">Softplus + 0.25</div><div class="planner-value">trained</div>
+                </button>
+                <button class="core-unit inspectable" data-title="Transition head" data-kicker="Unsupervised in V2" data-shape="[B, 384] → [B, 4]" data-body="网络定义了 continue、emotion change、action change、end 四类 logits，但当前 V2 objective 没有 transition loss，因此这个 head 不能作为有效预测使用。" data-source="upper_body_skeleton/ula_training.py:542">
+                  <div class="unit-label">Transition</div><div class="unit-title">4 logits</div><div class="planner-value" style="color:var(--coral)">not trained</div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="inspector" aria-live="polite">
+            <div class="inspector-kicker" id="inspect-kicker">Pre-LN encoder block</div>
+            <h2 id="inspect-title">Transformer layer 1</h2>
+            <div class="inspector-shape mono" id="inspect-shape">[B, T+7, 384]</div>
+            <p id="inspect-body">LayerNorm → 8-head self-attention → residual；LayerNorm → 384/1536/384 GELU FFN → residual。条件和所有动作帧可互相关注。</p>
+            <div class="inspector-source mono" id="inspect-source">upper_body_skeleton/ula_training.py:543</div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-tensors" role="tabpanel" data-panel="tensors" hidden>
+        <div class="view-header">
+          <div><div class="view-kicker">Shape audit</div><h1>张量与参数分布</h1></div>
+          <p>生产 batch 为 64。训练在 64、96、128 帧之间切换，但网络宽度和 7 个条件 token 不变。</p>
+        </div>
+
+        <div class="tensor-layout">
+          <div class="table-frame">
+            <div class="frame-head"><h2>B=64 的完整形状</h2><span>当前 T = <strong data-t>128</strong></span></div>
+            <table>
+              <thead><tr><th>Stage</th><th>Meaning</th><th>Shape</th></tr></thead>
+              <tbody>
+                <tr><td>target / noise</td><td>真实动作与高斯噪声</td><td class="shape mono">[64, <span data-t>128</span>, 15]</td></tr>
+                <tr><td>condition</td><td>结构化条件向量</td><td class="shape mono">[64, 264]</td></tr>
+                <tr><td>condition tokens</td><td>六类投影后的 7 个槽位</td><td class="shape mono">[64, 7, 384]</td></tr>
+                <tr><td>motion tokens</td><td>动作 + time + frame</td><td class="shape mono">[64, <span data-t>128</span>, 384]</td></tr>
+                <tr><td>joint sequence</td><td>Transformer 输入</td><td class="shape mono">[64, <span data-seq>135</span>, 384]</td></tr>
+                <tr><td>Q / K / V per head</td><td>8 头，每头 48D</td><td class="shape mono">[64, 8, <span data-seq>135</span>, 48]</td></tr>
+                <tr><td>attention logits</td><td>每头概念注意力矩阵</td><td class="shape mono">[64, 8, <span data-seq>135</span>, <span data-seq>135</span>]</td></tr>
+                <tr><td>velocity field</td><td>15 个关节的 flow 速度</td><td class="shape mono">[64, <span data-t>128</span>, 15]</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="attention-frame">
+            <div class="frame-head"><h2>单头注意力平面</h2><span>概念缩略图</span></div>
+            <div class="attention-body">
+              <div class="attention-meta"><div><strong><span data-seq>135</span>²</strong><span>positions per head</span></div><div class="mono">8 heads × 6 layers</div></div>
+              <div class="heatmap" id="heatmap" aria-label="注意力矩阵缩略图"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tensor-layout" style="margin-top:16px">
+          <div class="table-frame">
+            <div class="frame-head"><h2>参数量归属</h2><span>12,394,004 trainable</span></div>
+            <div class="parameter-list">
+              <div class="bar-row"><strong>Transformer ×6</strong><div class="bar-track"><div class="bar-fill" style="--width:85.9%;--bar-color:var(--violet)"></div></div><span class="bar-value">10,646,784</span></div>
+              <div class="bar-row"><strong>Condition encoders</strong><div class="bar-track"><div class="bar-fill" style="--width:12%;--bar-color:var(--amber)"></div></div><span class="bar-value">1,483,008</span></div>
+              <div class="bar-row"><strong>Planner + heads</strong><div class="bar-track"><div class="bar-fill" style="--width:2.03%;--bar-color:var(--green)"></div></div><span class="bar-value">251,525</span></div>
+              <div class="bar-row"><strong>Motion I/O</strong><div class="bar-track"><div class="bar-fill" style="--width:0.11%;--bar-color:var(--teal)"></div></div><span class="bar-value">12,687</span></div>
+            </div>
+          </div>
+          <div class="attention-frame">
+            <div class="frame-head"><h2>动作自由度</h2><span>15D per frame</span></div>
+            <div class="parameter-list">
+              <div class="bar-row"><strong>腰部</strong><div class="bar-track"><div class="bar-fill" style="--width:20%;--bar-color:var(--blue)"></div></div><span class="bar-value">3 DoF</span></div>
+              <div class="bar-row"><strong>左臂 + 腕</strong><div class="bar-track"><div class="bar-fill" style="--width:40%;--bar-color:var(--green)"></div></div><span class="bar-value">6 DoF</span></div>
+              <div class="bar-row"><strong>右臂 + 腕</strong><div class="bar-track"><div class="bar-fill" style="--width:40%;--bar-color:var(--coral)"></div></div><span class="bar-value">6 DoF</span></div>
+              <div class="bar-row"><strong>头部 / 手指</strong><div class="bar-track"><div class="bar-fill" style="--width:0%;--bar-color:var(--line-strong)"></div></div><span class="bar-value">0 DoF</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-training" role="tabpanel" data-panel="training" hidden>
+        <div class="view-header">
+          <div><div class="view-kicker">Learning objective</div><h1>Flow Matching 训练台</h1></div>
+          <p>在直线路径上随机抽取 t。网络不是直接回归最终动作，而是学习从噪声指向真实动作的条件速度场。</p>
+        </div>
+
+        <div class="training-layout">
+          <div class="training-workbench">
+            <div class="frame-head"><h2>直线概率路径</h2><span>x_t = (1-t)z + tx</span></div>
+            <div class="flow-lab">
+              <div class="flow-topline"><div><strong>Flow time</strong><div style="color:var(--muted);font-size:10px">0 = noise · 1 = data</div></div><div class="flow-time mono">t = <span id="flow-t">0.50</span></div></div>
+              <input class="flow-slider" id="flow-slider" type="range" min="0" max="100" value="50" aria-label="Flow time">
+              <div class="mix-track">
+                <div class="mix-part mix-noise" id="noise-part">0.50 · noise</div>
+                <div class="mix-part mix-data" id="data-part">0.50 · data</div>
+              </div>
+              <div class="formula-box mono">
+                x_t = <strong id="noise-coef">0.50</strong> · z + <strong id="data-coef">0.50</strong> · x<br>
+                target velocity = x - z<br>
+                x_hat = x_t + (1-t) · vθ(x_t, t, c)
+              </div>
+            </div>
+          </div>
+
+          <div class="table-frame">
+            <div class="frame-head"><h2>Loss weights</h2><span>配置权重</span></div>
+            <div class="loss-list">
+              <div class="bar-row"><strong>flow</strong><div class="bar-track"><div class="bar-fill" style="--width:100%;--bar-color:var(--violet)"></div></div><span class="bar-value">1.0</span></div>
+              <div class="bar-row"><strong>position</strong><div class="bar-track"><div class="bar-fill" style="--width:50%;--bar-color:var(--blue)"></div></div><span class="bar-value">0.25</span></div>
+              <div class="bar-row"><strong>motion latent</strong><div class="bar-track"><div class="bar-fill" style="--width:32%;--bar-color:var(--green)"></div></div><span class="bar-value">0.1</span></div>
+              <div class="bar-row"><strong>duration</strong><div class="bar-track"><div class="bar-fill" style="--width:32%;--bar-color:var(--amber)"></div></div><span class="bar-value">0.1</span></div>
+              <div class="bar-row"><strong>velocity</strong><div class="bar-track"><div class="bar-fill" style="--width:14%;--bar-color:var(--teal)"></div></div><span class="bar-value">0.01</span></div>
+              <div class="bar-row"><strong>descriptor</strong><div class="bar-track"><div class="bar-fill" style="--width:8%;--bar-color:var(--coral)"></div></div><span class="bar-value">0.001</span></div>
+              <div class="bar-row"><strong>acceleration</strong><div class="bar-track"><div class="bar-fill" style="--width:5%;--bar-color:#7a8580"></div></div><span class="bar-value">0.0005</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="training-pipeline">
+          <div class="process-tile"><span class="index">01 · SPLIT</span><strong>严格分层</strong><span>1296 train / 162 validation / 162 test，按 162 个语义组分层。</span></div>
+          <div class="process-tile"><span class="index">02 · CLEAN</span><strong>物理边界</strong><span>关节限位、3 rad/s 速度限制；smooth window 为 1。</span></div>
+          <div class="process-tile"><span class="index">03 · TRIM</span><strong>有效动作窗</strong><span>裁掉过长静止段，并标记 near-static 与边界截断。</span></div>
+          <div class="process-tile"><span class="index">04 · TRAIN ONLY</span><strong>统计与原型</strong><span>归一化、style bank、Motion Metric prototype 只拟合 train。</span></div>
+          <div class="process-tile"><span class="index">05 · SAMPLE</span><strong>语义与 mode 均衡</strong><span>均匀轮换 27 × 6 组，兼顾左右偏向和动作幅度。</span></div>
+          <div class="process-tile"><span class="index">06 · OPTIMIZE</span><strong>AdamW + EMA</strong><span>1k warmup、cosine decay、global grad norm 1.0、EMA 0.999。</span></div>
+        </div>
+
+        <div class="notice"><strong>Transition head 边界：</strong>V2 objective 只监督 duration，没有 transition cross-entropy。四类 transition logits 虽存在于网络和 checkpoint 中，但当前不具备可解释的预测意义。</div>
+      </section>
+
+      <section class="view" id="view-inference" role="tabpanel" data-panel="inference" hidden>
+        <div class="view-header">
+          <div><div class="view-kicker">Runtime</div><h1>从文本到关节轨迹</h1></div>
+          <p>文本编码器和 Motion Metric 训练教师不属于生成主干。部署时，checkpoint 内的条件契约、style bank 和 prototype bank 负责组装数值条件。</p>
+        </div>
+
+        <div class="inference-layout">
+          <div>
+            <div class="inference-steps">
+              <div class="process-tile"><span class="index">01 · PARSE</span><strong>Semantic adapter</strong><span>解析 behavior、emotion，并选择兼容的 136D base condition。</span></div>
+              <div class="process-tile"><span class="index">02 · ASSEMBLE</span><strong>264D condition</strong><span>base 136D + 训练 style + 128D group prototype。</span></div>
+              <div class="process-tile"><span class="index">03 · PLAN</span><strong>Duration head</strong><span>预测秒数并裁剪到训练时长契约的有效范围。</span></div>
+              <div class="process-tile"><span class="index">04 · INITIALIZE</span><strong>Gaussian motion</strong><span>按自动帧数创建 [T,15] 噪声，并限制在归一化关节范围。</span></div>
+              <div class="process-tile"><span class="index">05 · INTEGRATE</span><strong>Euler × 32</strong><span>反复计算 vθ，以 dt=1/32 更新整段动作。</span></div>
+              <div class="process-tile"><span class="index">06 · SAFETY</span><strong>Postprocess</strong><span>反归一化、关节限位、速度限制，得到可播放弧度轨迹。</span></div>
+            </div>
+
+            <div class="runtime-split">
+              <div class="runtime-band"><strong>生成时需要</strong><span>ULA V2 best EMA checkpoint</span><span>condition / style / prototype contracts</span><span>semantic adapter（自由文本模式）</span></div>
+              <div class="runtime-band"><strong>普通生成时不需要</strong><span>Motion Metric Encoder</span><span>训练集 parquet</span><span>optimizer 与 sampler state</span></div>
+            </div>
+          </div>
+
+          <div class="training-workbench">
+            <div class="frame-head"><h2>自动时长实例</h2><span>smoke checkpoint</span></div>
+            <div class="inference-console">
+              <div style="font-size:11px;color:var(--muted)">开心地向主人挥手</div>
+              <div class="duration-display">
+                <div class="duration-value"><strong>0.955s</strong><span>predicted duration</span></div>
+                <div class="duration-op">× 30 fps</div>
+                <div class="duration-value"><strong>29</strong><span>generated frames</span></div>
+              </div>
+              <table>
+                <tbody>
+                  <tr><td>behavior</td><td class="shape mono">GreetingOwner01</td></tr>
+                  <tr><td>emotion</td><td class="shape mono">happy</td></tr>
+                  <tr><td>trajectory</td><td class="shape mono">[29, 15]</td></tr>
+                  <tr><td>sampling</td><td class="shape mono">Euler · 32 steps</td></tr>
+                  <tr><td>velocity cap</td><td class="shape mono">3 rad/s</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-source" role="tabpanel" data-panel="source" hidden>
+        <div class="view-header">
+          <div><div class="view-kicker">Code map</div><h1>源码阅读索引</h1></div>
+          <p>从输出关节定义开始，再看条件契约、模型本体、objective、训练循环和推理。这样每一步都有明确的输入输出形状。</p>
+        </div>
+
+        <div class="source-layout">
+          <div class="source-frame">
+            <div class="frame-head"><h2>推荐顺序</h2><span>8 source anchors</span></div>
+            <table class="source-table">
+              <thead><tr><th>#</th><th>Source</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td>01</td><td><a href="../../upper_body_skeleton/retarget_v2.py"><code>retarget_v2.py:9</code></a></td><td>15 个输出关节与安全范围</td></tr>
+                <tr><td>02</td><td><a href="../../upper_body_skeleton/ula_v2_conditioning.py"><code>ula_v2_conditioning.py:810</code></a></td><td>split、style、prototype 和 264D 条件</td></tr>
+                <tr><td>03</td><td><a href="../../upper_body_skeleton/ula_training.py"><code>ula_training.py:484</code></a></td><td>UlaMMDiTV2Model 本体</td></tr>
+                <tr><td>04</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:260</code></a></td><td>batch 和多分辨率相位重采样</td></tr>
+                <tr><td>05</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:310</code></a></td><td>完整 flow matching objective</td></tr>
+                <tr><td>06</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:531</code></a></td><td>优化、EMA、验证和 checkpoint</td></tr>
+                <tr><td>07</td><td><a href="../../upper_body_skeleton/ula_training.py"><code>ula_training.py:729</code></a></td><td>Euler flow sampler</td></tr>
+                <tr><td>08</td><td><a href="../../upper_body_skeleton/pt_mujoco_infer.py"><code>pt_mujoco_infer.py:330</code></a></td><td>条件组装、自动时长与后处理</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="source-frame">
+            <div class="frame-head"><h2>实现边界</h2><span>current V2</span></div>
+            <div class="boundary-list">
+              <div class="boundary-item"><span class="boundary-index">1</span><div><strong>没有头部与手指</strong><span>输出仅为腰部 3 + 双臂腕 12。</span></div></div>
+              <div class="boundary-item"><span class="boundary-index">2</span><div><strong>一帧一个 token</strong><span>15 个关节先经 Linear 混合，不是 joint-level tokenization。</span></div></div>
+              <div class="boundary-item"><span class="boundary-index">3</span><div><strong>单流 MMDiT</strong><span>条件和动作拼接后做同一组 self-attention。</span></div></div>
+              <div class="boundary-item"><span class="boundary-index">4</span><div><strong>非自回归</strong><span>所有动作帧并行生成，attention 没有 causal mask。</span></div></div>
+              <div class="boundary-item"><span class="boundary-index">5</span><div><strong>输出关节角</strong><span>不直接输出力矩、电流或底层电机控制律。</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-band">
+          <div class="result-cell"><strong>50,000</strong><span>completed steps</span></div>
+          <div class="result-cell"><strong>18,000</strong><span>best EMA step</span></div>
+          <div class="result-cell"><strong>0.374903</strong><span>best validation loss</span></div>
+          <div class="result-cell"><strong>0.360780</strong><span>held-out test loss</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const tabs = [...document.querySelectorAll('.view-tab')];
+    const panels = [...document.querySelectorAll('[data-panel]')];
+
+    function activateView(target, updateLocation = true) {
+      const selected = tabs.find((tab) => tab.dataset.view === target) || tabs[0];
+      tabs.forEach((item) => item.setAttribute('aria-selected', String(item === selected)));
+      panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== selected.dataset.view; });
+      if (updateLocation) history.replaceState(null, '', `#${selected.dataset.view}`);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    tabs.forEach((tab) => tab.addEventListener('click', () => activateView(tab.dataset.view)));
+    activateView(location.hash.slice(1) || 'map', false);
+
+    const frameOptions = [...document.querySelectorAll('.frame-option')];
+    const tValues = [...document.querySelectorAll('[data-t]')];
+    const seqValues = [...document.querySelectorAll('[data-seq]')];
+
+    function setFrames(frames) {
+      const sequence = frames + 7;
+      tValues.forEach((node) => { node.textContent = String(frames); });
+      seqValues.forEach((node) => { node.textContent = String(sequence); });
+      frameOptions.forEach((button) => button.setAttribute('aria-pressed', String(Number(button.dataset.frames) === frames)));
+    }
+
+    frameOptions.forEach((button) => button.addEventListener('click', () => setFrames(Number(button.dataset.frames))));
+
+    const inspectables = [...document.querySelectorAll('.inspectable')];
+    const inspectTitle = document.getElementById('inspect-title');
+    const inspectKicker = document.getElementById('inspect-kicker');
+    const inspectShape = document.getElementById('inspect-shape');
+    const inspectBody = document.getElementById('inspect-body');
+    const inspectSource = document.getElementById('inspect-source');
+
+    inspectables.forEach((item) => {
+      item.addEventListener('click', () => {
+        inspectables.forEach((node) => node.classList.remove('is-active'));
+        item.classList.add('is-active');
+        inspectTitle.textContent = item.dataset.title;
+        inspectKicker.textContent = item.dataset.kicker;
+        inspectShape.textContent = item.dataset.shape;
+        inspectBody.textContent = item.dataset.body;
+        inspectSource.textContent = item.dataset.source;
+      });
+    });
+
+    const heatmap = document.getElementById('heatmap');
+    for (let row = 0; row < 18; row += 1) {
+      for (let col = 0; col < 18; col += 1) {
+        const cell = document.createElement('i');
+        const diagonal = Math.max(0, 1 - Math.abs(row - col) / 6);
+        const conditionBand = row < 3 || col < 3 ? 0.28 : 0;
+        const texture = ((row * 7 + col * 11) % 13) / 40;
+        cell.style.setProperty('--alpha', String(Math.min(0.88, 0.08 + diagonal * 0.48 + conditionBand + texture)));
+        heatmap.appendChild(cell);
+      }
+    }
+
+    const flowSlider = document.getElementById('flow-slider');
+    const flowTime = document.getElementById('flow-t');
+    const noisePart = document.getElementById('noise-part');
+    const dataPart = document.getElementById('data-part');
+    const noiseCoef = document.getElementById('noise-coef');
+    const dataCoef = document.getElementById('data-coef');
+
+    function updateFlow() {
+      const t = Number(flowSlider.value) / 100;
+      const noise = 1 - t;
+      const tText = t.toFixed(2);
+      const noiseText = noise.toFixed(2);
+      flowTime.textContent = tText;
+      noiseCoef.textContent = noiseText;
+      dataCoef.textContent = tText;
+      noisePart.style.width = `${noise * 100}%`;
+      dataPart.style.width = `${t * 100}%`;
+      noisePart.textContent = noise > 0.16 ? `${noiseText} · noise` : '';
+      dataPart.textContent = t > 0.16 ? `${tText} · data` : '';
+    }
+
+    flowSlider.addEventListener('input', updateFlow);
+    updateFlow();
+  </script>
+</body>
+</html>

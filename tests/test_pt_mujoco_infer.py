@@ -66,6 +66,52 @@ def _generator_checkpoint(**overrides):
     return checkpoint
 
 
+def _v2_contracts():
+    prototype = np.zeros(128, dtype=np.float32)
+    prototype[0] = 1.0
+    prototype_groups = []
+    style_groups = []
+    for behavior_id in KIMODO_BEHAVIOR_IDS:
+        for emotion_id in KIMODO_EMOTION_IDS:
+            prototype_groups.append(
+                {
+                    "behavior_id": behavior_id,
+                    "emotion_id": emotion_id,
+                    "prototype": prototype.tolist(),
+                }
+            )
+            style_groups.append(
+                {
+                    "behavior_id": behavior_id,
+                    "emotion_id": emotion_id,
+                    "styles": [{"episode_index": 0, "controls": [-0.2, 0.3, 0.4]}],
+                }
+            )
+    contracts = {
+        name: {"sha256": "1" * 64}
+        for name in ("split", "active_window", "style")
+    }
+    contracts["preprocess"] = {"sha256": "2" * 64, "smooth_window": 1}
+    contracts["duration"] = {
+        "sha256": "3" * 64,
+        "duration_supervision_sec": {"min": 1.0, "median": 2.0, "max": 4.0},
+    }
+    contracts["style_bank"] = {"sha256": "4" * 64, "contract_version": 1, "groups": style_groups}
+    contracts["motion_prototypes"] = {
+        "sha256": "5" * 64,
+        "contract_version": 1,
+        "latent_dim": 128,
+        "groups": prototype_groups,
+    }
+    contracts["condition"] = {
+        "sha256": "6" * 64,
+        "condition_dim": 264,
+        "base_condition_dim": 136,
+    }
+    contracts["sha256"] = "7" * 64
+    return contracts
+
+
 def test_validate_generator_checkpoint_rejects_motion_latent_encoder():
     checkpoint = {
         "config": {"latent_dim": 128},
@@ -257,6 +303,70 @@ def test_infer_motion_reports_semantic_adapter_resolved_labels():
     assert motion.emotion_id == "happy"
     assert motion.summary()["behavior_confidence"] == pytest.approx(0.8)
     assert motion.summary()["emotion_confidence"] == pytest.approx(0.9)
+
+
+def test_v2_inference_assembles_latent_style_and_predicts_variable_duration():
+    calls = {}
+
+    class DurationModel:
+        def plan_condition(self, condition):
+            calls["plan_condition"] = condition.detach().cpu().numpy()
+            return {
+                "duration_sec": torch.tensor([2.25], device=condition.device),
+                "transition_logits": torch.zeros((1, 4), device=condition.device),
+            }
+
+    class ConditionBuilder:
+        last_prediction = None
+
+        def __call__(self, text, **kwargs):
+            calls["builder_kwargs"] = kwargs
+            self.last_prediction = type(
+                "Prediction",
+                (),
+                {
+                    "behavior_id": "Behavior.GreetingOwner01",
+                    "emotion_id": "happy",
+                    "behavior_confidence": 0.9,
+                    "emotion_confidence": 0.8,
+                },
+            )()
+            return np.zeros(136, dtype=np.float32)
+
+    def sampler(model, **kwargs):
+        calls["sample"] = kwargs
+        return np.zeros((kwargs["frames"], len(JOINT_ORDER)), dtype=np.float32)
+
+    def postprocessor(values, **kwargs):
+        calls["postprocess"] = kwargs
+        return values
+
+    checkpoint = _generator_checkpoint(
+        architecture="ula_mmdit_v2",
+        condition_dim=264,
+        base_condition_dim=136,
+        v2_contracts=_v2_contracts(),
+    )
+    motion = infer_motion(
+        DurationModel(),
+        checkpoint,
+        text="开心地用右手大幅快速挥手",
+        fps=30.0,
+        seed=9,
+        condition_builder=ConditionBuilder(),
+        sampler=sampler,
+        postprocessor=postprocessor,
+    )
+
+    assert calls["builder_kwargs"]["condition_dim"] == 136
+    assert calls["sample"]["condition"].shape == (264,)
+    assert calls["sample"]["frames"] == 68
+    assert calls["postprocess"]["smooth_window"] == 1
+    assert motion.trajectory.shape == (68, len(JOINT_ORDER))
+    assert motion.predicted_duration_sec == pytest.approx(2.25)
+    assert motion.style_controls[0] >= 1.0
+    assert motion.style_controls[1] >= 1.0
+    assert motion.style_controls[2] >= 1.0
 
 
 def test_infer_motion_rejects_structured_labels_for_legacy_conditioning():

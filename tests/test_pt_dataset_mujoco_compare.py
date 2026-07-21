@@ -64,10 +64,12 @@ def test_dataset_reference_selection_uses_checkpoint_split_and_exact_text(tmp_pa
             "episode_index": index,
             "sample_id": f"sample_{index}",
             "language_instruction": f"exact text {index}",
-            "behavior_id": "Behavior.GreetingOwner01",
+            "behavior_id": (
+                "Behavior.GreetingOwner01" if index < 10 else "Behavior.GreetingOwner04"
+            ),
             "emotion_id": "happy",
         }
-        for index in range(10)
+        for index in range(20)
     ]
     pq.write_table(pa.Table.from_pylist(rows), dataset_dir / "meta" / "semantic_index.parquet")
     episodes = [
@@ -109,6 +111,18 @@ def test_dataset_reference_selection_uses_checkpoint_split_and_exact_text(tmp_pa
         count=1,
     )
     assert selected_without_label_filter == selected
+
+    selected_behavior_set = select_dataset_reference_rows(
+        dataset_dir,
+        checkpoint_path,
+        motion_latent_split="test",
+        behavior_id=["Behavior.GreetingOwner01", "Behavior.GreetingOwner04"],
+        count=2,
+    )
+    assert {row["behavior_id"] for row in selected_behavior_set} == {
+        "Behavior.GreetingOwner01",
+        "Behavior.GreetingOwner04",
+    }
 
 
 def test_dataset_contract_rejects_wrong_joint_order(tmp_path):

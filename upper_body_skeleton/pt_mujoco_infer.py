@@ -20,6 +20,7 @@ from upper_body_skeleton.kimodo_semantics import (
     KIMODO_CONDITION_CONTRACT_VERSION,
     KIMODO_CONDITION_SCHEMA_VERSION,
     KIMODO_EMOTION_IDS,
+    kimodo_condition_metadata,
 )
 from upper_body_skeleton.long_emotion_infer import postprocess_trajectory, trajectory_quality
 from upper_body_skeleton.mujoco_playback import MujocoMotionPlayer
@@ -27,9 +28,11 @@ from upper_body_skeleton.retarget_v2 import JOINT_ORDER
 from upper_body_skeleton.ula_infer import model_from_checkpoint
 from upper_body_skeleton.ula_training import (
     KIMODO_CONDITION_DIM,
+    KIMODO_V2_CONDITION_DIM,
     ULA_ADALN_LITE_ARCHITECTURE,
     ULA_FM_LEGACY_ARCHITECTURE,
     ULA_MMDIT_LITE_ARCHITECTURE,
+    ULA_MMDIT_V2_ARCHITECTURE,
     build_condition_from_text,
     choose_device,
     sample_trajectory,
@@ -56,9 +59,10 @@ GENERATOR_ARCHITECTURES = {
     ULA_FM_LEGACY_ARCHITECTURE,
     ULA_MMDIT_LITE_ARCHITECTURE,
     ULA_ADALN_LITE_ARCHITECTURE,
+    ULA_MMDIT_V2_ARCHITECTURE,
 }
 LEGACY_CONDITION_DIM = 92
-SUPPORTED_CONDITION_DIMS = {LEGACY_CONDITION_DIM, KIMODO_CONDITION_DIM}
+SUPPORTED_CONDITION_DIMS = {LEGACY_CONDITION_DIM, KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM}
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,8 @@ class GeneratedMotion:
     seed: int | None
     behavior_confidence: float | None = None
     emotion_confidence: float | None = None
+    predicted_duration_sec: float | None = None
+    style_controls: tuple[float, float, float] | None = None
 
     def summary(self):
         return {
@@ -102,6 +108,8 @@ class GeneratedMotion:
             "duration_sec": float(self.trajectory.shape[0] / self.fps),
             "sampling_steps": int(self.sampling_steps),
             "seed": self.seed,
+            "predicted_duration_sec": self.predicted_duration_sec,
+            "style_controls": None if self.style_controls is None else list(self.style_controls),
             "trajectory_quality": {
                 "raw": trajectory_quality(self.raw_trajectory, fps=self.fps),
                 "processed": trajectory_quality(self.trajectory, fps=self.fps),
@@ -135,6 +143,41 @@ def validate_generator_condition_contract(contract, *, path="<memory>"):
     return contract
 
 
+def validate_v2_generator_contracts(checkpoint, *, path="<memory>"):
+    contracts = checkpoint.get("v2_contracts")
+    required = {
+        "split",
+        "preprocess",
+        "active_window",
+        "duration",
+        "style",
+        "style_bank",
+        "motion_prototypes",
+        "condition",
+        "sha256",
+    }
+    if not isinstance(contracts, dict) or not required.issubset(contracts):
+        raise ValueError(f"ULA MMDiT V2 checkpoint has incomplete conditioning contracts: {path}")
+    condition = contracts["condition"]
+    if int(condition.get("condition_dim", -1)) != KIMODO_V2_CONDITION_DIM:
+        raise ValueError(f"ULA MMDiT V2 condition contract dimension mismatch: {path}")
+    if int(condition.get("base_condition_dim", -1)) != KIMODO_CONDITION_DIM:
+        raise ValueError(f"ULA MMDiT V2 base condition dimension mismatch: {path}")
+    prototypes = contracts["motion_prototypes"]
+    if int(prototypes.get("latent_dim", -1)) != KIMODO_V2_CONDITION_DIM - KIMODO_CONDITION_DIM:
+        raise ValueError(f"ULA MMDiT V2 motion prototype dimension mismatch: {path}")
+    expected_groups = len(KIMODO_BEHAVIOR_IDS) * len(KIMODO_EMOTION_IDS)
+    if len(prototypes.get("groups") or []) != expected_groups:
+        raise ValueError(f"ULA MMDiT V2 prototype bank must cover all semantic groups: {path}")
+    if len(contracts["style_bank"].get("groups") or []) != expected_groups:
+        raise ValueError(f"ULA MMDiT V2 style bank must cover all semantic groups: {path}")
+    for name in required - {"sha256"}:
+        digest = contracts[name].get("sha256")
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise ValueError(f"ULA MMDiT V2 {name} contract hash is invalid: {path}")
+    return contracts
+
+
 def validate_generator_checkpoint(checkpoint, *, path="<memory>"):
     if not isinstance(checkpoint, dict):
         raise ValueError(f"generator checkpoint must contain a dictionary: {path}")
@@ -163,8 +206,10 @@ def validate_generator_checkpoint(checkpoint, *, path="<memory>"):
         raise ValueError(
             f"checkpoint condition_dim must be one of {sorted(SUPPORTED_CONDITION_DIMS)}, got {condition_dim}: {path}"
         )
-    if condition_dim == KIMODO_CONDITION_DIM:
+    if condition_dim in {KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM}:
         validate_generator_condition_contract(checkpoint.get("condition_contract"), path=path)
+    if condition_dim == KIMODO_V2_CONDITION_DIM:
+        validate_v2_generator_contracts(checkpoint, path=path)
     checkpoint_joint_order = checkpoint.get("joint_order")
     if checkpoint_joint_order is None:
         raise ValueError(f"generator checkpoint does not declare joint_order: {path}")
@@ -257,6 +302,87 @@ def validate_generator_condition_source(checkpoint, condition_bank, *, repo_root
     }
 
 
+def _text_style_overrides(text, controls):
+    controls = np.asarray(controls, dtype=np.float32).copy()
+    lowered = str(text).lower()
+    if any(token in lowered for token in ("左手", "left hand", "left arm")):
+        controls[0] = min(float(controls[0]), -1.0)
+    elif any(token in lowered for token in ("右手", "right hand", "right arm")):
+        controls[0] = max(float(controls[0]), 1.0)
+    if any(token in lowered for token in ("大幅", "large", "big motion", "wide")):
+        controls[1] = max(float(controls[1]), 1.0)
+    elif any(token in lowered for token in ("小幅", "small", "subtle", "轻微")):
+        controls[1] = min(float(controls[1]), -1.0)
+    if any(token in lowered for token in ("快速", "快地", "fast", "quickly")):
+        controls[2] = max(float(controls[2]), 1.0)
+    elif any(token in lowered for token in ("缓慢", "慢慢", "slow", "slowly")):
+        controls[2] = min(float(controls[2]), -1.0)
+    return controls
+
+
+def _assemble_checkpoint_v2_condition(
+    checkpoint,
+    base_condition,
+    *,
+    behavior_id,
+    emotion_id,
+    text,
+    seed,
+    style_controls=None,
+    style_policy="sample",
+    motion_latent=None,
+):
+    from upper_body_skeleton.ula_v2_conditioning import (
+        assemble_v2_condition,
+        style_controls_for_semantic,
+    )
+
+    contracts = validate_v2_generator_contracts(checkpoint)
+    if style_controls is None:
+        if style_policy not in {"sample", "mean"}:
+            raise ValueError("style_policy must be sample or mean")
+        controls = style_controls_for_semantic(
+            contracts["style_bank"],
+            behavior_id,
+            emotion_id,
+            seed=seed,
+            mean=style_policy == "mean",
+        )
+        controls = _text_style_overrides(text, controls)
+    else:
+        controls = np.asarray(style_controls, dtype=np.float32)
+    condition = assemble_v2_condition(
+        base_condition,
+        behavior_id=behavior_id,
+        emotion_id=emotion_id,
+        prototype_contract=contracts["motion_prototypes"],
+        style_controls=controls,
+    )
+    if motion_latent is not None:
+        latent = np.asarray(motion_latent, dtype=np.float32)
+        expected = KIMODO_V2_CONDITION_DIM - KIMODO_CONDITION_DIM
+        if latent.shape != (expected,) or not np.isfinite(latent).all():
+            raise ValueError(f"motion_latent must be a finite vector with shape ({expected},)")
+        norm = float(np.linalg.norm(latent))
+        if norm <= 1e-8:
+            raise ValueError("motion_latent must have non-zero norm")
+        condition[KIMODO_CONDITION_DIM:] = latent / norm
+    return condition, tuple(float(value) for value in controls)
+
+
+def _predict_v2_duration(model, checkpoint, condition, *, device):
+    tensor = torch.as_tensor(condition, dtype=torch.float32, device=device)[None, :]
+    with torch.no_grad():
+        predicted = float(model.plan_condition(tensor)["duration_sec"][0].detach().cpu())
+    duration_contract = checkpoint["v2_contracts"]["duration"]
+    bounds = duration_contract.get("duration_supervision_sec") or duration_contract["train_duration_sec"]
+    lower = float(bounds["min"])
+    upper = float(bounds["max"])
+    if not math.isfinite(predicted):
+        raise FloatingPointError("duration head returned a non-finite value")
+    return max(lower, min(upper, predicted))
+
+
 def infer_motion(
     model,
     checkpoint,
@@ -264,13 +390,16 @@ def infer_motion(
     text,
     behavior_id=None,
     emotion_id=None,
-    frames=150,
+    frames=None,
     fps=30.0,
     sampling_steps=32,
     device="cpu",
     seed=7,
     max_velocity_rad_s=3.0,
-    smooth_window=5,
+    smooth_window=None,
+    style_controls=None,
+    style_policy="sample",
+    motion_latent=None,
     condition_builder=build_condition_from_text,
     sampler=sample_trajectory,
     postprocessor=postprocess_trajectory,
@@ -278,9 +407,10 @@ def infer_motion(
     text = str(text).strip()
     if not text:
         raise ValueError("inference text must not be empty")
-    frames = int(frames)
-    if frames < 2:
-        raise ValueError("frames must be at least 2")
+    if frames is not None:
+        frames = int(frames)
+        if frames < 2:
+            raise ValueError("frames must be at least 2")
     fps = float(fps)
     if not math.isfinite(fps) or fps <= 0:
         raise ValueError("fps must be finite and positive")
@@ -290,30 +420,65 @@ def infer_motion(
     max_velocity_rad_s = float(max_velocity_rad_s)
     if not math.isfinite(max_velocity_rad_s) or max_velocity_rad_s <= 0:
         raise ValueError("max_velocity_rad_s must be finite and positive")
+    condition_dim = int(checkpoint.get("condition_dim", LEGACY_CONDITION_DIM))
+    if smooth_window is None:
+        smooth_window = (
+            int(checkpoint.get("v2_contracts", {}).get("preprocess", {}).get("smooth_window", 1))
+            if condition_dim == KIMODO_V2_CONDITION_DIM
+            else 5
+        )
     smooth_window = int(smooth_window)
     if smooth_window < 1:
         raise ValueError("smooth_window must be at least 1")
 
-    condition_dim = int(checkpoint.get("condition_dim", LEGACY_CONDITION_DIM))
     if condition_dim == LEGACY_CONDITION_DIM and (behavior_id is not None or emotion_id is not None):
         raise ValueError(
             "legacy 92-dimensional ULA checkpoints do not support structured behavior_id/emotion_id; "
             "put the requested behavior and emotion in --text or use a Kimodo generator checkpoint"
         )
+    builder_condition_dim = int(checkpoint.get("base_condition_dim", condition_dim))
     condition = condition_builder(
         text,
         behavior_id=behavior_id,
         emotion_id=emotion_id,
-        condition_dim=condition_dim,
+        condition_dim=builder_condition_dim,
     )
     semantic_prediction = getattr(condition_builder, "last_prediction", None)
     resolved_behavior_id = getattr(semantic_prediction, "behavior_id", behavior_id)
     resolved_emotion_id = getattr(semantic_prediction, "emotion_id", emotion_id)
     behavior_confidence = getattr(semantic_prediction, "behavior_confidence", None)
     emotion_confidence = getattr(semantic_prediction, "emotion_confidence", None)
+    if condition_dim == KIMODO_V2_CONDITION_DIM and (resolved_behavior_id is None or resolved_emotion_id is None):
+        inferred = kimodo_condition_metadata(behavior_id=behavior_id, emotion_id=emotion_id, text=text)
+        resolved_behavior_id = inferred["behavior_id"]
+        resolved_emotion_id = inferred["emotion_id"]
     condition = np.asarray(condition, dtype=np.float32)
-    if condition.shape != (condition_dim,):
+    resolved_style_controls = None
+    if condition_dim == KIMODO_V2_CONDITION_DIM:
+        if condition.shape != (builder_condition_dim,):
+            raise ValueError(
+                f"base condition shape mismatch: built {condition.shape}, checkpoint expects ({builder_condition_dim},)"
+            )
+        condition, resolved_style_controls = _assemble_checkpoint_v2_condition(
+            checkpoint,
+            condition,
+            behavior_id=resolved_behavior_id,
+            emotion_id=resolved_emotion_id,
+            text=text,
+            seed=seed,
+            style_controls=style_controls,
+            style_policy=style_policy,
+            motion_latent=motion_latent,
+        )
+    elif condition.shape != (condition_dim,):
         raise ValueError(f"condition shape mismatch: built {condition.shape}, checkpoint expects ({condition_dim},)")
+
+    predicted_duration_sec = None
+    if condition_dim == KIMODO_V2_CONDITION_DIM:
+        predicted_duration_sec = _predict_v2_duration(model, checkpoint, condition, device=device)
+    if frames is None:
+        duration = predicted_duration_sec if predicted_duration_sec is not None else 5.0
+        frames = max(2, int(round(float(duration) * fps)))
 
     raw = sampler(
         model,
@@ -352,6 +517,8 @@ def infer_motion(
         seed=seed,
         behavior_confidence=behavior_confidence,
         emotion_confidence=emotion_confidence,
+        predicted_duration_sec=predicted_duration_sec,
+        style_controls=resolved_style_controls,
     )
 
 
@@ -390,12 +557,14 @@ def run_direct_pt_session(
     *,
     behavior_id=None,
     emotion_id=None,
-    frames=150,
+    frames=None,
     fps=30.0,
     sampling_steps=32,
     seed=7,
     max_velocity_rad_s=3.0,
-    smooth_window=5,
+    smooth_window=None,
+    style_controls=None,
+    style_policy="sample",
     loops=1,
     realtime=True,
     condition_builder=None,
@@ -422,6 +591,8 @@ def run_direct_pt_session(
                 seed=None if seed is None else int(seed) + runs,
                 max_velocity_rad_s=max_velocity_rad_s,
                 smooth_window=smooth_window,
+                style_controls=style_controls,
+                style_policy=style_policy,
                 **inference_kwargs,
             )
             viewer_summary = active_player.play_trajectory(
@@ -523,13 +694,25 @@ def main(argv=None):
         action="store_true",
         help="Load Qwen only from the local Hugging Face cache",
     )
-    parser.add_argument("--frames", type=int, default=150)
+    parser.add_argument(
+        "--frames",
+        type=int,
+        help="Override output frames; V2 defaults to predicted duration × FPS",
+    )
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--sampling-steps", type=int, default=32)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--max-velocity-rad-s", type=float, default=3.0)
-    parser.add_argument("--smooth-window", type=int, default=5)
+    parser.add_argument("--smooth-window", type=int, help="Defaults to the checkpoint preprocessing contract")
+    parser.add_argument("--style-policy", choices=("sample", "mean"), default="sample")
+    parser.add_argument(
+        "--style-controls",
+        nargs=3,
+        type=float,
+        metavar=("SIDE", "AMPLITUDE", "SPEED"),
+        help="Override normalized V2 side/amplitude/speed controls",
+    )
     parser.add_argument("--loops", type=int, default=1)
     parser.add_argument("--no-realtime", action="store_true")
     parser.add_argument("--simplified", action="store_true")
@@ -542,7 +725,7 @@ def main(argv=None):
 
     if args.no_viewer and not args.text:
         parser.error("--no-viewer requires --text")
-    if args.frames < 2:
+    if args.frames is not None and args.frames < 2:
         parser.error("--frames must be at least 2")
     if not math.isfinite(args.fps) or args.fps <= 0:
         parser.error("--fps must be finite and positive")
@@ -552,7 +735,7 @@ def main(argv=None):
         parser.error("--loops must be zero or positive")
     if not math.isfinite(args.max_velocity_rad_s) or args.max_velocity_rad_s <= 0:
         parser.error("--max-velocity-rad-s must be finite and positive")
-    if args.smooth_window < 1:
+    if args.smooth_window is not None and args.smooth_window < 1:
         parser.error("--smooth-window must be at least 1")
     try:
         checkpoint_path, semantic_checkpoint_path = resolve_runtime_paths(
@@ -578,13 +761,13 @@ def main(argv=None):
     print(json.dumps({"checkpoint": _checkpoint_info_dict(generator.info), "device": generator.device}, indent=2))
 
     condition_builder = None
-    if generator.info.condition_dim == KIMODO_CONDITION_DIM and not semantic_checkpoint_path:
+    if generator.info.condition_dim in {KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM} and not semantic_checkpoint_path:
         parser.error(
-            "136-dimensional Kimodo generators require a semantic adapter condition bank; "
+            "Kimodo generators require a semantic adapter condition bank; "
             "pass --kimodo-qwen or --semantic-adapter-checkpoint"
         )
     if semantic_checkpoint_path:
-        if generator.info.condition_dim != KIMODO_CONDITION_DIM:
+        if generator.info.condition_dim not in {KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM}:
             parser.error(
                 f"Qwen semantic adapters require a {KIMODO_CONDITION_DIM}-dimensional Kimodo generator checkpoint"
             )
@@ -638,6 +821,8 @@ def main(argv=None):
         "seed": args.seed,
         "max_velocity_rad_s": args.max_velocity_rad_s,
         "smooth_window": args.smooth_window,
+        "style_controls": args.style_controls,
+        "style_policy": args.style_policy,
     }
     if args.no_viewer:
         if condition_builder is not None:
@@ -666,6 +851,8 @@ def main(argv=None):
         seed=args.seed,
         max_velocity_rad_s=args.max_velocity_rad_s,
         smooth_window=args.smooth_window,
+        style_controls=args.style_controls,
+        style_policy=args.style_policy,
         loops=session_loops,
         realtime=not args.no_realtime,
         condition_builder=condition_builder,

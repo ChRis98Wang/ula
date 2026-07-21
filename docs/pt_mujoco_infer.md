@@ -135,3 +135,19 @@ conda run --no-capture-output -n env_isaaclab \
   --device cuda \
   --semantic-device cuda
 ```
+
+For the concrete core-wave subset, select both greeting wave behaviors across all six emotions. This produces twelve
+test episodes and a `dataset_selection.json` manifest alongside the videos:
+
+```bash
+MUJOCO_GL=egl PYOPENGL_PLATFORM=egl \
+conda run --no-capture-output -n env_isaaclab \
+  python -u -m upper_body_skeleton.pt_dataset_mujoco_compare \
+  --behavior-id Behavior.GreetingOwner01 \
+  --behavior-id Behavior.GreetingOwner04 \
+  --motion-latent-split test \
+  --count 12 \
+  --output-dir training/runs/kimodo_mmdit_lite_qwen_compatible_5k_math_sdp/mujoco_wave_core_test \
+  --device cuda \
+  --semantic-device cuda
+```
