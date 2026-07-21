@@ -1,0 +1,27 @@
+dataset_dir: datasets/kimodo_lerobot_mmdit_lite
+output_dir: training/runs/kimodo_mmdit_lite_qwen_compatible_5k_math_sdp
+
+steps: 5000
+batch_size: 32
+lr: 0.0001
+weight_decay: 0.0001
+adam_eps: 0.000001
+warmup_steps: 250
+max_grad_norm: 1.0
+attention_backend: math
+max_episodes: 1620
+architecture: ula_mmdit_lite
+semantic_tokens: 4
+hidden_dim: 384
+layers: 6
+device: auto
+seed: 7
+log_interval: 250
+checkpoint_every_steps: 1000
+normalize_actions: true
+
+preview:
+  every_steps: 0
+  text: "开心地跟主人点头并在胸前挥手打招呼"
+  behavior_id: Behavior.GreetingOwner01
+  emotion_id: happy

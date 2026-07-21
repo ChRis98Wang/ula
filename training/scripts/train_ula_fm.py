@@ -9,20 +9,26 @@ try:
 except ImportError:  # pragma: no cover - exercised only on minimal servers
     yaml = None
 
-from upper_body_skeleton.ula_training import main as ula_training_main
-
-
 DEFAULTS = {
     "steps": 1_000_000,
     "batch_size": 32,
     "lr": 1e-4,
+    "weight_decay": 0.01,
+    "adam_eps": 1e-8,
+    "warmup_steps": 0,
+    "max_grad_norm": 1.0,
+    "attention_backend": "math",
     "max_episodes": 51_101,
     "hidden_dim": 384,
     "layers": 6,
     "architecture": "ula_fm_legacy",
     "semantic_tokens": 4,
     "device": "auto",
+    "seed": 7,
     "log_interval": 200,
+    "checkpoint_every_steps": 0,
+    "save_best": False,
+    "normalize_actions": False,
 }
 
 
@@ -78,13 +84,22 @@ def training_args_from_config(config):
         steps=int(values["steps"]),
         batch_size=int(values["batch_size"]),
         lr=float(values["lr"]),
+        weight_decay=float(values["weight_decay"]),
+        adam_eps=float(values["adam_eps"]),
+        warmup_steps=int(values["warmup_steps"]),
+        max_grad_norm=float(values["max_grad_norm"]),
+        attention_backend=str(values["attention_backend"]),
         max_episodes=None if values["max_episodes"] is None else int(values["max_episodes"]),
         hidden_dim=int(values["hidden_dim"]),
         layers=int(values["layers"]),
         architecture=str(values["architecture"]),
         semantic_tokens=int(values["semantic_tokens"]),
         device=str(values["device"]),
+        seed=int(values["seed"]),
         log_interval=int(values["log_interval"]),
+        checkpoint_every_steps=int(values["checkpoint_every_steps"]),
+        save_best=bool(values["save_best"]),
+        normalize_actions=bool(values["normalize_actions"]),
         preview_every_steps=int(preview["every_steps"]),
         preview_text=str(preview["text"]),
         preview_behavior_id=preview.get("behavior_id"),
@@ -119,6 +134,16 @@ def argv_from_training_args(args):
         str(args.batch_size),
         "--lr",
         str(args.lr),
+        "--weight-decay",
+        str(args.weight_decay),
+        "--adam-eps",
+        str(args.adam_eps),
+        "--warmup-steps",
+        str(args.warmup_steps),
+        "--max-grad-norm",
+        str(args.max_grad_norm),
+        "--attention-backend",
+        args.attention_backend,
         "--hidden-dim",
         str(args.hidden_dim),
         "--layers",
@@ -129,8 +154,12 @@ def argv_from_training_args(args):
         str(args.semantic_tokens),
         "--device",
         args.device,
+        "--seed",
+        str(args.seed),
         "--log-interval",
         str(args.log_interval),
+        "--checkpoint-every-steps",
+        str(args.checkpoint_every_steps),
         "--preview-every-steps",
         str(args.preview_every_steps),
         "--preview-text",
@@ -170,12 +199,18 @@ def argv_from_training_args(args):
         argv.extend(["--preview-behavior-id", str(args.preview_behavior_id)])
     if args.preview_emotion_id:
         argv.extend(["--preview-emotion-id", str(args.preview_emotion_id)])
+    if args.save_best:
+        argv.append("--save-best")
+    if args.normalize_actions:
+        argv.append("--normalize-actions")
     if args.max_episodes is not None:
         argv.extend(["--max-episodes", str(args.max_episodes)])
     return argv
 
 
 def main():
+    from upper_body_skeleton.ula_training import main as ula_training_main
+
     parser = argparse.ArgumentParser(description="Train ULA-FM from a YAML/JSON config")
     parser.add_argument("--config", required=True)
     parser.add_argument("--print-command", action="store_true")

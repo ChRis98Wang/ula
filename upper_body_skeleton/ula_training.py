@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from contextlib import nullcontext
 import csv
 import hashlib
 import json
@@ -14,8 +15,13 @@ import torch
 from torch import nn
 
 from upper_body_skeleton.kimodo_semantics import (
+    KIMODO_BEHAVIOR_IDS,
     KIMODO_CONDITION_EXTRA_DIM,
+    KIMODO_CONDITION_CONTRACT_VERSION,
+    KIMODO_CONDITION_SCHEMA_VERSION,
+    KIMODO_EMOTION_IDS,
     build_kimodo_condition_extra,
+    kimodo_condition_vectors_sha256,
 )
 from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER
 
@@ -31,6 +37,7 @@ KIMODO_CONDITION_DIM = LEGACY_CONDITION_DIM + KIMODO_CONDITION_EXTRA_DIM
 TRANSITION_IDS = {"continue": 0, "emotion_change": 1, "action_change": 2, "end": 3}
 ULA_FM_LEGACY_ARCHITECTURE = "ula_fm_legacy"
 ULA_MMDIT_LITE_ARCHITECTURE = "ula_mmdit_lite"
+ULA_ADALN_LITE_ARCHITECTURE = "ula_adaln_lite"
 
 
 INTENT_KEYWORDS = [
@@ -252,6 +259,85 @@ def load_lerobot_episodes(dataset_dir, max_episodes=None):
     return episodes
 
 
+def build_kimodo_condition_contract(episodes, dataset_dir):
+    episodes = list(episodes)
+    if not episodes or np.asarray(episodes[0]["condition"]).shape != (KIMODO_CONDITION_DIM,):
+        return None
+    behavior_index = {label: index for index, label in enumerate(KIMODO_BEHAVIOR_IDS)}
+    emotion_index = {label: index for index, label in enumerate(KIMODO_EMOTION_IDS)}
+    vectors = np.full(
+        (len(KIMODO_BEHAVIOR_IDS), len(KIMODO_EMOTION_IDS), KIMODO_CONDITION_DIM),
+        np.nan,
+        dtype=np.float32,
+    )
+    seen = set()
+    for episode in episodes:
+        meta = episode.get("meta") or {}
+        behavior_id = meta.get("behavior_id")
+        emotion_id = meta.get("emotion_id")
+        if behavior_id not in behavior_index or emotion_id not in emotion_index:
+            continue
+        index = behavior_index[behavior_id], emotion_index[emotion_id]
+        vector = np.asarray(episode["condition"], dtype=np.float32)
+        if vector.shape != (KIMODO_CONDITION_DIM,) or not np.isfinite(vector).all():
+            raise ValueError(f"invalid Kimodo condition for episode {episode.get('episode_index')}")
+        if index in seen and not np.array_equal(vectors[index], vector):
+            raise ValueError(f"inconsistent Kimodo condition for {behavior_id}/{emotion_id}")
+        vectors[index] = vector
+        seen.add(index)
+    expected_count = len(KIMODO_BEHAVIOR_IDS) * len(KIMODO_EMOTION_IDS)
+    if len(seen) != expected_count:
+        return None
+    semantic_path = Path(dataset_dir) / "meta" / "semantic_index.parquet"
+    if not semantic_path.is_file():
+        raise FileNotFoundError(f"Kimodo semantic index not found for checkpoint contract: {semantic_path}")
+    return {
+        "contract_version": KIMODO_CONDITION_CONTRACT_VERSION,
+        "condition_schema_version": KIMODO_CONDITION_SCHEMA_VERSION,
+        "condition_dim": KIMODO_CONDITION_DIM,
+        "behavior_ids": list(KIMODO_BEHAVIOR_IDS),
+        "emotion_ids": list(KIMODO_EMOTION_IDS),
+        "source_semantic_index_sha256": hashlib.sha256(semantic_path.read_bytes()).hexdigest(),
+        "canonical_vectors_sha256": kimodo_condition_vectors_sha256(vectors),
+    }
+
+
+def compute_action_normalization_stats(episodes, eps=1e-4):
+    actions = np.concatenate([episode["actions"] for episode in episodes], axis=0).astype(np.float32)
+    mean = torch.tensor(actions.mean(axis=0), dtype=torch.float32)
+    std = torch.tensor(actions.std(axis=0), dtype=torch.float32).clamp_min(float(eps))
+    return {"mean": mean, "std": std}
+
+
+def _stats_tensor(stats, key, *, device, action_dim):
+    value = stats[key]
+    tensor = torch.as_tensor(value, dtype=torch.float32, device=device)
+    return tensor[:action_dim].reshape(*([1] * 2), action_dim)
+
+
+def normalize_action_tensor(actions, stats):
+    mean = _stats_tensor(stats, "mean", device=actions.device, action_dim=actions.shape[-1])
+    std = _stats_tensor(stats, "std", device=actions.device, action_dim=actions.shape[-1])
+    return (actions - mean) / std
+
+
+def denormalize_action_tensor(actions, stats):
+    mean = _stats_tensor(stats, "mean", device=actions.device, action_dim=actions.shape[-1])
+    std = _stats_tensor(stats, "std", device=actions.device, action_dim=actions.shape[-1])
+    return actions * std + mean
+
+
+def normalize_episode_actions(episodes, stats):
+    normalized = []
+    mean = stats["mean"].detach().cpu().numpy()
+    std = stats["std"].detach().cpu().numpy()
+    for episode in episodes:
+        item = dict(episode)
+        item["actions"] = ((episode["actions"] - mean) / std).astype(np.float32)
+        normalized.append(item)
+    return normalized
+
+
 class SinusoidalTimeEmbedding(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -285,6 +371,12 @@ class SinusoidalFrameEmbedding(nn.Module):
         return emb
 
 
+def stable_sdpa_context(tensor):
+    if tensor.device.type != "cuda" or not hasattr(torch.nn, "attention"):
+        return nullcontext()
+    return torch.nn.attention.sdpa_kernel([torch.nn.attention.SDPBackend.MATH])
+
+
 class UlaFmModel(nn.Module):
     def __init__(self, action_dim=15, condition_dim=BASE_CONDITION_DIM + TEXT_EMBED_DIM, hidden_dim=256, layers=4):
         super().__init__()
@@ -316,7 +408,9 @@ class UlaFmModel(nn.Module):
         time = self.time(t)[:, None, :]
         frame = self.frame(x_t.shape[1], x_t.device)[None, :, :]
         h = h + cond + time + frame
-        return self.output(self.blocks(h))
+        with stable_sdpa_context(h):
+            h = self.blocks(h)
+        return self.output(h)
 
     def plan_condition(self, condition):
         if condition.ndim == 1:
@@ -371,9 +465,85 @@ class UlaMMDiTLiteModel(nn.Module):
         semantic = self.semantic_condition_tokens(condition)
         h = torch.cat([semantic, motion], dim=1)
         self.last_joint_sequence_shape = tuple(h.shape)
-        h = self.blocks(h)
+        with stable_sdpa_context(h):
+            h = self.blocks(h)
         motion_h = h[:, self.semantic_tokens :, :]
         return self.output(motion_h)
+
+    def plan_condition(self, condition):
+        if condition.ndim == 1:
+            condition = condition[None, :]
+        h = self.plan(condition)
+        duration_sec = torch.nn.functional.softplus(self.duration_head(h).squeeze(-1)) + 0.25
+        return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
+
+
+class AdaLNTransformerBlock(nn.Module):
+    def __init__(self, hidden_dim, nhead=4):
+        super().__init__()
+        self.norm_attn = nn.LayerNorm(hidden_dim, elementwise_affine=False)
+        self.attn = nn.MultiheadAttention(hidden_dim, nhead, batch_first=True)
+        self.norm_ffn = nn.LayerNorm(hidden_dim, elementwise_affine=False)
+        self.ffn = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim * 4),
+            nn.GELU(),
+            nn.Linear(hidden_dim * 4, hidden_dim),
+        )
+        self.modulation = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(hidden_dim, hidden_dim * 6),
+        )
+        nn.init.zeros_(self.modulation[-1].weight)
+        nn.init.zeros_(self.modulation[-1].bias)
+
+    @staticmethod
+    def _modulate(x, shift, scale):
+        return x * (1.0 + scale[:, None, :]) + shift[:, None, :]
+
+    def forward(self, x, conditioning):
+        shift_attn, scale_attn, gate_attn, shift_ffn, scale_ffn, gate_ffn = self.modulation(conditioning).chunk(6, dim=-1)
+        attn_input = self._modulate(self.norm_attn(x), shift_attn, scale_attn)
+        attn_output, _ = self.attn(attn_input, attn_input, attn_input, need_weights=False)
+        x = x + gate_attn[:, None, :] * attn_output
+        ffn_input = self._modulate(self.norm_ffn(x), shift_ffn, scale_ffn)
+        x = x + gate_ffn[:, None, :] * self.ffn(ffn_input)
+        return x
+
+
+class UlaAdaLNLiteModel(nn.Module):
+    def __init__(self, action_dim=15, condition_dim=KIMODO_CONDITION_DIM, hidden_dim=256, layers=4):
+        super().__init__()
+        self.architecture = ULA_ADALN_LITE_ARCHITECTURE
+        self.action_dim = action_dim
+        self.condition_dim = condition_dim
+        self.hidden_dim = hidden_dim
+        self.layers = layers
+        self.input = nn.Linear(action_dim, hidden_dim)
+        self.time = SinusoidalTimeEmbedding(hidden_dim)
+        self.frame = SinusoidalFrameEmbedding(hidden_dim)
+        self.condition = nn.Sequential(
+            nn.Linear(condition_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.plan = nn.Sequential(nn.Linear(condition_dim, hidden_dim), nn.SiLU(), nn.Linear(hidden_dim, hidden_dim), nn.SiLU())
+        self.duration_head = nn.Linear(hidden_dim, 1)
+        self.transition_head = nn.Linear(hidden_dim, len(TRANSITION_IDS))
+        self.blocks = nn.ModuleList([AdaLNTransformerBlock(hidden_dim, nhead=4) for _ in range(layers)])
+        self.output_norm = nn.LayerNorm(hidden_dim)
+        self.output = nn.Linear(hidden_dim, action_dim)
+        self.last_motion_sequence_shape = None
+
+    def forward(self, x_t, t, condition):
+        h = self.input(x_t)
+        frame = self.frame(x_t.shape[1], x_t.device)[None, :, :]
+        conditioning = self.condition(condition) + self.time(t)
+        h = h + frame + conditioning[:, None, :]
+        with stable_sdpa_context(h):
+            for block in self.blocks:
+                h = block(h, conditioning)
+        self.last_motion_sequence_shape = tuple(h.shape)
+        return self.output(self.output_norm(h))
 
     def plan_condition(self, condition):
         if condition.ndim == 1:
@@ -407,35 +577,77 @@ def create_ula_model(
             layers=layers,
             semantic_tokens=semantic_tokens,
         )
+    if architecture == ULA_ADALN_LITE_ARCHITECTURE:
+        return UlaAdaLNLiteModel(
+            action_dim=action_dim,
+            condition_dim=condition_dim,
+            hidden_dim=hidden_dim,
+            layers=layers,
+        )
     raise ValueError(f"unknown ULA architecture: {architecture}")
 
 
-def joint_limit_tensors(device, action_dim):
-    lowers = [JOINT_LIMITS[joint][0] for joint in JOINT_ORDER[:action_dim]]
-    uppers = [JOINT_LIMITS[joint][1] for joint in JOINT_ORDER[:action_dim]]
+def joint_limit_tensors(device, action_dim, pose_bounds=None):
+    lowers = []
+    uppers = []
+    pose_bounds = pose_bounds or {}
+    for joint in JOINT_ORDER[:action_dim]:
+        lower, upper = JOINT_LIMITS[joint]
+        if joint in pose_bounds:
+            pose_lower, pose_upper = pose_bounds[joint]
+            lower = max(float(lower), float(pose_lower))
+            upper = min(float(upper), float(pose_upper))
+            if lower > upper:
+                raise ValueError(f"pose bounds for {joint} do not overlap joint limits")
+        lowers.append(lower)
+        uppers.append(upper)
     return (
         torch.tensor(lowers, dtype=torch.float32, device=device)[None, None, :],
         torch.tensor(uppers, dtype=torch.float32, device=device)[None, None, :],
     )
 
 
-def sample_trajectory(model, condition, frames=120, action_dim=15, steps=24, device="cpu", seed=None):
+def sample_trajectory(
+    model,
+    condition,
+    frames=120,
+    action_dim=15,
+    steps=24,
+    device="cpu",
+    seed=None,
+    pose_bounds=None,
+    action_stats=None,
+):
     if seed is not None:
         torch.manual_seed(int(seed))
     model.to(device)
+    was_training = model.training
     model.eval()
-    condition_tensor = torch.as_tensor(condition, dtype=torch.float32, device=device)
-    if condition_tensor.ndim == 1:
-        condition_tensor = condition_tensor[None, :]
-    x = torch.randn((condition_tensor.shape[0], frames, action_dim), dtype=torch.float32, device=device)
-    dt = 1.0 / float(max(1, steps))
-    lower, upper = joint_limit_tensors(device, action_dim)
-    with torch.no_grad():
-        for index in range(steps):
-            t = torch.full((condition_tensor.shape[0],), index * dt, dtype=torch.float32, device=device)
-            velocity = model(x, t, condition_tensor)
-            x = torch.clamp(x + dt * velocity, lower, upper)
-    return x[0].detach().cpu().numpy()
+    try:
+        condition_tensor = torch.as_tensor(condition, dtype=torch.float32, device=device)
+        if condition_tensor.ndim == 1:
+            condition_tensor = condition_tensor[None, :]
+        dt = 1.0 / float(max(1, steps))
+        lower, upper = joint_limit_tensors(device, action_dim, pose_bounds=pose_bounds)
+        if action_stats is None:
+            action_stats = getattr(model, "action_stats", None)
+        if action_stats is not None:
+            lower = normalize_action_tensor(lower, action_stats)
+            upper = normalize_action_tensor(upper, action_stats)
+            lower, upper = torch.minimum(lower, upper), torch.maximum(lower, upper)
+        x = torch.randn((condition_tensor.shape[0], frames, action_dim), dtype=torch.float32, device=device)
+        x = torch.clamp(x, lower, upper)
+        with torch.no_grad():
+            for index in range(steps):
+                t = torch.full((condition_tensor.shape[0],), index * dt, dtype=torch.float32, device=device)
+                velocity = model(x, t, condition_tensor)
+                x = torch.clamp(x + dt * velocity, lower, upper)
+        if action_stats is not None:
+            x = denormalize_action_tensor(x, action_stats)
+        return x[0].detach().cpu().numpy()
+    finally:
+        if was_training:
+            model.train()
 
 
 def write_generated_csv(path, trajectory, fps=30.0):
@@ -534,6 +746,7 @@ def write_training_preview(
         steps=sampling_steps,
         device=device,
         seed=seed,
+        action_stats=getattr(model, "action_stats", None),
     )
     trajectory = postprocess_trajectory(
         raw_trajectory,
@@ -609,6 +822,27 @@ def planner_loss(model, condition, duration_target, transition_target):
     return duration + 0.25 * transition
 
 
+def clip_grad_norm_float64(parameters, max_norm):
+    parameters = [parameter for parameter in parameters if parameter.grad is not None]
+    max_norm = float(max_norm)
+    if not math.isfinite(max_norm) or max_norm <= 0:
+        raise ValueError("max_grad_norm must be finite and positive")
+    if not parameters:
+        return 0.0
+    squared_norm = torch.zeros((), dtype=torch.float64, device=parameters[0].grad.device)
+    for parameter in parameters:
+        gradient = parameter.grad.detach()
+        squared_norm += gradient.double().square().sum()
+    total_norm = squared_norm.sqrt()
+    if not torch.isfinite(total_norm):
+        raise FloatingPointError("non-finite global gradient norm encountered during training")
+    scale = min(1.0, max_norm / (float(total_norm) + 1e-12))
+    if scale < 1.0:
+        for parameter in parameters:
+            parameter.grad.mul_(scale)
+    return float(total_norm)
+
+
 def train_steps(
     model,
     episodes,
@@ -637,25 +871,73 @@ def train_steps(
     preview_max_segments=8,
     preview_max_velocity_rad_s=3.0,
     preview_smooth_window=5,
+    checkpoint_dir=None,
+    checkpoint_every_steps=0,
+    checkpoint_payload_fn=None,
+    save_best=False,
+    weight_decay=0.01,
+    adam_eps=1e-8,
+    warmup_steps=0,
+    max_grad_norm=1.0,
 ):
+    lr = float(lr)
+    weight_decay = float(weight_decay)
+    adam_eps = float(adam_eps)
+    warmup_steps = int(warmup_steps)
+    if not math.isfinite(lr) or lr <= 0:
+        raise ValueError("lr must be finite and positive")
+    if not math.isfinite(weight_decay) or weight_decay < 0:
+        raise ValueError("weight_decay must be finite and non-negative")
+    if not math.isfinite(adam_eps) or adam_eps <= 0:
+        raise ValueError("adam_eps must be finite and positive")
+    if warmup_steps < 0:
+        raise ValueError("warmup_steps must be non-negative")
     model.to(device)
     model.train()
-    opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay, eps=adam_eps)
     losses = []
     progress_path = Path(progress_path) if progress_path else None
     if progress_path:
         progress_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else None
+    if checkpoint_dir:
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    best_loss = float("inf")
+
+    def write_checkpoint(path, step, loss_value):
+        if checkpoint_payload_fn is None:
+            return
+        payload = checkpoint_payload_fn(model, step, loss_value)
+        torch.save(payload, path)
+
     for step_index in range(steps):
+        step = step_index + 1
+        current_lr = lr if warmup_steps == 0 else lr * min(1.0, step / warmup_steps)
+        for parameter_group in opt.param_groups:
+            parameter_group["lr"] = current_lr
         actions, condition, durations, transitions = sample_batch(episodes, batch_size, device)
         loss = flow_matching_loss(model, actions, condition) + 0.05 * planner_loss(model, condition, durations, transitions)
+        if not torch.isfinite(loss):
+            raise FloatingPointError(f"non-finite training loss at step {step_index + 1}: {float(loss.detach().cpu())}")
         opt.zero_grad(set_to_none=True)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        grad_norm = clip_grad_norm_float64(model.parameters(), max_grad_norm)
         opt.step()
-        losses.append(float(loss.detach().cpu()))
-        step = step_index + 1
+        loss_value = float(loss.detach().cpu())
+        losses.append(loss_value)
+        if checkpoint_dir and save_best and loss_value < best_loss:
+            best_loss = loss_value
+            write_checkpoint(checkpoint_dir / "ula_fm_best_checkpoint.pt", step, loss_value)
+        if checkpoint_dir and checkpoint_every_steps and (step % int(checkpoint_every_steps) == 0 or step == steps):
+            write_checkpoint(checkpoint_dir / f"ula_fm_step_{step:06d}.pt", step, loss_value)
         if log_interval and (step == 1 or step % log_interval == 0 or step == steps):
-            event = {"step": step, "steps": steps, "loss": losses[-1]}
+            event = {
+                "step": step,
+                "steps": steps,
+                "loss": loss_value,
+                "lr": current_lr,
+                "grad_norm": grad_norm,
+            }
             print(json.dumps(event), flush=True)
             if progress_path:
                 with progress_path.open("a", encoding="utf-8") as f:
@@ -703,6 +985,31 @@ def write_training_log(path, config, losses):
     path.write_text(json.dumps({"config": config, "losses": losses, "final_loss": losses[-1] if losses else None}, indent=2), encoding="utf-8")
 
 
+def model_checkpoint_payload(model, episodes, args, device, *, step=None, loss=None):
+    config = vars(args) | {"device": device, "episodes_loaded": len(episodes)}
+    if step is not None:
+        config["checkpoint_step"] = int(step)
+    if loss is not None:
+        config["checkpoint_loss"] = float(loss)
+    payload = {
+        "model_state_dict": model.state_dict(),
+        "joint_order": JOINT_ORDER,
+        "condition_dim": episodes[0]["condition"].shape[0],
+        "action_dim": len(JOINT_ORDER),
+        "architecture": model.architecture,
+        "config": config,
+    }
+    if getattr(model, "action_stats", None) is not None:
+        payload["action_stats"] = {
+            "mean": model.action_stats["mean"].detach().cpu(),
+            "std": model.action_stats["std"].detach().cpu(),
+        }
+    condition_contract = build_kimodo_condition_contract(episodes, getattr(args, "dataset_dir", ""))
+    if condition_contract is not None:
+        payload["condition_contract"] = condition_contract
+    return payload
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Train a minimal body-only ULA-FM model from LeRobot parquet")
     parser.add_argument("--dataset-dir", required=True)
@@ -710,12 +1017,22 @@ def main(argv=None):
     parser.add_argument("--steps", type=int, default=2000)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--weight-decay", type=float, default=0.01)
+    parser.add_argument("--adam-eps", type=float, default=1e-8)
+    parser.add_argument("--warmup-steps", type=int, default=0)
+    parser.add_argument("--max-grad-norm", type=float, default=1.0)
+    parser.add_argument("--attention-backend", choices=("math",), default="math")
     parser.add_argument("--max-episodes", type=int)
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--layers", type=int, default=4)
-    parser.add_argument("--architecture", choices=[ULA_FM_LEGACY_ARCHITECTURE, ULA_MMDIT_LITE_ARCHITECTURE], default=ULA_FM_LEGACY_ARCHITECTURE)
+    parser.add_argument(
+        "--architecture",
+        choices=[ULA_FM_LEGACY_ARCHITECTURE, ULA_MMDIT_LITE_ARCHITECTURE, ULA_ADALN_LITE_ARCHITECTURE],
+        default=ULA_FM_LEGACY_ARCHITECTURE,
+    )
     parser.add_argument("--semantic-tokens", type=int, default=4)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--log-interval", type=int, default=100)
     parser.add_argument("--preview-every-steps", type=int, default=0)
     parser.add_argument("--preview-text", default="紧张地解释，同时双手做克制的上肢手势")
@@ -736,24 +1053,36 @@ def main(argv=None):
     parser.add_argument("--preview-max-segments", type=int, default=8)
     parser.add_argument("--preview-max-velocity-rad-s", type=float, default=3.0)
     parser.add_argument("--preview-smooth-window", type=int, default=5)
+    parser.add_argument("--checkpoint-every-steps", type=int, default=0)
+    parser.add_argument("--save-best", action="store_true")
+    parser.add_argument("--normalize-actions", action="store_true")
     args = parser.parse_args(argv)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     device = choose_device(args.device)
     episodes = load_lerobot_episodes(args.dataset_dir, max_episodes=args.max_episodes)
     if not episodes:
         raise SystemExit("no episodes loaded")
+    action_stats = compute_action_normalization_stats(episodes) if args.normalize_actions else None
+    train_episodes = normalize_episode_actions(episodes, action_stats) if action_stats is not None else episodes
     model = create_ula_model(
         args.architecture,
         action_dim=len(JOINT_ORDER),
-        condition_dim=episodes[0]["condition"].shape[0],
+        condition_dim=train_episodes[0]["condition"].shape[0],
         hidden_dim=args.hidden_dim,
         layers=args.layers,
         semantic_tokens=args.semantic_tokens,
     )
+    if action_stats is not None:
+        model.action_stats = action_stats
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
     losses = train_steps(
         model,
-        episodes,
+        train_episodes,
         args.steps,
         args.batch_size,
         args.lr,
@@ -779,20 +1108,26 @@ def main(argv=None):
         preview_max_segments=args.preview_max_segments,
         preview_max_velocity_rad_s=args.preview_max_velocity_rad_s,
         preview_smooth_window=args.preview_smooth_window,
+        checkpoint_dir=out,
+        checkpoint_every_steps=args.checkpoint_every_steps,
+        save_best=args.save_best,
+        checkpoint_payload_fn=lambda checkpoint_model, step, loss_value: model_checkpoint_payload(
+            checkpoint_model,
+            train_episodes,
+            args,
+            device,
+            step=step,
+            loss=loss_value,
+        ),
+        weight_decay=args.weight_decay,
+        adam_eps=args.adam_eps,
+        warmup_steps=args.warmup_steps,
+        max_grad_norm=args.max_grad_norm,
     )
-    torch.save(
-        {
-            "model_state_dict": model.cpu().state_dict(),
-            "joint_order": JOINT_ORDER,
-            "condition_dim": episodes[0]["condition"].shape[0],
-            "action_dim": len(JOINT_ORDER),
-            "architecture": model.architecture,
-            "config": vars(args) | {"device": device, "episodes_loaded": len(episodes)},
-        },
-        out / "ula_fm_checkpoint.pt",
-    )
-    write_training_log(out / "train_log.json", vars(args) | {"device": device, "episodes_loaded": len(episodes)}, losses)
-    print(json.dumps({"output_dir": str(out), "steps": args.steps, "episodes_loaded": len(episodes), "final_loss": losses[-1]}, indent=2))
+    model.cpu()
+    torch.save(model_checkpoint_payload(model, train_episodes, args, device), out / "ula_fm_checkpoint.pt")
+    write_training_log(out / "train_log.json", vars(args) | {"device": device, "episodes_loaded": len(train_episodes)}, losses)
+    print(json.dumps({"output_dir": str(out), "steps": args.steps, "episodes_loaded": len(train_episodes), "final_loss": losses[-1]}, indent=2))
 
 
 if __name__ == "__main__":

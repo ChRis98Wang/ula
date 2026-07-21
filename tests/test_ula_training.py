@@ -1,6 +1,7 @@
 import csv
 import json
 
+import pytest
 import torch
 
 from upper_body_skeleton.lerobot_export import export_lerobot_dataset
@@ -9,16 +10,23 @@ from upper_body_skeleton.ula_training import (
     BASE_CONDITION_DIM,
     KIMODO_CONDITION_DIM,
     LEGACY_CONDITION_DIM,
+    ULA_ADALN_LITE_ARCHITECTURE,
     ULA_FM_LEGACY_ARCHITECTURE,
     ULA_MMDIT_LITE_ARCHITECTURE,
+    UlaAdaLNLiteModel,
     UlaFmModel,
     UlaMMDiTLiteModel,
     build_condition_from_text,
+    clip_grad_norm_float64,
     create_ula_model,
+    compute_action_normalization_stats,
+    denormalize_action_tensor,
     load_lerobot_episodes,
+    normalize_action_tensor,
     sample_trajectory,
     planner_loss,
     train_steps,
+    model_checkpoint_payload,
     write_training_preview,
     write_generated_csv,
 )
@@ -112,6 +120,32 @@ def test_ula_model_trains_one_flow_matching_step(tmp_path):
     assert all(torch.isfinite(torch.tensor(losses)))
 
 
+def test_action_normalization_stats_roundtrip_episode_actions(tmp_path):
+    out_dir = make_lerobot_fixture(tmp_path)
+    episodes = load_lerobot_episodes(out_dir, max_episodes=2)
+    stats = compute_action_normalization_stats(episodes)
+    actions = torch.tensor(episodes[0]["actions"])
+
+    normalized = normalize_action_tensor(actions, stats)
+    restored = denormalize_action_tensor(normalized, stats)
+
+    assert stats["mean"].shape == (len(JOINT_ORDER),)
+    assert stats["std"].shape == (len(JOINT_ORDER),)
+    assert torch.all(stats["std"] > 0)
+    assert torch.allclose(restored, actions, atol=1e-6)
+
+
+def test_float64_gradient_clipping_handles_large_finite_gradients_without_overflow():
+    parameter = torch.nn.Parameter(torch.zeros(4))
+    parameter.grad = torch.full_like(parameter, 1e30)
+
+    original_norm = clip_grad_norm_float64([parameter], 1.0)
+
+    assert original_norm == pytest.approx(2e30)
+    assert torch.isfinite(parameter.grad).all()
+    assert float(torch.linalg.vector_norm(parameter.grad.double())) == pytest.approx(1.0)
+
+
 def test_text_condition_builder_uses_codes_and_text_signal():
     neutral = build_condition_from_text("explain calmly", style="restrained", affect="neutral", gesture="null")
     energetic = build_condition_from_text("wave excitedly", style="energetic", affect="excited", gesture="waving")
@@ -163,7 +197,62 @@ def test_flow_sampler_exports_generated_joint_csv(tmp_path):
 
     assert trajectory.shape == (6, len(JOINT_ORDER))
     assert torch.isfinite(torch.tensor(trajectory)).all()
+    assert model.training is True
     assert csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_sec," + ",".join(JOINT_ORDER)
+
+
+def test_flow_sampler_accepts_generation_pose_bounds():
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    bounds = {
+        "joint_rShoulderRoll": (-1.30, -0.05),
+        "joint_rElbow": (-1.58, 0.35),
+    }
+
+    trajectory = sample_trajectory(
+        model,
+        condition=torch.zeros(92),
+        frames=12,
+        action_dim=len(JOINT_ORDER),
+        steps=4,
+        device="cpu",
+        seed=3,
+        pose_bounds=bounds,
+    )
+
+    shoulder = trajectory[:, JOINT_ORDER.index("joint_rShoulderRoll")]
+    elbow = trajectory[:, JOINT_ORDER.index("joint_rElbow")]
+    assert shoulder.min() >= -1.30 - 1e-6
+    assert shoulder.max() <= -0.05 + 1e-6
+    assert elbow.min() >= -1.58 - 1e-6
+    assert elbow.max() <= 0.35 + 1e-6
+
+
+def test_flow_sampler_denormalizes_action_stats_before_export():
+    class ZeroVelocityModel(torch.nn.Module):
+        def forward(self, x_t, t, condition):
+            return torch.zeros_like(x_t)
+
+    mean = torch.zeros(len(JOINT_ORDER))
+    std = torch.ones(len(JOINT_ORDER)) * 0.02
+    shoulder_index = JOINT_ORDER.index("joint_lShoulderRoll")
+    mean[shoulder_index] = -0.98
+    stats = {"mean": mean, "std": std}
+
+    trajectory = sample_trajectory(
+        ZeroVelocityModel(),
+        condition=torch.zeros(92),
+        frames=20,
+        action_dim=len(JOINT_ORDER),
+        steps=2,
+        device="cpu",
+        seed=5,
+        action_stats=stats,
+        pose_bounds={"joint_lShoulderRoll": (-1.30, -0.15)},
+    )
+
+    shoulder = trajectory[:, shoulder_index]
+    assert shoulder.min() > -1.08
+    assert shoulder.max() < -0.88
 
 
 def test_ula_model_predicts_duration_and_transition_logits():
@@ -211,6 +300,28 @@ def test_mmdit_lite_model_uses_semantic_tokens_and_preserves_motion_shape():
     assert plan["transition_logits"].shape == (2, 4)
 
 
+def test_adaln_lite_model_modulates_motion_with_condition_and_time():
+    model = UlaAdaLNLiteModel(
+        action_dim=len(JOINT_ORDER),
+        condition_dim=KIMODO_CONDITION_DIM,
+        hidden_dim=64,
+        layers=2,
+    )
+    x_t = torch.randn(2, 6, len(JOINT_ORDER))
+    condition = torch.randn(2, KIMODO_CONDITION_DIM)
+
+    output = model(x_t, torch.tensor([0.2, 0.8]), condition)
+    shifted_condition_output = model(x_t, torch.tensor([0.2, 0.8]), condition + 0.5)
+    plan = model.plan_condition(condition)
+
+    assert output.shape == x_t.shape
+    assert model.architecture == ULA_ADALN_LITE_ARCHITECTURE
+    assert model.last_motion_sequence_shape == (2, 6, 64)
+    assert not torch.allclose(output, shifted_condition_output)
+    assert plan["duration_sec"].shape == (2,)
+    assert plan["transition_logits"].shape == (2, 4)
+
+
 def test_model_factory_keeps_legacy_and_mmdit_architectures_separate():
     legacy = create_ula_model(
         ULA_FM_LEGACY_ARCHITECTURE,
@@ -227,11 +338,20 @@ def test_model_factory_keeps_legacy_and_mmdit_architectures_separate():
         layers=1,
         semantic_tokens=3,
     )
+    adaln = create_ula_model(
+        ULA_ADALN_LITE_ARCHITECTURE,
+        action_dim=len(JOINT_ORDER),
+        condition_dim=KIMODO_CONDITION_DIM,
+        hidden_dim=32,
+        layers=1,
+    )
 
     assert isinstance(legacy, UlaFmModel)
     assert isinstance(mmdit, UlaMMDiTLiteModel)
+    assert isinstance(adaln, UlaAdaLNLiteModel)
     assert legacy.architecture == ULA_FM_LEGACY_ARCHITECTURE
     assert mmdit.architecture == ULA_MMDIT_LITE_ARCHITECTURE
+    assert adaln.architecture == ULA_ADALN_LITE_ARCHITECTURE
 
 
 def test_mmdit_lite_model_trains_one_flow_matching_step(tmp_path):
@@ -250,6 +370,64 @@ def test_mmdit_lite_model_trains_one_flow_matching_step(tmp_path):
 
     assert len(losses) == 1
     assert torch.isfinite(torch.tensor(losses)).all()
+
+
+def test_adaln_lite_model_trains_one_flow_matching_step(tmp_path):
+    out_dir = make_lerobot_fixture(tmp_path)
+    episodes = load_lerobot_episodes(out_dir, max_episodes=2)
+    model = create_ula_model(
+        ULA_ADALN_LITE_ARCHITECTURE,
+        action_dim=len(JOINT_ORDER),
+        condition_dim=episodes[0]["condition"].shape[0],
+        hidden_dim=64,
+        layers=1,
+    )
+
+    losses = train_steps(model, episodes, steps=1, batch_size=2, lr=1e-3, device="cpu")
+
+    assert len(losses) == 1
+    assert torch.isfinite(torch.tensor(losses)).all()
+
+
+def test_train_steps_writes_best_and_interval_checkpoints(tmp_path):
+    out_dir = make_lerobot_fixture(tmp_path)
+    episodes = load_lerobot_episodes(out_dir, max_episodes=2)
+    model = create_ula_model(
+        ULA_ADALN_LITE_ARCHITECTURE,
+        action_dim=len(JOINT_ORDER),
+        condition_dim=episodes[0]["condition"].shape[0],
+        hidden_dim=64,
+        layers=1,
+    )
+
+    class Args:
+        hidden_dim = 64
+        layers = 1
+        semantic_tokens = 4
+
+    losses = train_steps(
+        model,
+        episodes,
+        steps=2,
+        batch_size=2,
+        lr=1e-3,
+        device="cpu",
+        checkpoint_dir=tmp_path / "checkpoints",
+        checkpoint_every_steps=2,
+        save_best=True,
+        checkpoint_payload_fn=lambda checkpoint_model, step, loss: model_checkpoint_payload(
+            checkpoint_model,
+            episodes,
+            Args(),
+            "cpu",
+            step=step,
+            loss=loss,
+        ),
+    )
+
+    assert len(losses) == 2
+    assert (tmp_path / "checkpoints" / "ula_fm_best_checkpoint.pt").is_file()
+    assert (tmp_path / "checkpoints" / "ula_fm_step_000002.pt").is_file()
 
 
 def test_planner_loss_uses_duration_and_transition_targets():

@@ -3,17 +3,19 @@ import argparse
 import csv
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
 
+import imageio.v2 as imageio
 import imageio_ffmpeg
-import mediapy as media
 import mujoco
 import mujoco.viewer
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
-from upper_body_skeleton.side_by_side_preview import build_front_camera
+from upper_body_skeleton.side_by_side_preview import build_camera, build_front_camera
 from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF, resolve_mujoco_urdf
 
 
@@ -109,6 +111,160 @@ def build_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
     return model, joint_to_qpos
 
 
+def _validated_trajectory(values, *, name):
+    trajectory = np.asarray(values, dtype=np.float32)
+    if trajectory.ndim != 2 or trajectory.shape[1] != len(JOINT_ORDER):
+        raise ValueError(f"{name} trajectory must have shape [frames, {len(JOINT_ORDER)}]")
+    if trajectory.shape[0] < 1:
+        raise ValueError(f"{name} trajectory must contain at least one frame")
+    if not np.isfinite(trajectory).all():
+        raise ValueError(f"{name} trajectory contains non-finite values")
+    return trajectory
+
+
+def compose_labeled_comparison_frame(
+    network_frame,
+    reference_frame,
+    *,
+    network_label="NETWORK OUTPUT",
+    reference_label="DATASET REFERENCE",
+    title_height=40,
+):
+    network_frame = np.asarray(network_frame, dtype=np.uint8)
+    reference_frame = np.asarray(reference_frame, dtype=np.uint8)
+    if network_frame.ndim != 3 or network_frame.shape[-1] != 3:
+        raise ValueError("network frame must be an RGB image")
+    if reference_frame.shape != network_frame.shape:
+        raise ValueError("network and reference frames must have identical RGB shapes")
+    title_height = int(title_height)
+    if title_height < 24:
+        raise ValueError("title_height must be at least 24 pixels")
+
+    height, width, _ = network_frame.shape
+    image = Image.new("RGB", (width * 2, height + title_height), (18, 21, 25))
+    image.paste(Image.fromarray(network_frame), (0, title_height))
+    image.paste(Image.fromarray(reference_frame), (width, title_height))
+    draw = ImageDraw.Draw(image)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 18)
+    except OSError:  # pragma: no cover - Pillow always ships a default fallback
+        font = ImageFont.load_default()
+    for offset, label, color in (
+        (0, str(network_label), (71, 174, 255)),
+        (width, str(reference_label), (80, 205, 137)),
+    ):
+        bounds = draw.textbbox((0, 0), label, font=font)
+        text_width = bounds[2] - bounds[0]
+        text_height = bounds[3] - bounds[1]
+        x = offset + max(8, (width - text_width) // 2)
+        y = max(2, (title_height - text_height) // 2 - bounds[1])
+        draw.text((x, y), label, fill=color, font=font)
+    draw.line((width, 0, width, height + title_height), fill=(224, 228, 232), width=2)
+    return np.asarray(image)
+
+
+def render_trajectory_comparison(
+    network_trajectory,
+    reference_trajectory,
+    output_mp4,
+    *,
+    fps=30.0,
+    pane_width=640,
+    pane_height=640,
+    title_height=40,
+    urdf_path=DEFAULT_URDF,
+    simplified=False,
+    camera_view="upper",
+):
+    network_trajectory = _validated_trajectory(network_trajectory, name="network")
+    reference_trajectory = _validated_trajectory(reference_trajectory, name="reference")
+    if network_trajectory.shape != reference_trajectory.shape:
+        raise ValueError("network and reference trajectories must have identical shapes")
+    fps = float(fps)
+    if not np.isfinite(fps) or fps <= 0:
+        raise ValueError("fps must be finite and positive")
+    pane_width = int(pane_width)
+    pane_height = int(pane_height)
+    title_height = int(title_height)
+    if pane_width <= 0 or pane_height <= 0:
+        raise ValueError("comparison pane dimensions must be positive")
+    if title_height < 24:
+        raise ValueError("title_height must be at least 24 pixels")
+    if (pane_height + title_height) % 2:
+        raise ValueError("comparison video height must be even for H.264 encoding")
+    if camera_view not in {"front", "upper"}:
+        raise ValueError("camera_view must be 'front' or 'upper'")
+
+    model, joint_to_qpos, model_source = load_preview_model(urdf_path=urdf_path, simplified=simplified)
+    model.vis.global_.offwidth = max(int(model.vis.global_.offwidth), pane_width)
+    model.vis.global_.offheight = max(int(model.vis.global_.offheight), pane_height)
+    data = mujoco.MjData(model)
+    camera = build_camera(camera_view)
+    output_mp4 = Path(output_mp4)
+    output_mp4.parent.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("IMAGEIO_FFMPEG_EXE", imageio_ffmpeg.get_ffmpeg_exe())
+    frames_written = 0
+    renderer = None
+    temporary_path = None
+
+    def render_values(values):
+        data.qpos[:] = 0.0
+        for action_index, value in enumerate(values):
+            data.qpos[joint_to_qpos[action_index]] = float(value)
+        mujoco.mj_forward(model, data)
+        renderer.update_scene(data, camera=camera)
+        return renderer.render().copy()
+
+    try:
+        renderer = mujoco.Renderer(model, height=pane_height, width=pane_width)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{output_mp4.stem}.",
+            suffix=output_mp4.suffix,
+            dir=output_mp4.parent,
+        )
+        os.close(descriptor)
+        temporary_path = Path(temporary_name)
+        with imageio.get_writer(
+            temporary_path,
+            fps=fps,
+            codec="libx264",
+            quality=7,
+            macro_block_size=2,
+        ) as writer:
+            for network_values, reference_values in zip(network_trajectory, reference_trajectory):
+                network_frame = render_values(network_values)
+                reference_frame = render_values(reference_values)
+                writer.append_data(
+                    compose_labeled_comparison_frame(
+                        network_frame,
+                        reference_frame,
+                        title_height=title_height,
+                    )
+                )
+                frames_written += 1
+        temporary_path.replace(output_mp4)
+        temporary_path = None
+    finally:
+        if renderer is not None:
+            renderer.close()
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+    return {
+        "output_mp4": str(output_mp4),
+        "layout": {"left": "network_output", "right": "dataset_reference"},
+        "frames": frames_written,
+        "duration_sec": frames_written / fps,
+        "fps": fps,
+        "width": pane_width * 2,
+        "height": pane_height + title_height,
+        "camera_view": camera_view,
+        "model_source": model_source,
+        "model_nq": int(model.nq),
+        "model_nbody": int(model.nbody),
+    }
+
+
 def render_motion(
     joint_csv,
     output_mp4,
@@ -141,9 +297,8 @@ def render_motion(
     renderer.close()
     output_mp4 = Path(output_mp4)
     output_mp4.parent.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("FFMPEG_BINARY", imageio_ffmpeg.get_ffmpeg_exe())
-    media.set_ffmpeg(imageio_ffmpeg.get_ffmpeg_exe())
-    media.write_video(output_mp4, frames, fps=fps)
+    os.environ.setdefault("IMAGEIO_FFMPEG_EXE", imageio_ffmpeg.get_ffmpeg_exe())
+    imageio.mimwrite(output_mp4, frames, fps=fps, codec="libx264", quality=7, macro_block_size=8)
     return {
         "input_csv": str(joint_csv),
         "output_mp4": str(output_mp4),

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import csv
 from dataclasses import dataclass
+import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -48,6 +50,7 @@ KIMODO_BEHAVIOR_FAMILIES = [
     "attention_search_error",
 ]
 KIMODO_CONDITION_SCHEMA_VERSION = 2.0
+KIMODO_CONDITION_CONTRACT_VERSION = 1
 KIMODO_CONDITION_EXTRA_DIM = len(KIMODO_BEHAVIOR_IDS) + len(KIMODO_EMOTION_IDS) + len(KIMODO_BEHAVIOR_FAMILIES) + 3
 
 
@@ -150,6 +153,10 @@ def build_kimodo_condition_extra(behavior_id=None, emotion_id=None, prompt=""):
         inferred_behavior, inferred_emotion = infer_kimodo_ids_from_text(prompt)
         behavior_id = behavior_id or inferred_behavior
         emotion_id = emotion_id or inferred_emotion
+    if behavior_id not in KIMODO_BEHAVIOR_IDS:
+        raise ValueError(f"unknown Kimodo behavior_id: {behavior_id}")
+    if emotion_id not in KIMODO_EMOTION_IDS:
+        raise ValueError(f"unknown Kimodo emotion_id: {emotion_id}")
     family = kimodo_behavior_family(behavior_id)
     controls = np.asarray([KIMODO_CONDITION_SCHEMA_VERSION, 1.0, 0.0], dtype=np.float32)
     return np.concatenate(
@@ -161,6 +168,29 @@ def build_kimodo_condition_extra(behavior_id=None, emotion_id=None, prompt=""):
         ],
         axis=0,
     ).astype(np.float32)
+
+
+def kimodo_condition_vectors_sha256(vectors):
+    values = np.asarray(vectors, dtype=np.float32)
+    if values.ndim != 3:
+        raise ValueError("Kimodo canonical condition vectors must be a rank-3 array")
+    if values.shape[:2] != (len(KIMODO_BEHAVIOR_IDS), len(KIMODO_EMOTION_IDS)):
+        raise ValueError("Kimodo canonical condition vector label dimensions do not match")
+    if not np.isfinite(values).all():
+        raise ValueError("Kimodo canonical condition vectors must be finite")
+    header = {
+        "contract_version": KIMODO_CONDITION_CONTRACT_VERSION,
+        "condition_schema_version": KIMODO_CONDITION_SCHEMA_VERSION,
+        "behavior_ids": KIMODO_BEHAVIOR_IDS,
+        "emotion_ids": KIMODO_EMOTION_IDS,
+        "shape": list(values.shape),
+        "dtype": "float32-le",
+    }
+    digest = hashlib.sha256()
+    digest.update(json.dumps(header, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii"))
+    digest.update(b"\0")
+    digest.update(np.ascontiguousarray(values.astype("<f4", copy=False)).tobytes())
+    return digest.hexdigest()
 
 
 def kimodo_condition_metadata(behavior_id=None, emotion_id=None, text=""):

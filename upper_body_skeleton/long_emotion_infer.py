@@ -24,6 +24,23 @@ from upper_body_skeleton.ula_training import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LONG_EMOTION_OUTPUT_DIR = REPO_ROOT / "deliverables" / "long_emotion_previews" / "manual"
 TRANSITION_NAMES = {value: key for key, value in TRANSITION_IDS.items()}
+GENERATION_POSE_BOUNDS = {
+    "joint_pelvisYaw": (-0.40, 0.30),
+    "joint_pelvisPitch": (0.08, 0.55),
+    "joint_pelvisRoll": (-0.20, 0.20),
+    "joint_lShoulderPitch": (-1.55, 0.10),
+    "joint_lShoulderRoll": (-1.30, -0.15),
+    "joint_lShoulderYaw": (-1.65, 0.65),
+    "joint_lElbow": (-1.58, 0.35),
+    "joint_lWristRoll": (-1.00, 1.80),
+    "joint_lWristPitch": (-0.90, 0.45),
+    "joint_rShoulderPitch": (-1.55, 0.15),
+    "joint_rShoulderRoll": (-1.30, -0.05),
+    "joint_rShoulderYaw": (-0.75, 1.70),
+    "joint_rElbow": (-1.58, 0.35),
+    "joint_rWristRoll": (-1.80, 1.10),
+    "joint_rWristPitch": (-1.00, 0.45),
+}
 
 
 def _clamp(value, low, high):
@@ -79,10 +96,21 @@ def smooth_trajectory(trajectory, window=5, *, fps=30.0, max_velocity_rad_s=3.0)
     return limit_joint_velocity(out, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
 
 
+def clamp_to_generation_pose_bounds(trajectory):
+    arr = np.asarray(trajectory, dtype=np.float32).copy()
+    for index, joint in enumerate(JOINT_ORDER[: arr.shape[1]]):
+        bounds = GENERATION_POSE_BOUNDS.get(joint)
+        if bounds is None:
+            continue
+        arr[:, index] = np.clip(arr[:, index], bounds[0], bounds[1])
+    return arr
+
+
 def postprocess_trajectory(trajectory, *, fps=30.0, max_velocity_rad_s=3.0, smooth_window=5):
     limited = limit_joint_velocity(trajectory, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
     smoothed = smooth_trajectory(limited, window=smooth_window, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
-    return limit_joint_velocity(smoothed, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
+    clamped = clamp_to_generation_pose_bounds(smoothed)
+    return limit_joint_velocity(clamped, fps=fps, max_velocity_rad_s=max_velocity_rad_s)
 
 
 def trajectory_quality(trajectory, *, fps=30.0):
@@ -146,6 +174,8 @@ def generate_long_emotion_motion(
     elapsed = 0.0
     previous_transition = "start"
     last_pose = None
+    action_stats = getattr(model, "action_stats", None)
+    sample_pose_bounds = GENERATION_POSE_BOUNDS if action_stats is not None else None
 
     for segment_index in range(int(max_segments)):
         condition = _condition_for_segment(
@@ -171,6 +201,8 @@ def generate_long_emotion_motion(
             steps=sampling_steps,
             device=device,
             seed=None if seed is None else int(seed) + segment_index,
+            pose_bounds=sample_pose_bounds,
+            action_stats=action_stats,
         )
         if last_pose is not None and len(trajectory):
             trajectory[0] = last_pose
@@ -212,6 +244,8 @@ def generate_long_emotion_motion(
                 steps=sampling_steps,
                 device=device,
                 seed=seed,
+                pose_bounds=sample_pose_bounds,
+                action_stats=action_stats,
             )
         )
         elapsed = frames / float(fps)

@@ -1,0 +1,28 @@
+prompt_csv: Kimodo_CSV/kimodo_action_emotion_prompts.csv
+paraphrases_json: configs/kimodo_semantic_zh_paraphrases.json
+condition_dataset_dir: datasets/kimodo_lerobot_mmdit_lite
+output_dir: training/runs/kimodo_qwen3_semantic_adapter_deploy_v1
+split_mode: deployment
+
+model_name: Qwen/Qwen3-Embedding-0.6B
+revision: 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3
+instruction: "Represent the exact physical upper-body action requested for matching to a robot motion behavior. Ignore all emotion words and infer only the movement pattern."
+secondary_instruction: "Represent only the explicitly requested emotional tone for classification as neutral, sad, happy, angry, surprise, or fear. Ignore the action's inherent mood."
+embedding_dim: 128
+max_length: 256
+encode_batch_size: 16
+
+hidden_dim: 128
+adapter_architecture: dual_task
+dropout: 0.1
+steps: 2000
+batch_size: 64
+lr: 0.001
+weight_decay: 0.0001
+eval_interval: 25
+early_stopping_patience: 30
+fold: 0
+seed: 7
+device: auto
+local_files_only: false
+overwrite: false

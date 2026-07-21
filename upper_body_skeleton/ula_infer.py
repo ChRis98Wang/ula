@@ -18,8 +18,7 @@ from upper_body_skeleton.ula_training import (
 )
 
 
-def load_model(checkpoint_path, device):
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+def model_from_checkpoint(checkpoint, device, *, strict=True):
     config = checkpoint.get("config", {})
     model = create_ula_model(
         checkpoint.get("architecture", ULA_FM_LEGACY_ARCHITECTURE),
@@ -29,11 +28,27 @@ def load_model(checkpoint_path, device):
         layers=int(config.get("layers", 4)),
         semantic_tokens=int(config.get("semantic_tokens", 4)),
     )
-    missing, unexpected = model.load_state_dict(checkpoint["model_state_dict"], strict=False)
-    if unexpected:
-        raise RuntimeError(f"unexpected checkpoint keys: {unexpected}")
+    incompatible = model.load_state_dict(checkpoint["model_state_dict"], strict=bool(strict))
+    if incompatible.unexpected_keys:
+        raise RuntimeError(f"unexpected checkpoint keys: {incompatible.unexpected_keys}")
+    if incompatible.missing_keys:
+        allowed_missing_prefixes = ("plan.", "duration_head.", "transition_head.")
+        disallowed_missing = [
+            key for key in incompatible.missing_keys if not key.startswith(allowed_missing_prefixes)
+        ]
+        if disallowed_missing:
+            raise RuntimeError(f"checkpoint is missing required keys: {disallowed_missing}")
+    if checkpoint.get("action_stats") is not None:
+        model.action_stats = checkpoint["action_stats"]
     model.to(device)
     return model, checkpoint
+
+
+def load_model(checkpoint_path, device):
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    # The older public loader keeps planner-head backward compatibility. New
+    # direct-PT paths validate current checkpoints and request strict loading.
+    return model_from_checkpoint(checkpoint, device, strict=False)
 
 
 def main():
@@ -81,6 +96,7 @@ def main():
         steps=args.sampling_steps,
         device=device,
         seed=args.seed,
+        action_stats=getattr(model, "action_stats", None),
     )
     write_generated_csv(args.output_csv, trajectory, fps=args.fps)
     if args.output_npz:

@@ -113,7 +113,7 @@ cd /workspace/upper_body_motion_roadmap
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install torch numpy pyarrow pyyaml imageio-ffmpeg mediapy mujoco pytest
+python -m pip install torch numpy pyarrow pyyaml imageio imageio-ffmpeg mujoco pytest
 ```
 
 If the server has CUDA, install the CUDA-matched PyTorch build instead of generic `torch`.

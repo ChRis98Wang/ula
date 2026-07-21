@@ -1,6 +1,7 @@
 import csv
 
 import numpy as np
+import pytest
 
 
 def write_kimodo_prompt_csv(path):
@@ -87,3 +88,27 @@ def test_kimodo_extra_differs_between_specific_behaviors():
     alert = build_kimodo_condition_extra("Behavior.Alert", "happy")
 
     assert not np.array_equal(greeting, alert)
+
+
+def test_kimodo_condition_vector_rejects_unknown_structured_labels():
+    from upper_body_skeleton.kimodo_semantics import build_kimodo_condition_extra
+
+    with pytest.raises(ValueError, match="unknown Kimodo behavior_id"):
+        build_kimodo_condition_extra("TYPO", "happy")
+    with pytest.raises(ValueError, match="unknown Kimodo emotion_id"):
+        build_kimodo_condition_extra("Behavior.Alert", "TYPO")
+
+
+def test_canonical_condition_digest_binds_label_grid_and_values():
+    from upper_body_skeleton.kimodo_semantics import (
+        KIMODO_BEHAVIOR_IDS,
+        KIMODO_EMOTION_IDS,
+        kimodo_condition_vectors_sha256,
+    )
+
+    vectors = np.zeros((len(KIMODO_BEHAVIOR_IDS), len(KIMODO_EMOTION_IDS), 136), dtype=np.float32)
+    baseline = kimodo_condition_vectors_sha256(vectors)
+    vectors[0, 0, 0] = 1.0
+
+    assert len(baseline) == 64
+    assert kimodo_condition_vectors_sha256(vectors) != baseline

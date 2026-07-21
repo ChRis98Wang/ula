@@ -1,5 +1,7 @@
 # 机器人上半身 3D 骨架重定向、情绪标签与动作生成总路线
 
+> 当前实现已使用 15 关节 V2 接口，并提供冻结 Qwen 语义适配器到 PT 生成器、再到 MuJoCo 的内存直连入口。快速运行见 [PT Direct MuJoCo Inference](docs/pt_mujoco_infer.md)，分类适配器见 [Qwen Semantic Adapter](docs/qwen_semantic_adapter.md)，可训练 Qwen LoRA 与动作 latent 对齐见 [Qwen Motion Latent LoRA](docs/qwen_motion_latent_lora.md)。下文保留的是 2026-05 的早期 11 关节路线，不代表当前运行接口。
+
 日期：2026-05-09
 
 本文档是一个独立开发路线文件，用于在工作站上规划和实现：

@@ -1,0 +1,60 @@
+dataset_dir: datasets/kimodo_lerobot_mmdit_lite
+prompt_csv: Kimodo_CSV/kimodo_action_emotion_prompts.csv
+paraphrases_json: configs/kimodo_semantic_zh_paraphrases.json
+motion_checkpoint: training/runs/kimodo_motion_latent_v1/motion_latent_checkpoint.pt
+output_dir: training/runs/kimodo_qwen_motion_latent_lora_v1
+
+model_name: Qwen/Qwen3-Embedding-0.6B
+revision: 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3
+local_files_only: true
+attention_backend: eager
+max_length: 128
+qwen_component_dim: 128
+
+lora_rank: 8
+lora_alpha: 16
+lora_dropout: 0.05
+lora_top_layers: 4
+lora_target_projections: [q_proj, k_proj, v_proj, o_proj]
+
+latent_dim: 128
+projection_hidden_dim: 256
+projection_dropout: 0.1
+motion_trainable_prefixes:
+  - backbone.6.
+  - backbone.7.
+  - projection.
+  - behavior_head.
+  - emotion_head.
+  - descriptor_head.
+
+steps: 100000
+batch_size: 24
+eval_batch_size: 16
+qwen_lr: 0.000005
+projector_lr: 0.0001
+motion_lr: 0.00001
+weight_decay: 0.0001
+adam_eps: 0.000001
+warmup_steps: 500
+lr_decay_steps: 100000
+minimum_lr_ratio: 0.1
+max_grad_norm: 1.0
+
+temperature: 0.07
+alignment_weight: 1.0
+text_behavior_weight: 0.5
+text_emotion_weight: 0.5
+motion_metric_weight: 0.25
+motion_anchor_weight: 0.1
+variance_weight: 1.0
+covariance_weight: 0.1
+minimum_effective_rank: 3.0
+
+seed: 7
+device: auto
+max_episodes: 1620
+log_interval: 25
+eval_interval: 500
+checkpoint_interval: 500
+overwrite: false

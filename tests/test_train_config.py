@@ -19,9 +19,18 @@ max_episodes: 99
 hidden_dim: 128
 layers: 3
 device: cpu
+seed: 19
 log_interval: 50
 architecture: ula_mmdit_lite
 semantic_tokens: 5
+checkpoint_every_steps: 1000
+save_best: true
+normalize_actions: true
+weight_decay: 0.0002
+adam_eps: 0.000001
+warmup_steps: 100
+max_grad_norm: 0.5
+attention_backend: math
 preview:
   every_steps: 250
   text: "紧张地解释，然后逐渐平静"
@@ -49,6 +58,15 @@ preview:
     assert args.batch_size == 16
     assert args.architecture == "ula_mmdit_lite"
     assert args.semantic_tokens == 5
+    assert args.seed == 19
+    assert args.checkpoint_every_steps == 1000
+    assert args.save_best is True
+    assert args.normalize_actions is True
+    assert args.weight_decay == 0.0002
+    assert args.adam_eps == 0.000001
+    assert args.warmup_steps == 100
+    assert args.max_grad_norm == 0.5
+    assert args.attention_backend == "math"
     assert args.preview_every_steps == 250
     assert args.preview_dir == str(output_dir / "previews")
     assert args.preview_text == "紧张地解释，然后逐渐平静"

@@ -10,7 +10,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from upper_body_skeleton.retarget_v2 import JOINT_ORDER
+from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER
 
 
 DEFAULT_ROWS_PER_FILE = 250_000
@@ -34,7 +34,16 @@ def read_joint_window(csv_path, start_row, end_row):
                 continue
             if index >= end_row:
                 break
-            rows.append([float(row[joint]) for joint in JOINT_ORDER])
+            joints = []
+            for joint in JOINT_ORDER:
+                if joint in row:
+                    value = float(row[joint])
+                else:
+                    value = math.radians(float(row[f"{joint}_dof"]))
+                    lower, upper = JOINT_LIMITS[joint]
+                    value = max(lower, min(upper, value))
+                joints.append(value)
+            rows.append(joints)
     return rows
 
 

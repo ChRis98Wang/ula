@@ -1,13 +1,16 @@
 import json
 
 import numpy as np
+import pytest
 import torch
 
 from upper_body_skeleton.long_emotion_infer import (
     DEFAULT_LONG_EMOTION_OUTPUT_DIR,
+    GENERATION_POSE_BOUNDS,
     REPO_ROOT,
     generate_long_emotion_motion,
     limit_joint_velocity,
+    clamp_to_generation_pose_bounds,
     smooth_trajectory,
 )
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
@@ -130,6 +133,81 @@ def test_joint_velocity_limiter_removes_large_frame_jumps():
     assert max_delta <= 3.0 / 30.0 + 1e-6
 
 
+def test_generation_pose_bounds_keep_joints_in_training_safe_range():
+    trajectory = np.zeros((4, len(JOINT_ORDER)), dtype=np.float32)
+    trajectory[:, JOINT_ORDER.index("joint_rShoulderRoll")] = -1.55
+    trajectory[:, JOINT_ORDER.index("joint_lShoulderRoll")] = -1.45
+    trajectory[:, JOINT_ORDER.index("joint_rElbow")] = -1.74
+    trajectory[:, JOINT_ORDER.index("joint_lElbow")] = -1.73
+
+    clamped = clamp_to_generation_pose_bounds(trajectory)
+
+    assert clamped[:, JOINT_ORDER.index("joint_rShoulderRoll")].min() >= -1.30 - 1e-6
+    assert clamped[:, JOINT_ORDER.index("joint_lShoulderRoll")].min() >= -1.30 - 1e-6
+    assert clamped[:, JOINT_ORDER.index("joint_rElbow")].min() >= -1.58 - 1e-6
+    assert clamped[:, JOINT_ORDER.index("joint_lElbow")].min() >= -1.58 - 1e-6
+
+
+def test_long_emotion_generation_samples_inside_generation_pose_bounds(tmp_path, monkeypatch):
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    model.action_stats = {"mean": torch.zeros(len(JOINT_ORDER)), "std": torch.ones(len(JOINT_ORDER))}
+    seen_bounds = []
+    seen_stats = []
+
+    def fake_sample_trajectory(*args, **kwargs):
+        seen_bounds.append(kwargs.get("pose_bounds"))
+        seen_stats.append(kwargs.get("action_stats"))
+        return np.zeros((kwargs["frames"], kwargs["action_dim"]), dtype=np.float32)
+
+    monkeypatch.setattr("upper_body_skeleton.long_emotion_infer.sample_trajectory", fake_sample_trajectory)
+
+    generate_long_emotion_motion(
+        model,
+        text="开心地挥手",
+        output_dir=tmp_path / "bounded_preview",
+        fps=30.0,
+        max_duration_sec=0.2,
+        min_segment_sec=0.1,
+        max_segment_sec=0.1,
+        min_segments=1,
+        max_segments=1,
+        sampling_steps=2,
+        device="cpu",
+        render=False,
+    )
+
+    assert seen_bounds == [GENERATION_POSE_BOUNDS]
+    assert seen_stats == [model.action_stats]
+
+
+def test_long_emotion_generation_does_not_sample_bound_legacy_raw_checkpoints(tmp_path, monkeypatch):
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    seen_bounds = []
+
+    def fake_sample_trajectory(*args, **kwargs):
+        seen_bounds.append(kwargs.get("pose_bounds"))
+        return np.zeros((kwargs["frames"], kwargs["action_dim"]), dtype=np.float32)
+
+    monkeypatch.setattr("upper_body_skeleton.long_emotion_infer.sample_trajectory", fake_sample_trajectory)
+
+    generate_long_emotion_motion(
+        model,
+        text="开心地挥手",
+        output_dir=tmp_path / "legacy_preview",
+        fps=30.0,
+        max_duration_sec=0.2,
+        min_segment_sec=0.1,
+        max_segment_sec=0.1,
+        min_segments=1,
+        max_segments=1,
+        sampling_steps=2,
+        device="cpu",
+        render=False,
+    )
+
+    assert seen_bounds == [None]
+
+
 def test_old_checkpoint_without_planner_heads_loads_strict_false(tmp_path):
     checkpoint = tmp_path / "old_checkpoint.pt"
     old_model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
@@ -157,6 +235,25 @@ def test_old_checkpoint_without_planner_heads_loads_strict_false(tmp_path):
     assert plan["transition_logits"].shape == (1, 4)
 
 
+def test_checkpoint_loader_rejects_missing_nonplanner_weights(tmp_path):
+    checkpoint = tmp_path / "corrupt_checkpoint.pt"
+    source = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    state = dict(source.state_dict())
+    state.pop("input.weight")
+    torch.save(
+        {
+            "model_state_dict": state,
+            "action_dim": len(JOINT_ORDER),
+            "condition_dim": 92,
+            "config": {"hidden_dim": 64, "layers": 4},
+        },
+        checkpoint,
+    )
+
+    with pytest.raises(RuntimeError, match="missing required keys"):
+        load_model(checkpoint, "cpu")
+
+
 def test_mmdit_lite_checkpoint_loads_architecture_from_config(tmp_path):
     checkpoint = tmp_path / "mmdit_checkpoint.pt"
     source = UlaMMDiTLiteModel(
@@ -182,3 +279,29 @@ def test_mmdit_lite_checkpoint_loads_architecture_from_config(tmp_path):
     assert isinstance(model, UlaMMDiTLiteModel)
     assert loaded["architecture"] == "ula_mmdit_lite"
     assert model.semantic_tokens == 3
+
+
+def test_checkpoint_loads_action_normalization_stats(tmp_path):
+    checkpoint = tmp_path / "normalized_checkpoint.pt"
+    source = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=32, layers=1)
+    stats = {
+        "mean": torch.linspace(-0.5, 0.5, len(JOINT_ORDER)),
+        "std": torch.linspace(0.1, 0.2, len(JOINT_ORDER)),
+    }
+    torch.save(
+        {
+            "model_state_dict": source.state_dict(),
+            "action_dim": len(JOINT_ORDER),
+            "condition_dim": 92,
+            "architecture": "ula_fm_legacy",
+            "action_stats": stats,
+            "config": {"hidden_dim": 32, "layers": 1, "normalize_actions": True},
+        },
+        checkpoint,
+    )
+
+    model, loaded = load_model(checkpoint, "cpu")
+
+    assert loaded["config"]["normalize_actions"] is True
+    assert torch.allclose(model.action_stats["mean"], stats["mean"])
+    assert torch.allclose(model.action_stats["std"], stats["std"])

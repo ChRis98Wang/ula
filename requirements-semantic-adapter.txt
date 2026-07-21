@@ -1,0 +1,5 @@
+# Qwen3 model support requires Transformers 4.51 or newer.
+transformers>=4.51,<5
+safetensors>=0.4
+peft>=0.19,<1
+accelerate>=1.0,<2
