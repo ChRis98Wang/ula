@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "audio_policy": "disabled_not_loaded",
+  "training_scope": "head_mechanism_experiment_only",
+  "formal_training_enabled": false,
+  "base_15d_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/kimodo_ula_v2_lora_50k/ula_fm_checkpoint.pt",
+  "qwen_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/kimodo_qwen_motion_latent_lora_v2/best.pt",
+  "motion_sources": [
+    {
+      "dataset_source": "beat2_interaction_18d_v1",
+      "temporal_unit": "fixed_window_experimental",
+      "manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_ula_v2_18d_full_v1/network_semantics/network_semantics.jsonl"
+    }
+  ],
+  "output_root": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_15d_staged_v2_experimental",
+  "cache_device": "cuda",
+  "cache_batch_size": 16,
+  "temporal_quarantine": {
+    "fps": 30.0,
+    "acceleration_reduction": "per_axis_absolute_peak_and_p99_then_max_axis",
+    "peak_acceleration_rad_s2": 20.0,
+    "p99_acceleration_rad_s2": 15.0,
+    "high_frequency_method": "centered_5_frame_moving_average_interior_residual_per_axis_rms_then_max_axis",
+    "high_frequency_window_frames": 5,
+    "high_frequency_rms_degrees": 0.3,
+    "policy": "exclude_failed_train_keep_validation_test_as_challenge"
+  },
+  "allow_unreviewed": true,
+  "allow_unsafe_condition_cache": false,
+  "allow_unsafe_training_data": true,
+  "kimodo_dataset_dir": "/home/gez/shuaiwang/ula-motion-generate/datasets/kimodo_lerobot_mmdit_lite",
+  "kimodo_split_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/kimodo_motion_latent_v1/motion_latent_checkpoint.pt",
+  "head_pretrain": {
+    "training_policy": "head_projection_only",
+    "steps": 8000,
+    "batch_size": 32,
+    "validation_batch_size": 32,
+    "phase_frame_choices": [64, 96, 128],
+    "lr": 0.0003,
+    "minimum_lr_ratio": 0.05,
+    "warmup_steps": 500,
+    "weight_decay": 0.0001,
+    "adam_eps": 0.000001,
+    "max_grad_norm": 1.0,
+    "ema_decay": 0.999,
+    "validation_interval": 500,
+    "checkpoint_interval": 250,
+    "log_interval": 25,
+    "replay_evaluation_count": 128,
+    "maximum_replay_regression_fraction": 0.03,
+    "maximum_replay_regression_absolute": 0.02,
+    "early_stopping_patience": 8,
+    "early_stopping_min_delta": 0.0001,
+    "split_fractions": {
+      "train": 0.8,
+      "validation": 0.1,
+      "test": 0.1
+    },
+    "seed": 7,
+    "device": "cuda",
+    "sampler": {
+      "mode": "source_speaker_activity",
+      "activity_bin_edges_rad_s": [0.12, 0.16, 0.21]
+    },
+    "loss": {
+      "flow": 0.0,
+      "position": 0.0,
+      "body": 1.0,
+      "velocity": 0.0,
+      "acceleration": 0.0,
+      "jerk": 0.0,
+      "head_flow": 1.0,
+      "head_position": 0.25,
+      "head_velocity": 0.002,
+      "head_acceleration": 0.00002,
+      "head_jerk": 0.0000005
+    }
+  },
+  "joint_train": {
+    "training_policy": "full_network",
+    "require_disjoint_replay_evaluation": true,
+    "steps": 5000,
+    "batch_size": 16,
+    "validation_batch_size": 32,
+    "phase_frame_choices": [64, 96, 128],
+    "lr": 0.00001,
+    "minimum_lr_ratio": 0.1,
+    "warmup_steps": 500,
+    "weight_decay": 0.0001,
+    "adam_eps": 0.000001,
+    "max_grad_norm": 1.0,
+    "ema_decay": 0.9995,
+    "validation_interval": 250,
+    "checkpoint_interval": 250,
+    "log_interval": 25,
+    "replay_evaluation_count": 128,
+    "maximum_replay_regression_fraction": 0.03,
+    "maximum_replay_regression_absolute": 0.02,
+    "early_stopping_patience": 8,
+    "early_stopping_min_delta": 0.0001,
+    "split_fractions": {
+      "train": 0.8,
+      "validation": 0.1,
+      "test": 0.1
+    },
+    "seed": 7,
+    "device": "cuda",
+    "sampler": {
+      "mode": "source_speaker_activity",
+      "activity_bin_edges_rad_s": [0.12, 0.16, 0.21]
+    },
+    "loss": {
+      "flow": 1.0,
+      "position": 0.25,
+      "body": 0.1,
+      "velocity": 0.01,
+      "acceleration": 0.0005,
+      "jerk": 0.000001,
+      "head_flow": 0.5,
+      "head_position": 0.25,
+      "head_velocity": 0.005,
+      "head_acceleration": 0.0001,
+      "head_jerk": 0.000001
+    }
+  }
+}

@@ -13,6 +13,7 @@ from upper_body_skeleton.ula_training import (
 from upper_body_skeleton.ula_training_v2 import (
     ModelEMA,
     SemanticModeSampler,
+    _batch_tensors,
     flow_matching_v2_objective,
     resample_motion_phase,
     resolve_v2_config,
@@ -136,3 +137,18 @@ def test_v2_config_requires_explicit_data_contract_paths():
     )
     assert config["architecture"] == ULA_MMDIT_V2_ARCHITECTURE
     assert config["phase_frame_choices"] == [32, 64]
+
+
+def test_v2_batch_planner_duration_uses_sample_span_and_rejects_frame_coverage():
+    frames = 7
+    episode = {
+        "actions": np.zeros((frames, len(JOINT_ORDER)), dtype=np.float32),
+        "condition": np.zeros(KIMODO_V2_CONDITION_DIM, dtype=np.float32),
+        "fps": 30.0,
+    }
+    _, _, durations, _ = _batch_tensors([episode], frame_count=5, device="cpu")
+    assert durations.item() == pytest.approx((frames - 1) / 30.0)
+
+    episode["duration_sec"] = frames / 30.0
+    with pytest.raises(ValueError, match="cannot be a planner target"):
+        _batch_tensors([episode], frame_count=5, device="cpu")

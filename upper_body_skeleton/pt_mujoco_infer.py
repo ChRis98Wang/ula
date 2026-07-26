@@ -35,7 +35,10 @@ from upper_body_skeleton.ula_training import (
     ULA_MMDIT_V2_ARCHITECTURE,
     build_condition_from_text,
     choose_device,
+    frame_count_to_coverage,
+    frame_count_to_sample_span,
     sample_trajectory,
+    sample_span_to_frame_count,
 )
 
 
@@ -63,6 +66,14 @@ GENERATOR_ARCHITECTURES = {
 }
 LEGACY_CONDITION_DIM = 92
 SUPPORTED_CONDITION_DIMS = {LEGACY_CONDITION_DIM, KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM}
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 @dataclass(frozen=True)
@@ -96,16 +107,26 @@ class GeneratedMotion:
     style_controls: tuple[float, float, float] | None = None
 
     def summary(self):
+        frame_count = int(self.trajectory.shape[0])
+        sample_span = frame_count_to_sample_span(frame_count, self.fps)
         return {
             "text": self.text,
             "behavior_id": self.behavior_id,
             "emotion_id": self.emotion_id,
             "behavior_confidence": self.behavior_confidence,
             "emotion_confidence": self.emotion_confidence,
-            "frames": int(self.trajectory.shape[0]),
+            "frames": frame_count,
             "action_dim": int(self.trajectory.shape[1]),
             "fps": float(self.fps),
-            "duration_sec": float(self.trajectory.shape[0] / self.fps),
+            "duration_sec": sample_span,
+            "sample_span_sec": sample_span,
+            "frame_coverage_sec": frame_count_to_coverage(frame_count, self.fps),
+            "duration_contract": "sample_span=(frames-1)/fps",
+            "duration_quantization_error_sec": (
+                None
+                if self.predicted_duration_sec is None
+                else sample_span - float(self.predicted_duration_sec)
+            ),
             "sampling_steps": int(self.sampling_steps),
             "seed": self.seed,
             "predicted_duration_sec": self.predicted_duration_sec,
@@ -175,6 +196,19 @@ def validate_v2_generator_contracts(checkpoint, *, path="<memory>"):
         digest = contracts[name].get("sha256")
         if not isinstance(digest, str) or len(digest) != 64:
             raise ValueError(f"ULA MMDiT V2 {name} contract hash is invalid: {path}")
+    text_motion = contracts.get("text_motion_latent")
+    if text_motion is not None:
+        if int(text_motion.get("latent_dim", -1)) != KIMODO_V2_CONDITION_DIM - KIMODO_CONDITION_DIM:
+            raise ValueError(f"ULA MMDiT V2 text-motion latent dimension mismatch: {path}")
+        if text_motion.get("contract_type") != "ula_v2_qwen_lora_text_motion_latent":
+            raise ValueError(f"ULA MMDiT V2 text-motion latent contract type mismatch: {path}")
+        for field in ("sha256",):
+            digest = text_motion.get(field)
+            if not isinstance(digest, str) or len(digest) != 64:
+                raise ValueError(f"ULA MMDiT V2 text-motion latent {field} is invalid: {path}")
+        source_digest = (text_motion.get("source") or {}).get("checkpoint_sha256")
+        if not isinstance(source_digest, str) or len(source_digest) != 64:
+            raise ValueError(f"ULA MMDiT V2 text-motion checkpoint hash is invalid: {path}")
     return contracts
 
 
@@ -199,7 +233,9 @@ def validate_generator_checkpoint(checkpoint, *, path="<memory>"):
     action_dim = int(checkpoint.get("action_dim", len(JOINT_ORDER)))
     if action_dim != len(JOINT_ORDER):
         raise ValueError(
-            f"MuJoCo upper-body playback requires {len(JOINT_ORDER)} joints, checkpoint has {action_dim}: {path}"
+            f"legacy pt_mujoco_infer is a strict {len(JOINT_ORDER)}D path and will not truncate "
+            f"a {action_dim}D checkpoint; use tools/train_ula_v2_18d_head.py infer for the "
+            f"versioned 18D contract: {path}"
         )
     condition_dim = int(checkpoint.get("condition_dim", LEGACY_CONDITION_DIM))
     if condition_dim not in SUPPORTED_CONDITION_DIMS:
@@ -302,6 +338,44 @@ def validate_generator_condition_source(checkpoint, condition_bank, *, repo_root
     }
 
 
+def load_motion_latent_lora_condition_builder(
+    generator_checkpoint,
+    lora_checkpoint,
+    *,
+    dataset_dir=None,
+    device="auto",
+    local_files_only=True,
+):
+    contracts = validate_v2_generator_contracts(generator_checkpoint)
+    text_motion_contract = contracts.get("text_motion_latent")
+    if text_motion_contract is None:
+        raise ValueError("generator was not trained with Qwen LoRA text-motion latents")
+    expected_hash = text_motion_contract["source"]["checkpoint_sha256"]
+    actual_hash = _sha256_file(lora_checkpoint)
+    if actual_hash != expected_hash:
+        raise ValueError("Qwen Motion LoRA checkpoint hash does not match the generator training contract")
+
+    from upper_body_skeleton.cross_modal_latent import (
+        LoRAMotionConditionBuilder,
+        load_qwen_motion_text_encoder,
+    )
+    from upper_body_skeleton.semantic_adapter import load_kimodo_condition_bank
+
+    if dataset_dir is None:
+        dataset_dir = Path(generator_checkpoint.get("config", {}).get("dataset_dir") or "")
+        if not dataset_dir.is_absolute():
+            dataset_dir = REPO_ROOT / dataset_dir
+    condition_bank = load_kimodo_condition_bank(dataset_dir)
+    condition_source = validate_generator_condition_source(generator_checkpoint, condition_bank)
+    text_encoder, text_checkpoint = load_qwen_motion_text_encoder(
+        lora_checkpoint,
+        device=device,
+        local_files_only=local_files_only,
+    )
+    builder = LoRAMotionConditionBuilder(text_encoder, condition_bank=condition_bank)
+    return builder, text_checkpoint, condition_source, actual_hash
+
+
 def _text_style_overrides(text, controls):
     controls = np.asarray(controls, dtype=np.float32).copy()
     lowered = str(text).lower()
@@ -338,6 +412,11 @@ def _assemble_checkpoint_v2_condition(
     )
 
     contracts = validate_v2_generator_contracts(checkpoint)
+    if contracts.get("text_motion_latent") is not None and motion_latent is None:
+        raise ValueError(
+            "this ULA V2 generator requires a Qwen LoRA text-motion latent; "
+            "load its recorded motion-latent LoRA checkpoint"
+        )
     if style_controls is None:
         if style_policy not in {"sample", "mean"}:
             raise ValueError("style_policy must be sample or mean")
@@ -357,16 +436,8 @@ def _assemble_checkpoint_v2_condition(
         emotion_id=emotion_id,
         prototype_contract=contracts["motion_prototypes"],
         style_controls=controls,
+        motion_latent=motion_latent,
     )
-    if motion_latent is not None:
-        latent = np.asarray(motion_latent, dtype=np.float32)
-        expected = KIMODO_V2_CONDITION_DIM - KIMODO_CONDITION_DIM
-        if latent.shape != (expected,) or not np.isfinite(latent).all():
-            raise ValueError(f"motion_latent must be a finite vector with shape ({expected},)")
-        norm = float(np.linalg.norm(latent))
-        if norm <= 1e-8:
-            raise ValueError("motion_latent must have non-zero norm")
-        condition[KIMODO_CONDITION_DIM:] = latent / norm
     return condition, tuple(float(value) for value in controls)
 
 
@@ -374,10 +445,28 @@ def _predict_v2_duration(model, checkpoint, condition, *, device):
     tensor = torch.as_tensor(condition, dtype=torch.float32, device=device)[None, :]
     with torch.no_grad():
         predicted = float(model.plan_condition(tensor)["duration_sec"][0].detach().cpu())
-    duration_contract = checkpoint["v2_contracts"]["duration"]
-    bounds = duration_contract.get("duration_supervision_sec") or duration_contract["train_duration_sec"]
+    duration_contract = (checkpoint.get("v2_contracts") or {}).get("duration")
+    if not isinstance(duration_contract, dict):
+        raise ValueError(
+            "V2 checkpoint has no learned variable-duration contract; "
+            "implicit fixed-duration generation is disabled"
+        )
+    if duration_contract.get("fixed_frame_count") is not None or duration_contract.get(
+        "fixed_duration_sec"
+    ) is not None:
+        raise ValueError("V2 inference rejects fixed-frame or fixed-duration contracts")
+    representation = str(duration_contract.get("trajectory_representation") or "")
+    if "fixed" in representation.lower():
+        raise ValueError("V2 inference rejects a fixed-length trajectory representation")
+    bounds = duration_contract.get("duration_supervision_sec") or duration_contract.get(
+        "train_duration_sec"
+    )
+    if not isinstance(bounds, dict):
+        raise ValueError("V2 variable-duration contract has no train-derived bounds")
     lower = float(bounds["min"])
     upper = float(bounds["max"])
+    if not math.isfinite(lower) or not math.isfinite(upper) or lower <= 0.0 or upper < lower:
+        raise ValueError("V2 variable-duration contract has invalid train-derived bounds")
     if not math.isfinite(predicted):
         raise FloatingPointError("duration head returned a non-finite value")
     return max(lower, min(upper, predicted))
@@ -444,6 +533,8 @@ def infer_motion(
         condition_dim=builder_condition_dim,
     )
     semantic_prediction = getattr(condition_builder, "last_prediction", None)
+    if motion_latent is None:
+        motion_latent = getattr(condition_builder, "last_motion_latent", None)
     resolved_behavior_id = getattr(semantic_prediction, "behavior_id", behavior_id)
     resolved_emotion_id = getattr(semantic_prediction, "emotion_id", emotion_id)
     behavior_confidence = getattr(semantic_prediction, "behavior_confidence", None)
@@ -477,8 +568,12 @@ def infer_motion(
     if condition_dim == KIMODO_V2_CONDITION_DIM:
         predicted_duration_sec = _predict_v2_duration(model, checkpoint, condition, device=device)
     if frames is None:
-        duration = predicted_duration_sec if predicted_duration_sec is not None else 5.0
-        frames = max(2, int(round(float(duration) * fps)))
+        if predicted_duration_sec is None:
+            raise ValueError(
+                "frames must be explicit for checkpoints without a trained duration "
+                "head; implicit fixed-duration generation is disabled"
+            )
+        frames = sample_span_to_frame_count(predicted_duration_sec, fps)
 
     raw = sampler(
         model,
@@ -491,7 +586,7 @@ def infer_motion(
         action_stats=getattr(model, "action_stats", None),
     )
     raw = np.asarray(raw, dtype=np.float32)
-    expected_shape = (frames, len(JOINT_ORDER))
+    expected_shape = (frames, int(checkpoint.get("action_dim", len(JOINT_ORDER))))
     if raw.shape != expected_shape:
         raise ValueError(f"generator returned trajectory shape {raw.shape}, expected {expected_shape}")
     if not np.isfinite(raw).all():
@@ -681,6 +776,12 @@ def main(argv=None):
     parser.add_argument("--behavior-id")
     parser.add_argument("--emotion-id")
     parser.add_argument("--semantic-adapter-checkpoint")
+    parser.add_argument(
+        "--motion-latent-lora-checkpoint",
+        help="Qwen Motion LoRA checkpoint recorded by a text-latent ULA V2 generator",
+    )
+    parser.add_argument("--motion-latent-device", help="Device for Qwen Motion LoRA; defaults to --device")
+    parser.add_argument("--motion-latent-local-files-only", action="store_true")
     parser.add_argument("--semantic-model", help="Override the frozen Qwen model stored in the adapter checkpoint")
     parser.add_argument("--semantic-revision", help="Override the pinned Qwen model revision")
     parser.add_argument(
@@ -737,6 +838,8 @@ def main(argv=None):
         parser.error("--max-velocity-rad-s must be finite and positive")
     if args.smooth_window is not None and args.smooth_window < 1:
         parser.error("--smooth-window must be at least 1")
+    if args.motion_latent_lora_checkpoint and args.semantic_adapter_checkpoint:
+        parser.error("Qwen Motion LoRA and the classification-only semantic adapter are mutually exclusive")
     try:
         checkpoint_path, semantic_checkpoint_path = resolve_runtime_paths(
             checkpoint=args.checkpoint,
@@ -761,12 +864,44 @@ def main(argv=None):
     print(json.dumps({"checkpoint": _checkpoint_info_dict(generator.info), "device": generator.device}, indent=2))
 
     condition_builder = None
-    if generator.info.condition_dim in {KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM} and not semantic_checkpoint_path:
+    if (
+        generator.info.condition_dim in {KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM}
+        and not semantic_checkpoint_path
+        and not args.motion_latent_lora_checkpoint
+    ):
         parser.error(
             "Kimodo generators require a semantic adapter condition bank; "
             "pass --kimodo-qwen or --semantic-adapter-checkpoint"
         )
-    if semantic_checkpoint_path:
+    if args.motion_latent_lora_checkpoint:
+        if generator.info.condition_dim != KIMODO_V2_CONDITION_DIM:
+            parser.error("Qwen Motion LoRA requires a 264-dimensional ULA V2 generator")
+        try:
+            condition_builder, motion_text_checkpoint, condition_source, actual_hash = (
+                load_motion_latent_lora_condition_builder(
+                    generator.checkpoint,
+                    args.motion_latent_lora_checkpoint,
+                    device=args.motion_latent_device or args.device,
+                    local_files_only=args.motion_latent_local_files_only,
+                )
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(
+            json.dumps(
+                {
+                    "motion_latent_lora": str(args.motion_latent_lora_checkpoint),
+                    "qwen": motion_text_checkpoint["qwen"],
+                    "best_step": motion_text_checkpoint.get("best_step"),
+                    "validation_metrics": motion_text_checkpoint.get("validation_metrics"),
+                    "condition_source": condition_source,
+                    "checkpoint_sha256": actual_hash,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    elif semantic_checkpoint_path:
         if generator.info.condition_dim not in {KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM}:
             parser.error(
                 f"Qwen semantic adapters require a {KIMODO_CONDITION_DIM}-dimensional Kimodo generator checkpoint"

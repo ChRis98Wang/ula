@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import re
 import struct
+import tempfile
 from pathlib import Path
 
 import mujoco
@@ -41,16 +43,28 @@ def _obj_from_binary_stl(mesh_path, package_root):
     if face_count is None:
         return mesh_path
     output.parent.mkdir(parents=True, exist_ok=True)
-    with mesh_path.open("rb") as source, output.open("w", encoding="ascii") as target:
-        source.seek(84)
-        vertex_index = 1
-        for _ in range(face_count):
-            record = source.read(50)
-            vertices = struct.unpack("<12fH", record)[3:12]
-            for start in (0, 3, 6):
-                target.write(f"v {vertices[start]:.9g} {vertices[start + 1]:.9g} {vertices[start + 2]:.9g}\n")
-            target.write(f"f {vertex_index} {vertex_index + 1} {vertex_index + 2}\n")
-            vertex_index += 3
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.name}.", suffix=".tmp", dir=output.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        with mesh_path.open("rb") as source, temporary.open("w", encoding="ascii") as target:
+            source.seek(84)
+            vertex_index = 1
+            for _ in range(face_count):
+                record = source.read(50)
+                vertices = struct.unpack("<12fH", record)[3:12]
+                for start in (0, 3, 6):
+                    target.write(
+                        f"v {vertices[start]:.9g} {vertices[start + 1]:.9g} "
+                        f"{vertices[start + 2]:.9g}\n"
+                    )
+                target.write(f"f {vertex_index} {vertex_index + 1} {vertex_index + 2}\n")
+                vertex_index += 3
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
     return output
 
 
@@ -100,7 +114,16 @@ def ensure_mujoco_urdf(urdf_path=NEW_URDF_SOURCE, output_path=None):
             text,
             count=1,
         )
-    output_path.write_text(text, encoding="utf-8")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output_path.name}.", suffix=".tmp", dir=output_path.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, output_path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return output_path
 
 

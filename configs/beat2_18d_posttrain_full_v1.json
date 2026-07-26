@@ -1,0 +1,54 @@
+{
+  "audio_policy": "disabled_not_loaded",
+  "initial_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/motionx_ula_v2_18d_head_train_ready_v2_distilled/ula_fm_checkpoint.pt",
+  "beat_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_ula_v2_18d_full_v1/network_semantics/network_semantics.jsonl",
+  "condition_cache": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_ula_v2_18d_full_v1/conditions_qwen_lora_v2.npz",
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_posttrain_full_v1",
+  "kimodo_dataset_dir": "/home/gez/shuaiwang/ula-motion-generate/datasets/kimodo_lerobot_mmdit_lite",
+  "kimodo_split_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/kimodo_motion_latent_v1/motion_latent_checkpoint.pt",
+  "qwen_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/kimodo_qwen_motion_latent_lora_v2/best.pt",
+  "allow_unreviewed": true,
+  "allow_unsafe_condition_cache": false,
+  "allow_unsafe_training_data": true,
+  "training": {
+    "steps": 2000,
+    "batch_size": 16,
+    "validation_batch_size": 32,
+    "phase_frame_choices": [
+      64,
+      96,
+      128
+    ],
+    "lr": 0.00001,
+    "minimum_lr_ratio": 0.1,
+    "warmup_steps": 200,
+    "weight_decay": 0.0001,
+    "adam_eps": 0.000001,
+    "max_grad_norm": 1.0,
+    "ema_decay": 0.9995,
+    "validation_interval": 100,
+    "checkpoint_interval": 100,
+    "log_interval": 25,
+    "replay_evaluation_count": 128,
+    "maximum_replay_regression_fraction": 0.03,
+    "maximum_replay_regression_absolute": 0.02,
+    "early_stopping_patience": 8,
+    "early_stopping_min_delta": 0.0001,
+    "split_fractions": {
+      "train": 0.8,
+      "validation": 0.1,
+      "test": 0.1
+    },
+    "seed": 7,
+    "device": "cuda",
+    "overwrite": false,
+    "allow_unsafe_training_data": true,
+    "loss": {
+      "flow": 1.0,
+      "position": 0.25,
+      "body": 0.1,
+      "velocity": 0.01,
+      "acceleration": 0.0005
+    }
+  }
+}

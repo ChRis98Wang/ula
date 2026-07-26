@@ -40,6 +40,11 @@ def model_from_checkpoint(checkpoint, device, *, strict=True):
             raise RuntimeError(f"checkpoint is missing required keys: {disallowed_missing}")
     if checkpoint.get("action_stats") is not None:
         model.action_stats = checkpoint["action_stats"]
+    model.planner_supervision_contract = dict(
+        checkpoint.get("planner_supervision_contract")
+        or (checkpoint.get("training_contract") or {}).get("planner_supervision")
+        or {}
+    )
     model.to(device)
     return model, checkpoint
 

@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER
+from upper_body_skeleton.retarget_v2_18d import HEAD_JOINT_ORDER
 
 
 DEFAULT_ROWS_PER_FILE = 250_000
@@ -29,6 +30,12 @@ def read_joint_window(csv_path, start_row, end_row):
     rows = []
     with Path(csv_path).open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        fieldnames = set(reader.fieldnames or [])
+        if set(HEAD_JOINT_ORDER).issubset(fieldnames):
+            raise ValueError(
+                "legacy lerobot_export is a strict 15D exporter and will not silently drop "
+                "the three 18D head joints; use the ula_v2_18d_head_v1 export/inference path"
+            )
         for index, row in enumerate(reader):
             if index < start_row:
                 continue

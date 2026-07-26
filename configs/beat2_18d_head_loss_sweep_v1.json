@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "audio_policy": "disabled_not_loaded",
+  "staged_config": "/home/gez/shuaiwang/ula-motion-generate/configs/beat2_18d_from_15d_staged_v1.json",
+  "initial_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_15d_staged_v2_experimental/migrated_from_15d.pt",
+  "beat_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_ula_v2_18d_full_v1/network_semantics/network_semantics.jsonl",
+  "condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_15d_staged_v2_experimental/head_conditions.npz",
+  "output_root": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_head_loss_sweep_v2_experimental",
+  "dataset_source": "beat2_interaction_18d_v1",
+  "allow_unreviewed": true,
+  "allow_unsafe_condition_cache": false,
+  "allow_unsafe_training_data": true,
+  "selection_hard_gates": {
+    "maximum_ratio_to_reference": 1.5,
+    "minimum_range_ratio_to_reference": 0.35,
+    "maximum_range_ratio_to_reference": 2.0,
+    "absolute_maximums": {
+      "high_frequency_rms_degrees": 0.3,
+      "velocity_rms_rad_s": 0.5,
+      "acceleration_rms_rad_s2": 8.0,
+      "peak_abs_acceleration_rad_s2": 20.0,
+      "jerk_rms_rad_s3": 300.0
+    }
+  },
+  "common_training": {
+    "training_policy": "head_projection_only",
+    "steps": 500,
+    "batch_size": 32,
+    "validation_batch_size": 32,
+    "phase_frame_choices": [64, 96, 128],
+    "lr": 0.0003,
+    "minimum_lr_ratio": 0.1,
+    "warmup_steps": 50,
+    "weight_decay": 0.0001,
+    "adam_eps": 0.000001,
+    "max_grad_norm": 1.0,
+    "ema_decay": 0.99,
+    "validation_interval": 250,
+    "checkpoint_interval": 250,
+    "log_interval": 50,
+    "replay_evaluation_count": 128,
+    "maximum_replay_regression_fraction": 0.03,
+    "maximum_replay_regression_absolute": 0.02,
+    "early_stopping_patience": 10,
+    "early_stopping_min_delta": 0.0001,
+    "split_fractions": {
+      "train": 0.8,
+      "validation": 0.1,
+      "test": 0.1
+    },
+    "seed": 7,
+    "device": "cuda",
+    "sampler": {
+      "mode": "source_speaker_activity",
+      "activity_bin_edges_rad_s": [0.12, 0.16, 0.21]
+    }
+  },
+  "candidates": {
+    "current": {
+      "flow": 0.0,
+      "position": 0.0,
+      "body": 1.0,
+      "velocity": 0.0,
+      "acceleration": 0.0,
+      "jerk": 0.0,
+      "head_flow": 1.0,
+      "head_position": 0.25,
+      "head_velocity": 0.002,
+      "head_acceleration": 0.00002,
+      "head_jerk": 0.0000005
+    },
+    "derivative_10x": {
+      "flow": 0.0,
+      "position": 0.0,
+      "body": 1.0,
+      "velocity": 0.0,
+      "acceleration": 0.0,
+      "jerk": 0.0,
+      "head_flow": 1.0,
+      "head_position": 0.25,
+      "head_velocity": 0.02,
+      "head_acceleration": 0.0002,
+      "head_jerk": 0.000005
+    },
+    "strong_smoothing": {
+      "flow": 0.0,
+      "position": 0.0,
+      "body": 1.0,
+      "velocity": 0.0,
+      "acceleration": 0.0,
+      "jerk": 0.0,
+      "head_flow": 1.0,
+      "head_position": 0.25,
+      "head_velocity": 0.02,
+      "head_acceleration": 0.001,
+      "head_jerk": 0.00002
+    }
+  }
+}

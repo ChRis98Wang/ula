@@ -24,6 +24,10 @@ from upper_body_skeleton.kimodo_semantics import (
     kimodo_condition_vectors_sha256,
 )
 from upper_body_skeleton.retarget_v2 import JOINT_LIMITS, JOINT_ORDER
+from upper_body_skeleton.retarget_v2_18d import (
+    JOINT_LIMITS_18D,
+    joint_order_for_action_dim,
+)
 
 
 INTENT_IDS = {"waiting": 0, "explaining": 1, "refusing": 2, "requesting_help": 3, "greeting": 4, "warning": 5}
@@ -241,7 +245,10 @@ def load_lerobot_episodes(dataset_dir, max_episodes=None):
                 "condition": condition_vector(meta),
                 "meta": meta,
                 "task_index": frame_rows[0]["task_index"] if frame_rows else 0,
-                "duration_sec": float(len(actions) / max(1e-6, float(meta.get("fps") or 30.0))),
+                "duration_sec": float(
+                    max(0, len(actions) - 1)
+                    / max(1e-6, float(meta.get("fps") or 30.0))
+                ),
                 "fps": float(meta.get("fps") or 30.0),
                 "transition_id": TRANSITION_IDS["end"],
             }
@@ -361,17 +368,28 @@ class SinusoidalFrameEmbedding(nn.Module):
         super().__init__()
         self.dim = dim
 
-    def forward(self, frame_count, device):
+    def embed_positions(self, positions):
         half = self.dim // 2
         if half == 0:
-            return torch.zeros((frame_count, self.dim), dtype=torch.float32, device=device)
-        positions = torch.linspace(0.0, 1.0, int(frame_count), device=device)
-        freqs = torch.exp(torch.linspace(math.log(1.0), math.log(1000.0), half, device=device))
-        angles = positions[:, None] * freqs[None, :]
+            return torch.zeros(
+                (*positions.shape, self.dim),
+                dtype=torch.float32,
+                device=positions.device,
+            )
+        freqs = torch.exp(
+            torch.linspace(
+                math.log(1.0), math.log(1000.0), half, device=positions.device
+            )
+        )
+        angles = positions[..., None] * freqs
         emb = torch.cat([torch.sin(angles), torch.cos(angles)], dim=-1)
         if emb.shape[-1] < self.dim:
-            emb = torch.cat([emb, torch.zeros_like(emb[:, :1])], dim=-1)
+            emb = torch.cat([emb, torch.zeros_like(emb[..., :1])], dim=-1)
         return emb
+
+    def forward(self, frame_count, device):
+        positions = torch.linspace(0.0, 1.0, int(frame_count), device=device)
+        return self.embed_positions(positions)
 
 
 def stable_sdpa_context(tensor):
@@ -710,8 +728,8 @@ def joint_limit_tensors(device, action_dim, pose_bounds=None):
     lowers = []
     uppers = []
     pose_bounds = pose_bounds or {}
-    for joint in JOINT_ORDER[:action_dim]:
-        lower, upper = JOINT_LIMITS[joint]
+    for joint in joint_order_for_action_dim(action_dim):
+        lower, upper = JOINT_LIMITS_18D[joint]
         if joint in pose_bounds:
             pose_lower, pose_upper = pose_bounds[joint]
             lower = max(float(lower), float(pose_lower))
@@ -770,14 +788,23 @@ def sample_trajectory(
 
 
 def write_generated_csv(path, trajectory, fps=30.0):
+    trajectory = np.asarray(trajectory)
+    if trajectory.ndim != 2:
+        raise ValueError("trajectory must have shape [frames, joints]")
+    joint_order = joint_order_for_action_dim(trajectory.shape[1])
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["time_sec"] + JOINT_ORDER[: trajectory.shape[1]])
+        writer = csv.DictWriter(f, fieldnames=["time_sec"] + joint_order)
         writer.writeheader()
         for frame_index, values in enumerate(trajectory):
             row = {"time_sec": f"{frame_index / float(fps):.6f}"}
-            row.update({joint: f"{float(values[i]):.6f}" for i, joint in enumerate(JOINT_ORDER[: trajectory.shape[1]])})
+            row.update(
+                {
+                    joint: f"{float(values[i]):.6f}"
+                    for i, joint in enumerate(joint_order)
+                }
+            )
             writer.writerow(row)
 
 
@@ -918,7 +945,18 @@ def sample_batch(episodes, batch_size, device):
     selected = random.choices(episodes, k=batch_size)
     actions = torch.tensor(np.stack([episode["actions"] for episode in selected]), dtype=torch.float32, device=device)
     condition = torch.tensor(np.stack([episode["condition"] for episode in selected]), dtype=torch.float32, device=device)
-    duration = torch.tensor([episode.get("duration_sec", episode["actions"].shape[0] / 30.0) for episode in selected], dtype=torch.float32, device=device)
+    duration = torch.tensor(
+        [
+            episode.get(
+                "duration_sec",
+                (episode["actions"].shape[0] - 1)
+                / float(episode.get("fps") or 30.0),
+            )
+            for episode in selected
+        ],
+        dtype=torch.float32,
+        device=device,
+    )
     transition = torch.tensor([episode.get("transition_id", TRANSITION_IDS["end"]) for episode in selected], dtype=torch.long, device=device)
     return actions, condition, duration, transition
 
@@ -932,12 +970,54 @@ def flow_matching_loss(model, actions, condition):
     return torch.mean((pred_v - target_v) ** 2)
 
 
-def planner_loss(model, condition, duration_target, transition_target):
+def planner_duration_loss(model, condition, duration_target):
     plan = model.plan_condition(condition)
     duration_target = duration_target.to(plan["duration_sec"].device, plan["duration_sec"].dtype)
+    return torch.nn.functional.smooth_l1_loss(
+        torch.log1p(plan["duration_sec"]), torch.log1p(duration_target)
+    )
+
+
+def planner_transition_loss(
+    model, condition, transition_target, transition_supervision_mask=None
+):
+    plan = model.plan_condition(condition)
     transition_target = transition_target.to(plan["transition_logits"].device, torch.long)
-    duration = torch.nn.functional.smooth_l1_loss(torch.log1p(plan["duration_sec"]), torch.log1p(duration_target))
-    transition = torch.nn.functional.cross_entropy(plan["transition_logits"], transition_target)
+    if transition_supervision_mask is None:
+        transition_supervision_mask = torch.ones_like(
+            transition_target, dtype=torch.bool
+        )
+    else:
+        transition_supervision_mask = transition_supervision_mask.to(
+            plan["transition_logits"].device, torch.bool
+        )
+    if transition_supervision_mask.shape != transition_target.shape:
+        raise ValueError("transition supervision mask must match transition targets")
+    if not torch.any(transition_supervision_mask):
+        raise ValueError("transition loss requires at least one verified transition label")
+    return torch.nn.functional.cross_entropy(
+        plan["transition_logits"][transition_supervision_mask],
+        transition_target[transition_supervision_mask],
+    )
+
+
+def planner_loss(
+    model,
+    condition,
+    duration_target,
+    transition_target=None,
+    transition_supervision_mask=None,
+):
+    """Backward-compatible joint loss; transition supervision is optional."""
+    duration = planner_duration_loss(model, condition, duration_target)
+    if transition_target is None:
+        return duration
+    transition = planner_transition_loss(
+        model,
+        condition,
+        transition_target,
+        transition_supervision_mask=transition_supervision_mask,
+    )
     return duration + 0.25 * transition
 
 
@@ -1087,6 +1167,37 @@ def train_steps(
             )
             print(json.dumps({"preview": summary["preview_mp4"], "step": step}), flush=True)
     return losses
+
+
+def sample_span_to_frame_count(sample_span_sec, fps):
+    """Convert an inclusive endpoint sample span to its 30 Hz-style frame count."""
+    sample_span_sec = float(sample_span_sec)
+    fps = float(fps)
+    if not math.isfinite(sample_span_sec) or sample_span_sec < 0.0:
+        raise ValueError("sample_span_sec must be finite and non-negative")
+    if not math.isfinite(fps) or fps <= 0.0:
+        raise ValueError("fps must be finite and positive")
+    return max(2, int(round(sample_span_sec * fps)) + 1)
+
+
+def frame_count_to_sample_span(frame_count, fps):
+    frame_count = int(frame_count)
+    fps = float(fps)
+    if frame_count < 2:
+        raise ValueError("frame_count must be at least 2")
+    if not math.isfinite(fps) or fps <= 0.0:
+        raise ValueError("fps must be finite and positive")
+    return float((frame_count - 1) / fps)
+
+
+def frame_count_to_coverage(frame_count, fps):
+    frame_count = int(frame_count)
+    fps = float(fps)
+    if frame_count < 1:
+        raise ValueError("frame_count must be positive")
+    if not math.isfinite(fps) or fps <= 0.0:
+        raise ValueError("fps must be finite and positive")
+    return float(frame_count / fps)
 
 
 def choose_device(requested):

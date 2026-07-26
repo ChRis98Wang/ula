@@ -27,6 +27,7 @@ V2_STYLE_BANK_CONTRACT_VERSION = 1
 V2_STYLE_CONTRACT_VERSION = 1
 V2_PROTOTYPE_CONTRACT_VERSION = 1
 V2_CONDITION_CONTRACT_VERSION = 1
+V2_TEXT_MOTION_CONTRACT_VERSION = 1
 STYLE_FEATURE_NAMES = ("signed_arm_balance", "log_arm_amplitude", "log_arm_speed")
 _SPLIT_NAMES = ("train", "validation", "test")
 _LEFT_ARM_INDICES = np.asarray(
@@ -462,8 +463,10 @@ def trim_episode(episode, *, active_window_contract=None):
     item["activity_threshold_rad_s"] = float(window["activity_threshold_rad_s"])
     item["peak_activity_rad_s"] = float(window["peak_activity_rad_s"])
     item["frame_count"] = int(item["actions"].shape[0])
-    item["effective_duration_sec"] = float((item["active_end"] - item["active_start"]) / fps)
-    item["duration_sec"] = float(item["frame_count"] / fps)
+    item["effective_duration_sec"] = float(
+        max(0, item["active_end"] - item["active_start"] - 1) / fps
+    )
+    item["duration_sec"] = float(max(0, item["frame_count"] - 1) / fps)
     item["duration_censored_start"] = bool(item["active_start"] == 0)
     item["duration_censored_end"] = bool(item["active_end"] == item["original_frame_count"])
     item["duration_supervision_valid"] = bool(
@@ -496,7 +499,7 @@ def build_duration_contract(train_episodes, active_window_contract):
             "fixed_frame_count": None,
             "trajectory_representation": "native_trimmed_frames",
             "batching_policy": "phase_normalized_multi_resolution_resampling",
-            "duration_formula": "frame_count/fps",
+            "duration_formula": "max(0,frame_count-1)/fps",
             "duration_supervision_policy": "exclude_near_static_and_window_boundary_censored_episodes",
             "duration_supervision_episode_count": len(valid_duration_episodes),
             "duration_supervision_sec": None
@@ -745,7 +748,15 @@ def motion_prototype_for_semantic(prototype_contract, behavior_id, emotion_id):
     return prototype.copy()
 
 
-def assemble_v2_condition(base_condition, *, behavior_id, emotion_id, prototype_contract, style_controls=None):
+def assemble_v2_condition(
+    base_condition,
+    *,
+    behavior_id,
+    emotion_id,
+    prototype_contract,
+    style_controls=None,
+    motion_latent=None,
+):
     base_dim, latent_dim, v2_dim = _condition_dimensions()
     base = np.asarray(base_condition, dtype=np.float32).copy()
     if base.shape != (base_dim,) or not np.isfinite(base).all():
@@ -756,11 +767,18 @@ def assemble_v2_condition(base_condition, *, behavior_id, emotion_id, prototype_
         controls = np.asarray(style_controls, dtype=np.float32)
     if controls.shape != (len(STYLE_FEATURE_NAMES),) or not np.isfinite(controls).all():
         raise ValueError("V2 style controls must be a finite vector with shape [3]")
-    prototype = motion_prototype_for_semantic(prototype_contract, behavior_id, emotion_id)
-    if prototype.shape != (latent_dim,):
-        raise ValueError(f"V2 motion prototype must have shape [{latent_dim}]")
+    if motion_latent is None:
+        latent = motion_prototype_for_semantic(prototype_contract, behavior_id, emotion_id)
+    else:
+        latent = np.asarray(motion_latent, dtype=np.float32)
+        if latent.shape != (latent_dim,) or not np.isfinite(latent).all():
+            raise ValueError(f"V2 text-motion latent must be finite with shape [{latent_dim}]")
+        norm = float(np.linalg.norm(latent))
+        if norm <= 1e-8:
+            raise ValueError("V2 text-motion latent must have non-zero norm")
+        latent = latent / norm
     base[-len(STYLE_FEATURE_NAMES) :] = controls
-    condition = np.concatenate([base, prototype]).astype(np.float32)
+    condition = np.concatenate([base, latent]).astype(np.float32)
     if condition.shape != (v2_dim,) or not np.isfinite(condition).all():
         raise ValueError(f"assembled V2 condition must be a finite vector with shape [{v2_dim}]")
     return condition
@@ -812,6 +830,8 @@ def prepare_v2_episode_splits(
     default_fps=30.0,
     style_clip=5.0,
     active_window_contract=None,
+    text_motion_encoder=None,
+    text_motion_source=None,
 ):
     """Build leakage-safe V2 train/validation/test episodes and serializable contracts."""
     source_episodes = _load_dataset_episodes(dataset_dir) if episodes is None else list(episodes)
@@ -845,6 +865,40 @@ def prepare_v2_episode_splits(
         cleaned_splits["train"], split_checkpoint, device=device
     )
     base_dim, latent_dim, v2_dim = _condition_dimensions()
+    text_motion_contract = None
+    text_motion_latents = {}
+    if text_motion_encoder is not None:
+        if not isinstance(text_motion_source, dict):
+            raise ValueError("text_motion_source is required with text_motion_encoder")
+        episode_text = {}
+        for split_name in _SPLIT_NAMES:
+            for episode in cleaned_splits[split_name]:
+                text = str((episode.get("meta") or {}).get("language_instruction") or "").strip()
+                if not text:
+                    raise ValueError(f"episode {_episode_id(episode)} has no language_instruction for LoRA conditioning")
+                episode_text[_episode_id(episode)] = text
+        unique_texts = sorted(set(episode_text.values()))
+        encoded = np.asarray(text_motion_encoder(unique_texts), dtype=np.float32)
+        if encoded.shape != (len(unique_texts), latent_dim) or not np.isfinite(encoded).all():
+            raise ValueError(
+                f"text_motion_encoder must return finite shape [{len(unique_texts)}, {latent_dim}]"
+            )
+        text_to_latent = {text: encoded[index] for index, text in enumerate(unique_texts)}
+        text_motion_latents = {
+            episode_id: text_to_latent[text] for episode_id, text in episode_text.items()
+        }
+        text_motion_contract = _contract_with_hash(
+            {
+                "contract_type": "ula_v2_qwen_lora_text_motion_latent",
+                "contract_version": V2_TEXT_MOTION_CONTRACT_VERSION,
+                "latent_dim": latent_dim,
+                "l2_normalized": True,
+                "text_field": "language_instruction",
+                "episode_count": len(episode_text),
+                "unique_text_count": len(unique_texts),
+                "source": dict(text_motion_source),
+            }
+        )
     for split_name in _SPLIT_NAMES:
         for episode in cleaned_splits[split_name]:
             style_features = extract_style_features(episode["actions"], fps=episode["fps"])
@@ -852,12 +906,16 @@ def prepare_v2_episode_splits(
             behavior_id, emotion_id = _semantic_key(episode)
             episode["style_features"] = style_features
             episode["style_controls"] = style_controls
+            motion_latent = text_motion_latents.get(_episode_id(episode))
+            if motion_latent is not None:
+                episode["text_motion_latent"] = np.asarray(motion_latent, dtype=np.float32)
             episode["condition"] = assemble_v2_condition(
                 _base_condition(episode, base_dim),
                 behavior_id=behavior_id,
                 emotion_id=emotion_id,
                 prototype_contract=prototype_contract,
                 style_controls=style_controls,
+                motion_latent=motion_latent,
             )
     style_bank_contract = build_style_bank_contract(cleaned_splits["train"])
 
@@ -870,7 +928,13 @@ def prepare_v2_episode_splits(
             "motion_latent_dim": latent_dim,
             "layout": [
                 {"name": "kimodo_base_with_style_controls", "start": 0, "end": base_dim},
-                {"name": "train_group_motion_prototype", "start": base_dim, "end": v2_dim},
+                {
+                    "name": "qwen_lora_text_motion_latent"
+                    if text_motion_contract is not None
+                    else "train_group_motion_prototype",
+                    "start": base_dim,
+                    "end": v2_dim,
+                },
             ],
             "style_control_indices": [base_dim - 3, base_dim - 2, base_dim - 1],
             "default_inference_style_controls": [0.0, 0.0, 0.0],
@@ -881,6 +945,9 @@ def prepare_v2_episode_splits(
             "style_contract_sha256": style_contract["sha256"],
             "style_bank_contract_sha256": style_bank_contract["sha256"],
             "prototype_contract_sha256": prototype_contract["sha256"],
+            "text_motion_contract_sha256": None
+            if text_motion_contract is None
+            else text_motion_contract["sha256"],
         }
     )
     contracts = {
@@ -894,6 +961,8 @@ def prepare_v2_episode_splits(
         "motion_prototypes": prototype_contract,
         "condition": condition_contract,
     }
+    if text_motion_contract is not None:
+        contracts["text_motion_latent"] = text_motion_contract
     contracts["sha256"] = hashlib.sha256(_canonical_json(contracts).encode("ascii")).hexdigest()
     return (
         cleaned_splits["train"],
@@ -905,6 +974,7 @@ def prepare_v2_episode_splits(
 
 __all__ = [
     "STYLE_FEATURE_NAMES",
+    "V2_TEXT_MOTION_CONTRACT_VERSION",
     "assemble_v2_condition",
     "build_active_window_contract",
     "build_duration_contract",

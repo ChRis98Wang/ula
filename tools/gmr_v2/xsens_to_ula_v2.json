@@ -1,0 +1,33 @@
+{
+  "robot_root_name": "link_leg2pelvis",
+  "human_root_name": "Chest4",
+  "ground_height": 0.0,
+  "human_height_assumption": 1.0,
+  "use_ik_match_table1": true,
+  "use_ik_match_table2": false,
+  "human_scale_table": {
+    "Chest4": 1.0,
+    "LeftElbow": 1.0,
+    "LeftWrist": 1.0,
+    "RightElbow": 1.0,
+    "RightWrist": 1.0
+  },
+  "ik_match_table1": {
+    "link_torso": [
+      "Chest4", 0.0, 4.0, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]
+    ],
+    "link_lElbow": [
+      "LeftElbow", 30.0, 0.0, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]
+    ],
+    "link_lWristPitch": [
+      "LeftWrist", 40.0, 1.5, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]
+    ],
+    "link_rElbow": [
+      "RightElbow", 30.0, 0.0, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]
+    ],
+    "link_rWristPitch": [
+      "RightWrist", 40.0, 1.5, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]
+    ]
+  },
+  "ik_match_table2": {}
+}

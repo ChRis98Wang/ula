@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager
 from copy import deepcopy
+import gc
 import hashlib
 import json
 import math
@@ -67,6 +68,9 @@ DEFAULT_CONFIG = {
     "style_clip": 5.0,
     "overwrite": False,
     "resume_from": None,
+    "text_motion_checkpoint": None,
+    "text_motion_batch_size": 16,
+    "text_motion_local_files_only": True,
     "loss": {
         "flow": 1.0,
         "position": 0.25,
@@ -117,7 +121,15 @@ def resolve_v2_config(config):
     resolved["loss"] = dict(DEFAULT_CONFIG["loss"] | dict(config.get("loss") or {}))
     if resolved["architecture"] != ULA_MMDIT_V2_ARCHITECTURE:
         raise ValueError(f"ULA V2 training requires architecture={ULA_MMDIT_V2_ARCHITECTURE}")
-    for name in ("steps", "batch_size", "hidden_dim", "layers", "semantic_tokens", "validation_batch_size"):
+    for name in (
+        "steps",
+        "batch_size",
+        "hidden_dim",
+        "layers",
+        "semantic_tokens",
+        "validation_batch_size",
+        "text_motion_batch_size",
+    ):
         resolved[name] = int(resolved[name])
         if resolved[name] <= 0:
             raise ValueError(f"{name} must be positive")
@@ -148,6 +160,12 @@ def resolve_v2_config(config):
         if not math.isfinite(value) or value < 0:
             raise ValueError(f"loss.{name} must be finite and non-negative")
         resolved["loss"][name] = value
+    resolved["text_motion_checkpoint"] = (
+        None
+        if resolved["text_motion_checkpoint"] in (None, "")
+        else str(resolved["text_motion_checkpoint"])
+    )
+    resolved["text_motion_local_files_only"] = bool(resolved["text_motion_local_files_only"])
     return resolved
 
 
@@ -257,13 +275,29 @@ class ModelEMA:
             model.load_state_dict(backup, strict=True)
 
 
+def _episode_sample_span_sec(episode):
+    fps = float(episode.get("fps") or 30.0)
+    source_frames = int(np.asarray(episode["actions"]).shape[0])
+    if not math.isfinite(fps) or fps <= 0.0 or source_frames < 2:
+        raise ValueError("planner duration requires at least two frames and positive fps")
+    sample_span = float((source_frames - 1) / fps)
+    declared = episode.get("duration_sec")
+    if declared is not None:
+        declared = float(declared)
+        if not math.isfinite(declared) or not math.isclose(
+            declared, sample_span, rel_tol=0.0, abs_tol=1e-6
+        ):
+            raise ValueError(
+                "duration_sec must equal (frame_count-1)/fps; N/fps frame coverage "
+                "cannot be a planner target"
+            )
+    return sample_span
+
+
 def _batch_tensors(episodes, *, frame_count, device):
     actions = np.stack([resample_motion_phase(episode["actions"], frame_count) for episode in episodes])
     conditions = np.stack([episode["condition"] for episode in episodes])
-    durations = [
-        float(episode.get("duration_sec") or episode.get("effective_duration_sec") or len(episode["actions"]) / float(episode.get("fps") or 30.0))
-        for episode in episodes
-    ]
+    durations = [_episode_sample_span_sec(episode) for episode in episodes]
     duration_mask = [float(episode.get("duration_supervision_valid", True)) for episode in episodes]
     return (
         torch.as_tensor(actions, dtype=torch.float32, device=device),
@@ -548,6 +582,36 @@ def train_ula_v2(config):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     device = torch.device(choose_device(str(config["device"])))
+    text_motion_encoder = None
+    text_motion_source = None
+    loaded_text_encoder = None
+    if config["text_motion_checkpoint"] is not None:
+        from upper_body_skeleton.cross_modal_latent import load_qwen_motion_text_encoder
+
+        loaded_text_encoder, text_motion_checkpoint = load_qwen_motion_text_encoder(
+            config["text_motion_checkpoint"],
+            device=device,
+            local_files_only=config["text_motion_local_files_only"],
+        )
+        text_motion_encoder = lambda texts: loaded_text_encoder.encode(
+            texts, batch_size=config["text_motion_batch_size"]
+        )
+        text_motion_source = {
+            "checkpoint_sha256": _sha256_file(config["text_motion_checkpoint"]),
+            "artifact_kind": text_motion_checkpoint["artifact_kind"],
+            "global_step": int(text_motion_checkpoint["global_step"]),
+            "best_step": int(text_motion_checkpoint["best_step"]),
+            "model_name": str(text_motion_checkpoint["qwen"]["model_name"]),
+            "revision": str(text_motion_checkpoint["qwen"]["revision"]),
+            "latent_dim": int(text_motion_checkpoint["config"]["latent_dim"]),
+        }
+
+    # Optional Qwen loading must not change the baseline data/model RNG sequence.
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if device.type == "cuda":
+        torch.cuda.manual_seed_all(seed)
     train_raw, validation_raw, test_raw, contracts = prepare_v2_episode_splits(
         config["dataset_dir"],
         config["split_checkpoint"],
@@ -555,7 +619,15 @@ def train_ula_v2(config):
         max_velocity_rad_s=config["max_velocity_rad_s"],
         smooth_window=config["smooth_window"],
         style_clip=config["style_clip"],
+        text_motion_encoder=text_motion_encoder,
+        text_motion_source=text_motion_source,
     )
+    if loaded_text_encoder is not None:
+        del text_motion_encoder
+        del loaded_text_encoder
+        gc.collect()
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
     action_stats = compute_action_normalization_stats(train_raw)
     train_episodes = normalize_episode_actions(train_raw, action_stats)
     validation_episodes = normalize_episode_actions(validation_raw, action_stats)
@@ -590,6 +662,8 @@ def train_ula_v2(config):
         "semantic_index_sha256": _sha256_file(dataset_semantic_path),
         "split_checkpoint_sha256": _sha256_file(config["split_checkpoint"]),
     }
+    if config["text_motion_checkpoint"] is not None:
+        sources["text_motion_checkpoint_sha256"] = _sha256_file(config["text_motion_checkpoint"])
     base_contract = _base_condition_contract(train_raw, config["dataset_dir"])
     global_step = 0
     best_step = 0
@@ -774,7 +848,8 @@ def train_ula_v2(config):
         "steps": int(config["steps"]),
         "best_step": int(best_step),
         "best_validation_loss": float(best_validation_loss),
-        "best_validation": validation_metrics,
+        "best_validation": dict(best_checkpoint.get("validation_metrics") or {}),
+        "final_validation": validation_metrics,
         "test": test_metrics,
         "last_train": last_train_losses,
         "sources": sources,

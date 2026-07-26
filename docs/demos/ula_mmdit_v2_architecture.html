@@ -255,6 +255,12 @@
       border-top: 1px solid #cfd6d2;
     }
 
+    html[data-active-view="overview"] .sidebar-section,
+    html[data-active-view="evaluation"] .sidebar-section,
+    html[data-active-view="source"] .sidebar-section {
+      display: none;
+    }
+
     .segmented {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -403,6 +409,12 @@
       font-size: 20px;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
+    }
+
+    .metric-cell strong span {
+      display: inline;
+      color: inherit;
+      font-size: inherit;
     }
 
     .metric-cell span {
@@ -878,7 +890,7 @@
 
     .heatmap {
       display: grid;
-      grid-template-columns: repeat(18, 1fr);
+      grid-template-columns: repeat(15, 1fr);
       gap: 2px;
       aspect-ratio: 1;
       padding: 5px;
@@ -1028,6 +1040,402 @@
       color: var(--muted);
       font-size: 10px;
       line-height: 1.55;
+    }
+
+    .architecture-boundary {
+      margin: 0 0 16px;
+      padding: 13px 15px;
+      color: #32423a;
+      background: #edf4f0;
+      border-left: 4px solid var(--green);
+      font-size: 11px;
+      line-height: 1.7;
+    }
+
+    .architecture-boundary strong {
+      color: var(--green);
+    }
+
+    .version-switchbar {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .version-switch-copy strong,
+    .version-switch-copy span {
+      display: block;
+    }
+
+    .version-switch-copy strong {
+      font-size: 12px;
+    }
+
+    .version-switch-copy span {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .version-toggle {
+      flex: 0 0 min(360px, 45%);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 3px;
+      background: #e7ebe9;
+      border-radius: var(--radius);
+    }
+
+    .version-button {
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 0;
+      border-radius: 4px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .version-button[aria-pressed="true"] {
+      color: var(--teal);
+      background: #fff;
+      box-shadow: 0 2px 7px rgba(24, 36, 31, 0.09);
+    }
+
+    [data-version-panel][hidden] {
+      display: none;
+    }
+
+    .variant-matrix {
+      margin-bottom: 16px;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .variant-matrix-head {
+      padding: 13px 15px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .variant-matrix-head h2 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .variant-matrix-head p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .variant-matrix-scroll {
+      overflow-x: auto;
+    }
+
+    .variant-table {
+      min-width: 760px;
+      table-layout: fixed;
+    }
+
+    .variant-table th:first-child,
+    .variant-table td:first-child {
+      width: 22%;
+    }
+
+    .variant-table th:nth-child(2) {
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .variant-table th:nth-child(3) {
+      color: var(--violet);
+      background: var(--violet-soft);
+    }
+
+    .variant-table td {
+      vertical-align: top;
+      line-height: 1.55;
+    }
+
+    .variant-table td:first-child {
+      color: var(--ink);
+      background: #f7f9f8;
+      font-weight: 850;
+    }
+
+    .variant-table code {
+      color: var(--teal);
+      font-size: 9px;
+      overflow-wrap: anywhere;
+    }
+
+    .variant-table strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .variant-table .same-row td:not(:first-child) {
+      color: var(--green);
+      background: #f6fbf8;
+    }
+
+    .variant-table .incompatible-row td:not(:first-child) {
+      color: #7a3d43;
+      background: #fff8f8;
+    }
+
+    .dataflow-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .pipeline-diagram {
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .pipeline-heading {
+      min-height: 70px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .pipeline-heading-main {
+      min-width: 0;
+    }
+
+    .pipeline-heading h2 {
+      margin: 2px 0 0;
+      font-size: 17px;
+    }
+
+    .pipeline-heading p {
+      max-width: 680px;
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.55;
+    }
+
+    .pipeline-stage-id {
+      color: var(--teal);
+      font-size: 9px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .state-legend {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .state-key,
+    .node-state {
+      display: inline-flex;
+      align-items: center;
+      min-height: 21px;
+      padding: 3px 6px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      color: var(--muted);
+      background: #f7f9f8;
+      font-size: 7px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .state-key.trainable,
+    .node-state.trainable {
+      color: #5b427f;
+      background: var(--violet-soft);
+      border-color: #d5cdef;
+    }
+
+    .state-key.frozen,
+    .node-state.frozen {
+      color: #42606a;
+      background: #edf2f3;
+      border-color: #d1dcdf;
+    }
+
+    .state-key.offline,
+    .node-state.offline {
+      color: #76500d;
+      background: var(--amber-soft);
+      border-color: #e7c98f;
+    }
+
+    .pipeline-scroll {
+      overflow-x: auto;
+      padding: 16px;
+    }
+
+    .branched-flow {
+      min-width: 1080px;
+      display: grid;
+      grid-template-columns: 0.86fr 1.32fr 0.92fr 1.16fr 0.92fr 0.82fr;
+      grid-template-rows: minmax(142px, auto) minmax(142px, auto);
+      gap: 12px 26px;
+      align-items: stretch;
+    }
+
+    .linear-flow {
+      min-width: 1080px;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 26px;
+      align-items: stretch;
+    }
+
+    .data-node {
+      --node-color: var(--teal);
+      position: relative;
+      min-width: 0;
+      min-height: 136px;
+      padding: 11px;
+      background: #fafbfa;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--node-color);
+      border-radius: 4px;
+    }
+
+    .data-node.text-tone { --node-color: var(--blue); background: #f7faff; }
+    .data-node.motion-tone { --node-color: var(--teal); background: #f5fbfb; }
+    .data-node.lora-tone { --node-color: var(--violet); background: #f8f6ff; }
+    .data-node.loss-tone { --node-color: var(--coral); background: #fff8f8; }
+    .data-node.update-tone { --node-color: var(--green); background: #f5fbf7; }
+    .data-node.artifact-tone { --node-color: var(--amber); background: #fffbf4; }
+
+    .data-node:not(.terminal)::after {
+      content: "\2192";
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      right: -22px;
+      width: 18px;
+      transform: translateY(-50%);
+      color: var(--node-color);
+      font-size: 17px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .branched-flow .text-input { grid-column: 1; grid-row: 1; }
+    .branched-flow .text-encoder { grid-column: 2; grid-row: 1; }
+    .branched-flow .text-output { grid-column: 3; grid-row: 1; }
+    .branched-flow .motion-input { grid-column: 1; grid-row: 2; }
+    .branched-flow .motion-encoder { grid-column: 2; grid-row: 2; }
+    .branched-flow .motion-output { grid-column: 3; grid-row: 2; }
+    .branched-flow .merge-node { grid-column: 4; grid-row: 1 / 3; }
+    .branched-flow .update-node { grid-column: 5; grid-row: 1 / 3; }
+    .branched-flow .artifact-node { grid-column: 6; grid-row: 1 / 3; }
+
+    .data-node-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 7px;
+      margin-bottom: 9px;
+    }
+
+    .data-node-index {
+      color: var(--node-color);
+      font-size: 8px;
+      font-weight: 900;
+    }
+
+    .data-node h3 {
+      margin: 0 0 5px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .data-node > code {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--node-color);
+      font-size: 8px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .node-lines {
+      display: grid;
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    .node-lines span {
+      display: block;
+      padding-top: 5px;
+      color: var(--muted);
+      border-top: 1px solid color-mix(in srgb, var(--node-color) 16%, transparent);
+      font-size: 8px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .node-lines strong {
+      color: var(--ink);
+      font-size: inherit;
+    }
+
+    .node-source {
+      display: block;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 7px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .node-source a {
+      color: var(--teal);
+      text-decoration-color: #9bc5ca;
+      text-underline-offset: 2px;
+    }
+
+    .pipeline-foot {
+      padding: 10px 16px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      background: #f7f9f8;
+      border-top: 1px solid var(--line);
+    }
+
+    .pipeline-foot span {
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.5;
+    }
+
+    .pipeline-foot strong {
+      color: var(--ink);
+    }
+
+    .training-objective-block {
+      margin-top: 16px;
     }
 
     .notice {
@@ -1213,6 +1621,1919 @@
       font-size: 9px;
     }
 
+    .flow-canvas {
+      overflow-x: auto;
+      padding: 0 0 6px;
+    }
+
+    .flow-board {
+      min-width: 1110px;
+      display: grid;
+      grid-template-columns:
+        minmax(150px, 0.9fr) 28px
+        minmax(168px, 1fr) 28px
+        minmax(158px, 0.95fr) 28px
+        minmax(150px, 0.88fr) 28px
+        minmax(190px, 1.12fr) 28px
+        minmax(155px, 0.9fr);
+      align-items: stretch;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .flow-stage {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: 38px minmax(190px, auto) minmax(190px, auto);
+      gap: 8px;
+    }
+
+    .flow-stage.fused-stage {
+      grid-template-rows: 38px 1fr;
+    }
+
+    .flow-stage-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .flow-stage-index {
+      flex: 0 0 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--ink);
+      border-radius: 50%;
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    .flow-stage-head strong,
+    .flow-stage-head span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .flow-stage-head strong {
+      font-size: 11px;
+    }
+
+    .flow-stage-head span {
+      color: var(--muted);
+      font-size: 8px;
+      text-transform: uppercase;
+    }
+
+    .flow-node {
+      min-width: 0;
+      padding: 11px;
+      background: #fafbfa;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--lane-color, var(--teal));
+      border-radius: var(--radius);
+    }
+
+    .flow-node.semantic-lane {
+      --lane-color: var(--amber);
+      background: #fffbf4;
+    }
+
+    .flow-node.motion-lane {
+      --lane-color: var(--teal);
+      background: #f4fafb;
+    }
+
+    .flow-node.fusion-lane {
+      --lane-color: var(--violet);
+      background: #f8f6ff;
+    }
+
+    .flow-node.output-lane {
+      --lane-color: var(--coral);
+      background: #fff8f8;
+    }
+
+    .lane-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 10px;
+      color: var(--lane-color, var(--teal));
+      font-size: 8px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .lane-name i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+    }
+
+    .flow-node h3 {
+      margin: 0 0 5px;
+      font-size: 13px;
+    }
+
+    .flow-shape {
+      display: inline-block;
+      margin-bottom: 10px;
+      color: #2e3a34;
+      font-size: 9px;
+      font-weight: 850;
+    }
+
+    .flow-copy {
+      margin: 0;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.55;
+    }
+
+    .text-sample {
+      margin: 1px 0 8px;
+      padding: 9px 8px;
+      color: #3f4d59;
+      background: #fff;
+      border: 1px solid #d7e0e8;
+      border-left: 3px solid var(--blue);
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 750;
+      line-height: 1.5;
+    }
+
+    .adapter-strip {
+      margin-bottom: 8px;
+      padding: 7px 8px;
+      color: #6b480f;
+      background: var(--amber-soft);
+      border: 1px solid #ecd6ad;
+      border-radius: 3px;
+    }
+
+    .adapter-strip strong,
+    .adapter-strip span {
+      display: block;
+    }
+
+    .adapter-strip strong {
+      font-size: 8px;
+    }
+
+    .adapter-strip span {
+      margin-top: 2px;
+      color: #806b48;
+      font-size: 7px;
+      line-height: 1.45;
+    }
+
+    .condition-slices {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 2px;
+      height: 28px;
+      margin: 10px 0;
+    }
+
+    .condition-slices i {
+      min-width: 0;
+      border-radius: 2px;
+      background: var(--slice-color);
+    }
+
+    .condition-slices .legacy { grid-column: span 4; --slice-color: var(--blue); }
+    .condition-slices .behavior { grid-column: span 2; --slice-color: var(--amber); }
+    .condition-slices .emotion { grid-column: span 1; --slice-color: var(--coral); }
+    .condition-slices .family { grid-column: span 1; --slice-color: #d68c24; }
+    .condition-slices .style { grid-column: span 1; --slice-color: var(--green); }
+    .condition-slices .prototype { grid-column: span 3; --slice-color: var(--violet); }
+
+    .slice-legend {
+      display: grid;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1.35;
+    }
+
+    .tensor-source-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      margin: 10px 0;
+    }
+
+    .tensor-source {
+      min-height: 45px;
+      padding: 6px;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      border: 1px solid #cfe0e2;
+      border-radius: 4px;
+      text-align: center;
+      font-size: 8px;
+      font-weight: 850;
+    }
+
+    .tensor-source.wide {
+      grid-column: 1 / -1;
+    }
+
+    .split-stack,
+    .projection-stack,
+    .mini-token-stack {
+      display: grid;
+      gap: 4px;
+      margin: 9px 0;
+    }
+
+    .split-row,
+    .projection-row {
+      min-height: 21px;
+      padding: 3px 5px;
+      display: flex;
+      justify-content: space-between;
+      gap: 5px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid #eadcc5;
+      border-left: 3px solid var(--row-color, var(--amber));
+      border-radius: 3px;
+      color: #554c3c;
+      font-size: 7px;
+    }
+
+    .projection-row {
+      border-color: #d9d4ea;
+      border-left-color: var(--row-color, var(--violet));
+      color: #4d4567;
+    }
+
+    .split-row strong,
+    .projection-row strong {
+      font-size: 8px;
+    }
+
+    .equation-panel {
+      margin: 10px 0;
+      padding: 9px;
+      color: #34443d;
+      background: #fff;
+      border: 1px solid #cfe0e2;
+      border-left: 3px solid var(--teal);
+      border-radius: 3px;
+      font-size: 8px;
+      line-height: 1.75;
+    }
+
+    .token-mini-rack {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      margin: 10px 0;
+    }
+
+    .token-mini-rack i {
+      min-height: 34px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--rack-color, var(--violet));
+      border-radius: 2px;
+      font-size: 6px;
+      font-style: normal;
+      font-weight: 900;
+    }
+
+    .motion-rack {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 3px;
+      margin: 10px 0;
+    }
+
+    .motion-rack i {
+      min-height: 34px;
+      background: #82bcc3;
+      border-radius: 2px;
+    }
+
+    .motion-rack i:nth-child(even) {
+      background: #b1d4d8;
+    }
+
+    .concat-display {
+      min-height: 170px;
+      display: grid;
+      grid-template-rows: 7fr 12fr;
+      gap: 5px;
+      margin: 13px 0;
+    }
+
+    .concat-section {
+      display: grid;
+      place-items: center;
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+      font-size: 8px;
+      font-weight: 900;
+    }
+
+    .concat-section:first-child {
+      color: #4a3f77;
+      background: var(--violet-soft);
+      border: 1px solid #d4ccef;
+    }
+
+    .concat-section:last-child {
+      color: #075665;
+      background: var(--teal-soft);
+      border: 1px solid #b9dade;
+    }
+
+    .block-detail-stack {
+      display: grid;
+      gap: 5px;
+      margin: 10px 0;
+    }
+
+    .block-layer {
+      padding: 6px;
+      background: #fff;
+      border: 1px solid #d9d4ea;
+      border-radius: 3px;
+    }
+
+    .block-layer strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--violet);
+      font-size: 8px;
+    }
+
+    .block-ops {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+    }
+
+    .block-ops span {
+      min-height: 22px;
+      display: grid;
+      place-items: center;
+      padding: 2px;
+      color: #51486f;
+      background: #f1eefb;
+      border-radius: 2px;
+      text-align: center;
+      font-size: 5px;
+      font-weight: 850;
+    }
+
+    .remaining-layers {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 3px;
+    }
+
+    .remaining-layers span {
+      min-height: 30px;
+      display: grid;
+      place-items: center;
+      color: #51486f;
+      background: #fff;
+      border: 1px solid #d9d4ea;
+      border-radius: 3px;
+      font-size: 7px;
+      font-weight: 900;
+    }
+
+    .output-stack {
+      display: grid;
+      gap: 6px;
+      margin: 10px 0;
+    }
+
+    .output-step {
+      min-height: 42px;
+      padding: 7px;
+      display: grid;
+      align-content: center;
+      background: #fff;
+      border: 1px solid #ecd6d8;
+      border-radius: 3px;
+    }
+
+    .output-step strong,
+    .output-step span {
+      display: block;
+    }
+
+    .output-step strong {
+      color: var(--coral);
+      font-size: 8px;
+    }
+
+    .output-step span {
+      color: var(--muted);
+      font-size: 7px;
+    }
+
+    .signal-rail {
+      position: relative;
+      min-width: 28px;
+      overflow: hidden;
+    }
+
+    .signal-rail::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 2px;
+      right: 2px;
+      height: 2px;
+      transform: translateY(-1px);
+      background: #c8d1cd;
+    }
+
+    .signal-rail::after {
+      content: "";
+      position: absolute;
+      top: calc(50% - 4px);
+      left: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--rail-color, var(--teal));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--rail-color, var(--teal)) 16%, transparent);
+      animation: signalTravel 1.8s linear infinite;
+    }
+
+    .signal-rail.semantic-rail {
+      --rail-color: var(--amber);
+    }
+
+    .signal-rail.fusion-rail {
+      --rail-color: var(--violet);
+    }
+
+    .signal-rail.dual::before,
+    .signal-rail.dual::after {
+      display: none;
+    }
+
+    .rail-track {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      top: 31%;
+      height: 2px;
+      background: #d9cdb9;
+    }
+
+    .rail-track.motion-track {
+      top: 70%;
+      background: #bfd6d9;
+    }
+
+    .rail-track i {
+      position: absolute;
+      top: -3px;
+      left: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 0 3px rgba(166, 91, 5, 0.12);
+      animation: railTrackTravel 1.8s linear infinite;
+    }
+
+    .rail-track.motion-track i {
+      background: var(--teal);
+      box-shadow: 0 0 0 3px rgba(8, 116, 133, 0.12);
+      animation-delay: -0.75s;
+    }
+
+    .rail-track em {
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 6px;
+      font-style: normal;
+      white-space: nowrap;
+    }
+
+    .rail-track.motion-track em {
+      top: 5px;
+    }
+
+    .rail-shape {
+      position: absolute;
+      top: calc(50% - 23px);
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 6px;
+      white-space: nowrap;
+    }
+
+    @keyframes signalTravel {
+      from { transform: translateX(-8px); }
+      to { transform: translateX(32px); }
+    }
+
+    @keyframes railTrackTravel {
+      from { transform: translateX(-8px); }
+      to { transform: translateX(28px); }
+    }
+
+    @keyframes signalTravelVertical {
+      from { transform: translateY(-8px); }
+      to { transform: translateY(42px); }
+    }
+
+    .parallel-branch {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: minmax(140px, 0.7fr) 42px minmax(180px, 1fr) 42px minmax(210px, 1.2fr);
+      align-items: stretch;
+      gap: 0;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .branch-node {
+      min-height: 82px;
+      padding: 10px;
+      background: #fbfaf5;
+      border: 1px solid #e6dbc7;
+      border-radius: 4px;
+    }
+
+    .branch-node strong,
+    .branch-node span {
+      display: block;
+    }
+
+    .branch-node strong {
+      font-size: 11px;
+    }
+
+    .branch-node span {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1.5;
+    }
+
+    .branch-output-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .branch-output {
+      padding: 8px;
+      border-radius: 3px;
+      background: var(--green-soft);
+      border: 1px solid #c3ddcf;
+      overflow: hidden;
+    }
+
+    .branch-output:last-child {
+      background: var(--coral-soft);
+      border-color: #ebcfd2;
+    }
+
+    .branch-output strong,
+    .branch-output span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .branch-output strong {
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
+    .branch-output span {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 7px;
+      line-height: 1.45;
+    }
+
+    .flow-destination {
+      margin-top: 14px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .destination-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .destination-tabs {
+      width: 240px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 3px;
+      background: #e5e9e7;
+      border-radius: var(--radius);
+    }
+
+    .destination-tab {
+      min-height: 30px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .destination-tab[aria-pressed="true"] {
+      color: var(--teal);
+      background: #fff;
+      box-shadow: 0 2px 7px rgba(24, 36, 31, 0.08);
+    }
+
+    .destination-panel[hidden] {
+      display: none;
+    }
+
+    .destination-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .destination-node {
+      min-height: 88px;
+      padding: 10px;
+      background: #f8faf9;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+
+    .destination-node strong,
+    .destination-node span,
+    .destination-node code {
+      display: block;
+    }
+
+    .destination-node strong {
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+
+    .destination-node span,
+    .destination-node code {
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1.55;
+    }
+
+    .flow-version-switchbar {
+      margin-bottom: 14px;
+      padding: 14px 16px;
+    }
+
+    .flow-version-switchbar .version-switch-copy strong {
+      font-size: 15px;
+    }
+
+    .flow-version-switchbar .version-switch-copy span {
+      margin-top: 4px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .flow-version-switchbar .version-button {
+      min-height: 40px;
+      font-size: 12px;
+    }
+
+    .qwen-overview {
+      margin-bottom: 20px;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--blue);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .qwen-overview-head {
+      padding: 17px 18px 15px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .qwen-overview-head .view-kicker {
+      margin-bottom: 5px;
+    }
+
+    .qwen-overview-head h2 {
+      font-size: 21px;
+    }
+
+    .qwen-overview-head p {
+      max-width: 900px;
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .qwen-path {
+      display: flex;
+      align-items: stretch;
+      padding: 18px;
+      background: #f7f9f8;
+    }
+
+    .qwen-path-node {
+      min-width: 0;
+      flex: 1 1 0;
+      padding: 13px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--path-color, var(--teal));
+      border-radius: 4px;
+    }
+
+    .qwen-path-node.qwen-node { --path-color: var(--blue); background: #f7faff; }
+    .qwen-path-node.adapter-node { --path-color: var(--amber); background: #fffbf4; }
+    .qwen-path-node.latent-node { --path-color: var(--violet); background: #f8f6ff; }
+    .qwen-path-node.condition-node { --path-color: var(--green); background: #f5fbf7; }
+
+    .qwen-path-node small,
+    .qwen-path-node strong,
+    .qwen-path-node span,
+    .qwen-path-node code {
+      display: block;
+    }
+
+    .qwen-path-node small {
+      margin-bottom: 8px;
+      color: var(--path-color, var(--teal));
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .qwen-path-node strong {
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .qwen-path-node code {
+      margin-top: 7px;
+      color: var(--path-color, var(--teal));
+      font-size: 10px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .qwen-path-node span {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .qwen-path-arrow {
+      flex: 0 0 30px;
+      display: grid;
+      place-items: center;
+      color: var(--teal);
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .qwen-use-boundary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+    }
+
+    .qwen-use-boundary div {
+      padding: 13px 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .qwen-use-boundary div:first-child {
+      border-right: 1px solid var(--line);
+    }
+
+    .qwen-use-boundary strong {
+      color: var(--ink);
+    }
+
+    /* Chapter views use a larger reading scale than the dense architecture inspector. */
+    .chapter-header {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+      margin: -2px 0 0;
+      padding: 24px 0 22px;
+      border-top: 4px solid var(--teal);
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .chapter-number {
+      color: var(--teal);
+      font-size: 64px;
+      font-weight: 900;
+      line-height: 0.9;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chapter-eyebrow {
+      margin-bottom: 6px;
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .chapter-header h1 {
+      font-size: 34px;
+      line-height: 1.15;
+    }
+
+    .chapter-header p {
+      max-width: 850px;
+      margin: 9px 0 0;
+      color: #45534c;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .chapter-roadmap {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin: 16px 0 20px;
+      background: #f7f9f8;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chapter-roadmap-item {
+      min-height: 96px;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 16px;
+      border-right: 1px solid var(--line);
+    }
+
+    .chapter-roadmap-item:last-child {
+      border-right: 0;
+    }
+
+    .roadmap-index {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--teal);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .chapter-roadmap-item strong,
+    .chapter-roadmap-item span {
+      display: block;
+    }
+
+    .chapter-roadmap-item strong {
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .chapter-roadmap-item span {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .chapter-section-heading {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      margin: 26px 0 12px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line-strong);
+    }
+
+    .chapter-section-number {
+      color: var(--teal);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .chapter-section-heading h2 {
+      font-size: 21px;
+    }
+
+    .chapter-section-heading p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .chapter-view .architecture-boundary {
+      padding: 16px 18px;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .chapter-view .variant-matrix,
+    .chapter-view .version-switchbar {
+      margin-bottom: 20px;
+    }
+
+    .chapter-view .variant-matrix-head {
+      padding: 17px 18px;
+    }
+
+    .chapter-view .variant-matrix-head h2 {
+      font-size: 20px;
+    }
+
+    .chapter-view .variant-matrix-head p {
+      margin-top: 5px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .chapter-view .variant-table th {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .chapter-view .variant-table td {
+      padding: 13px 14px;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .chapter-view .variant-table code {
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .chapter-view .version-switchbar {
+      padding: 15px 17px;
+    }
+
+    .chapter-view .version-switch-copy strong {
+      font-size: 15px;
+    }
+
+    .chapter-view .version-switch-copy span {
+      margin-top: 4px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .chapter-view .version-button {
+      min-height: 42px;
+      font-size: 12px;
+    }
+
+    .chapter-view .dataflow-stack {
+      gap: 20px;
+    }
+
+    .chapter-view .pipeline-heading {
+      min-height: 88px;
+      padding: 17px 18px;
+    }
+
+    .chapter-view .pipeline-stage-id {
+      font-size: 10px;
+    }
+
+    .chapter-view .pipeline-heading h2 {
+      margin-top: 4px;
+      font-size: 20px;
+    }
+
+    .chapter-view .pipeline-heading p {
+      margin-top: 6px;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .chapter-view .state-key,
+    .chapter-view .node-state {
+      min-height: 24px;
+      padding: 4px 7px;
+      font-size: 9px;
+    }
+
+    .chapter-view .pipeline-scroll {
+      padding: 18px;
+    }
+
+    .chapter-view .branched-flow {
+      grid-template-rows: minmax(174px, auto) minmax(174px, auto);
+    }
+
+    .chapter-view .data-node {
+      min-height: 182px;
+      padding: 13px;
+    }
+
+    .chapter-view .data-node-index {
+      font-size: 10px;
+    }
+
+    .chapter-view .data-node h3 {
+      margin-bottom: 7px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .chapter-view .data-node > code {
+      margin-bottom: 10px;
+      font-size: 10.5px;
+      line-height: 1.45;
+    }
+
+    .chapter-view .node-lines {
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .chapter-view .node-lines span {
+      padding-top: 7px;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .chapter-view .node-source {
+      margin-top: 11px;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .chapter-view .pipeline-foot {
+      padding: 13px 18px;
+      gap: 12px;
+    }
+
+    .chapter-view .pipeline-foot span {
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .chapter-view .frame-head {
+      min-height: 52px;
+      padding: 13px 16px;
+    }
+
+    .chapter-view .frame-head h2 {
+      font-size: 18px;
+    }
+
+    .chapter-view .frame-head span,
+    .chapter-view .flow-topline,
+    .chapter-view .bar-row,
+    .chapter-view .inference-example-text {
+      font-size: 12px;
+    }
+
+    .chapter-view .formula-box {
+      padding: 15px;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .chapter-view .notice {
+      padding: 16px 18px;
+      font-size: 13px;
+      line-height: 1.75;
+    }
+
+    .chapter-view .runtime-band {
+      padding: 16px;
+    }
+
+    .chapter-view .runtime-band strong {
+      font-size: 15px;
+    }
+
+    .chapter-view .runtime-band span {
+      padding: 7px 0;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .chapter-view .duration-value span {
+      font-size: 11px;
+    }
+
+    .chapter-view .inference-console table td {
+      font-size: 12px;
+    }
+
+    /* The overview is intentionally quieter than the implementation chapters. */
+    .overview-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+      gap: clamp(24px, 4vw, 64px);
+      align-items: end;
+      padding: 18px 0 26px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+
+    .overview-hero h1 {
+      max-width: 860px;
+      font-size: clamp(30px, 3.3vw, 48px);
+      line-height: 1.08;
+    }
+
+    .overview-hero p {
+      max-width: 790px;
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .overview-definition {
+      padding: 18px 20px;
+      color: #163d31;
+      background: var(--green-soft);
+      border: 1px solid #b8d7c6;
+      border-left: 4px solid var(--green);
+      border-radius: var(--radius);
+    }
+
+    .overview-definition strong,
+    .overview-definition span,
+    .overview-definition small {
+      display: block;
+    }
+
+    .overview-definition strong {
+      margin-bottom: 7px;
+      font-size: 17px;
+    }
+
+    .overview-definition span {
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .overview-definition small {
+      margin-top: 9px;
+      color: #4e655d;
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .overview-section {
+      padding: 28px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .overview-section:last-child {
+      border-bottom: 0;
+    }
+
+    .overview-section-head {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.45fr) minmax(0, 1fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .overview-section-head p {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .lifecycle {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .lifecycle-stage {
+      position: relative;
+      min-height: 210px;
+      padding: 17px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--stage-color, var(--teal));
+      border-radius: var(--radius);
+    }
+
+    .lifecycle-stage:not(:last-child)::after {
+      content: "\2192";
+      position: absolute;
+      z-index: 2;
+      top: 50%;
+      right: -18px;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      transform: translateY(-50%);
+      font-weight: 900;
+    }
+
+    .lifecycle-stage small,
+    .lifecycle-stage strong,
+    .lifecycle-stage code,
+    .lifecycle-stage span {
+      display: block;
+    }
+
+    .lifecycle-stage small {
+      color: var(--stage-color, var(--teal));
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .lifecycle-stage strong {
+      margin: 8px 0 10px;
+      font-size: 16px;
+    }
+
+    .lifecycle-stage code {
+      margin-bottom: 10px;
+      color: var(--ink);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .lifecycle-stage span {
+      padding: 5px 0;
+      color: var(--muted);
+      border-top: 1px solid #edf0ee;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .lifecycle-stage.training { --stage-color: var(--blue); }
+    .lifecycle-stage.startup { --stage-color: var(--amber); }
+    .lifecycle-stage.request { --stage-color: var(--violet); }
+    .lifecycle-stage.playback { --stage-color: var(--green); }
+
+    .frequency-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .frequency-table-wrap {
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .frequency-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .frequency-table th {
+      color: var(--muted);
+      background: #eef1ef;
+      font-size: 10px;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    .frequency-table td {
+      font-size: 12px;
+      vertical-align: top;
+    }
+
+    .frequency-table td:nth-child(2) {
+      width: 130px;
+      color: var(--teal);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .frequency-callout {
+      padding: 20px;
+      color: #23435e;
+      background: var(--blue-soft);
+      border: 1px solid #c3d5e8;
+      border-radius: var(--radius);
+    }
+
+    .frequency-callout strong,
+    .frequency-callout span,
+    .frequency-callout code {
+      display: block;
+    }
+
+    .frequency-callout strong {
+      margin-bottom: 8px;
+      font-size: 17px;
+    }
+
+    .frequency-callout span {
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .frequency-callout code {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid #bfd0e1;
+      font-size: 12px;
+    }
+
+    .boundary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .boundary-block {
+      min-height: 150px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .boundary-block strong,
+    .boundary-block span,
+    .boundary-block code {
+      display: block;
+    }
+
+    .boundary-block strong {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .boundary-block span,
+    .boundary-block code {
+      padding: 4px 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .variant-brief {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .variant-brief article {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--variant-color, var(--blue));
+      border-radius: var(--radius);
+    }
+
+    .variant-brief article:last-child {
+      --variant-color: var(--violet);
+    }
+
+    .variant-brief small,
+    .variant-brief strong,
+    .variant-brief span,
+    .variant-brief code {
+      display: block;
+    }
+
+    .variant-brief small {
+      color: var(--variant-color, var(--blue));
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .variant-brief strong {
+      margin: 6px 0 8px;
+      font-size: 16px;
+    }
+
+    .variant-brief span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .variant-brief code {
+      margin-top: 10px;
+      font-size: 11px;
+    }
+
+    .quick-jumps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .quick-jump {
+      min-height: 38px;
+      padding: 7px 12px;
+      display: inline-flex;
+      align-items: center;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .quick-jump:hover {
+      color: var(--teal);
+      border-color: var(--teal);
+    }
+
+    .evaluation-verdict {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.35fr) minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 20px;
+      color: #572f34;
+      background: var(--coral-soft);
+      border: 1px solid #e7c2c5;
+      border-left: 4px solid var(--coral);
+      border-radius: var(--radius);
+    }
+
+    .evaluation-verdict strong {
+      font-size: 18px;
+    }
+
+    .evaluation-verdict p {
+      margin: 0;
+      color: #654c50;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .protocol-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .protocol-item {
+      min-height: 150px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--protocol-color, var(--blue));
+      border-radius: var(--radius);
+    }
+
+    .protocol-item:nth-child(2) { --protocol-color: var(--teal); }
+    .protocol-item:nth-child(3) { --protocol-color: var(--violet); }
+
+    .protocol-item small,
+    .protocol-item strong,
+    .protocol-item span {
+      display: block;
+    }
+
+    .protocol-item small {
+      color: var(--protocol-color, var(--blue));
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .protocol-item strong {
+      margin: 7px 0;
+      font-size: 15px;
+    }
+
+    .protocol-item span {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .evaluation-table-wrap {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .evaluation-table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    .evaluation-table th {
+      color: var(--muted);
+      background: #eef1ef;
+      font-size: 10px;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    .evaluation-table td {
+      font-size: 12px;
+    }
+
+    .evaluation-table td:not(:first-child) {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .evaluation-table .better {
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .evaluation-table .worse {
+      color: var(--coral);
+      font-weight: 900;
+    }
+
+    .evaluation-notes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .evaluation-note {
+      padding: 14px 16px;
+      color: var(--muted);
+      background: var(--surface-soft);
+      border-left: 3px solid var(--amber);
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .evaluation-note strong {
+      color: var(--ink);
+    }
+
+    /* Readability pass: implementation detail must remain legible without browser zoom. */
+    .sidebar-label,
+    .view-kicker {
+      font-size: 12px;
+    }
+
+    .view-tab span:last-child,
+    .top-metric span {
+      font-size: 11px;
+    }
+
+    .shape-readout,
+    .legend,
+    .metric-cell span {
+      font-size: 12px;
+    }
+
+    .flow-board {
+      min-width: 1480px;
+      grid-template-columns:
+        minmax(205px, 0.95fr) 36px
+        minmax(220px, 1fr) 36px
+        minmax(210px, 0.98fr) 36px
+        minmax(195px, 0.9fr) 36px
+        minmax(245px, 1.12fr) 36px
+        minmax(205px, 0.95fr);
+      padding: 20px;
+    }
+
+    .flow-stage {
+      grid-template-rows: 48px minmax(255px, auto) minmax(255px, auto);
+      gap: 10px;
+    }
+
+    .flow-stage.fused-stage {
+      grid-template-rows: 48px 1fr;
+    }
+
+    .flow-stage-index {
+      flex-basis: 28px;
+      height: 28px;
+      font-size: 11px;
+    }
+
+    .flow-stage-head strong {
+      font-size: 14px;
+    }
+
+    .flow-stage-head span,
+    .lane-name {
+      font-size: 10px;
+    }
+
+    .flow-node {
+      padding: 14px;
+    }
+
+    .flow-node h3 {
+      font-size: 16px;
+    }
+
+    .flow-shape,
+    .flow-copy,
+    .text-sample {
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .adapter-strip {
+      padding: 10px;
+    }
+
+    .adapter-strip strong,
+    .split-row strong,
+    .projection-row strong,
+    .block-layer strong,
+    .output-step strong {
+      font-size: 12px;
+    }
+
+    .adapter-strip span,
+    .split-row,
+    .projection-row,
+    .output-step span {
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .slice-legend,
+    .tensor-source,
+    .equation-panel,
+    .concat-section,
+    .block-ops span,
+    .remaining-layers span {
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .tensor-source {
+      min-height: 58px;
+      padding: 9px;
+    }
+
+    .split-row,
+    .projection-row {
+      min-height: 30px;
+      padding: 5px 7px;
+    }
+
+    .equation-panel {
+      padding: 11px;
+    }
+
+    .token-mini-rack i {
+      min-height: 42px;
+      font-size: 9px;
+    }
+
+    .block-ops span {
+      min-height: 30px;
+      padding: 4px;
+    }
+
+    .remaining-layers span {
+      min-height: 36px;
+    }
+
+    .output-step {
+      min-height: 54px;
+      padding: 9px;
+    }
+
+    .rail-track em {
+      font-size: 9px;
+    }
+
+    .branch-node strong,
+    .branch-output strong,
+    .destination-node strong {
+      font-size: 14px;
+    }
+
+    .branch-node span,
+    .branch-output span,
+    .branch-output code,
+    .destination-node span,
+    .destination-node code {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .destination-tab {
+      min-height: 38px;
+      font-size: 12px;
+    }
+
+    .condition-unit {
+      min-height: 108px;
+      padding: 13px;
+    }
+
+    .condition-unit strong,
+    .unit-title,
+    .transformer-head strong {
+      font-size: 15px;
+    }
+
+    .condition-unit span,
+    .condition-unit small,
+    .unit-label,
+    .transformer-head span,
+    .core-formula {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .token-cell {
+      flex-basis: 52px;
+      min-height: 62px;
+      font-size: 11px;
+    }
+
+    .core-unit,
+    .transformer-panel {
+      min-height: 250px;
+    }
+
+    .layer-unit {
+      min-height: 34px;
+      grid-template-columns: 64px 1fr 1fr;
+      padding: 6px 9px;
+      font-size: 11px;
+    }
+
+    .layer-unit strong {
+      font-size: 12px;
+    }
+
+    .inspector-kicker,
+    .inspector-source {
+      font-size: 11px;
+    }
+
+    .inspector p {
+      font-size: 13px;
+    }
+
+    .frame-head span,
+    .attention-meta span,
+    .bar-row,
+    .source-table code {
+      font-size: 12px;
+    }
+
+    th {
+      font-size: 11px;
+    }
+
+    td {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .qwen-overview-head p,
+    .qwen-path-node span {
+      font-size: 13px;
+    }
+
+    .qwen-path-node small,
+    .qwen-path-node code {
+      font-size: 11px;
+    }
+
+    .qwen-path-node strong {
+      font-size: 15px;
+    }
+
+    .qwen-use-boundary div {
+      font-size: 13px;
+    }
+
+    .overview-definition small,
+    .lifecycle-stage small,
+    .variant-brief small,
+    .protocol-item small {
+      font-size: 12px;
+    }
+
+    .lifecycle-stage code,
+    .lifecycle-stage span,
+    .boundary-block span,
+    .boundary-block code,
+    .variant-brief span,
+    .variant-brief code,
+    .protocol-item span,
+    .evaluation-note {
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .frequency-table th,
+    .evaluation-table th {
+      font-size: 11px;
+    }
+
+    .frequency-table td,
+    .evaluation-table td,
+    .quick-jump {
+      font-size: 13px;
+    }
+
+    .quick-jump {
+      min-height: 42px;
+      padding: 9px 14px;
+    }
+
+    .chapter-view .state-key,
+    .chapter-view .node-state {
+      font-size: 10px;
+    }
+
+    .chapter-view .data-node > code,
+    .chapter-view .node-source {
+      font-size: 11px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .signal-rail::after,
+      .rail-track i {
+        animation: none;
+      }
+
+      .signal-rail::after { left: calc(50% - 4px); }
+      .rail-track i { left: calc(50% - 4px); }
+    }
+
     @media (max-width: 1180px) {
       .top-metric:nth-child(4),
       .top-metric:nth-child(5) {
@@ -1234,6 +3555,14 @@
       .core-grid .core-unit:last-child {
         grid-column: 1 / -1;
         min-height: 120px;
+      }
+
+      .lifecycle {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .lifecycle-stage:nth-child(2)::after {
+        content: none;
       }
     }
 
@@ -1292,6 +3621,49 @@
         gap: 8px;
       }
 
+      .overview-hero,
+      .overview-section-head,
+      .frequency-grid,
+      .evaluation-verdict {
+        grid-template-columns: 1fr;
+      }
+
+      .overview-hero {
+        align-items: start;
+      }
+
+      .boundary-grid,
+      .protocol-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .protocol-item:last-child {
+        grid-column: 1 / -1;
+      }
+
+      .chapter-header {
+        grid-template-columns: 76px minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .chapter-number {
+        font-size: 50px;
+      }
+
+      .chapter-roadmap {
+        grid-template-columns: 1fr;
+      }
+
+      .chapter-roadmap-item {
+        min-height: 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .chapter-roadmap-item:last-child {
+        border-bottom: 0;
+      }
+
       .metric-strip {
         grid-template-columns: repeat(3, 1fr);
       }
@@ -1302,6 +3674,127 @@
 
       .metric-cell:nth-child(n + 4) {
         border-top: 1px solid var(--line);
+      }
+
+      .flow-canvas {
+        overflow-x: visible;
+      }
+
+      .qwen-path {
+        flex-direction: column;
+      }
+
+      .qwen-path-arrow {
+        flex-basis: 30px;
+      }
+
+      .qwen-path-arrow::before {
+        content: "\2193";
+      }
+
+      .qwen-path-arrow {
+        font-size: 0;
+      }
+
+      .qwen-path-arrow::before {
+        font-size: 20px;
+      }
+
+      .qwen-use-boundary {
+        grid-template-columns: 1fr;
+      }
+
+      .qwen-use-boundary div:first-child {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .flow-board {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 14px;
+      }
+
+      .flow-stage,
+      .flow-stage.fused-stage {
+        grid-template-rows: auto;
+      }
+
+      .flow-stage-head {
+        min-height: 38px;
+      }
+
+      .flow-node {
+        min-height: 0;
+      }
+
+      .signal-rail {
+        flex: 0 0 48px;
+        min-height: 48px;
+        width: 100%;
+      }
+
+      .signal-rail::before {
+        top: 2px;
+        bottom: 2px;
+        left: 50%;
+        right: auto;
+        width: 2px;
+        height: auto;
+        transform: translateX(-1px);
+      }
+
+      .signal-rail::after {
+        top: 0;
+        left: calc(50% - 4px);
+        animation-name: signalTravelVertical;
+      }
+
+      .rail-shape {
+        top: 50%;
+        left: calc(50% + 11px);
+        transform: translateY(-50%);
+      }
+
+      .rail-track,
+      .rail-track.motion-track {
+        top: 2px;
+        bottom: 2px;
+        left: 36%;
+        right: auto;
+        width: 2px;
+        height: auto;
+      }
+
+      .rail-track.motion-track {
+        left: 64%;
+      }
+
+      .rail-track i,
+      .rail-track.motion-track i {
+        top: 0;
+        left: -3px;
+        animation-name: signalTravelVertical;
+      }
+
+      .rail-track em,
+      .rail-track.motion-track em {
+        top: 50%;
+        left: 10px;
+        transform: translateY(-50%);
+      }
+
+      .parallel-branch {
+        grid-template-columns: 1fr;
+      }
+
+      .parallel-branch .signal-rail {
+        min-height: 42px;
+      }
+
+      .destination-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .map-shell,
@@ -1320,6 +3813,75 @@
       .training-pipeline,
       .inference-steps {
         grid-template-columns: repeat(2, 1fr);
+      }
+
+      .pipeline-heading {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .version-switchbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .version-toggle {
+        flex-basis: auto;
+        width: 100%;
+      }
+
+      .state-legend {
+        justify-content: flex-start;
+      }
+
+      .pipeline-scroll {
+        overflow-x: visible;
+      }
+
+      .branched-flow,
+      .linear-flow {
+        min-width: 0;
+        grid-template-columns: 1fr;
+        grid-template-rows: none;
+        gap: 28px;
+      }
+
+      .branched-flow .text-input,
+      .branched-flow .text-encoder,
+      .branched-flow .text-output,
+      .branched-flow .motion-input,
+      .branched-flow .motion-encoder,
+      .branched-flow .motion-output,
+      .branched-flow .merge-node,
+      .branched-flow .update-node,
+      .branched-flow .artifact-node {
+        grid-column: auto;
+        grid-row: auto;
+      }
+
+      .data-node {
+        min-height: 0;
+      }
+
+      .chapter-view .data-node {
+        min-height: 0;
+      }
+
+      .data-node:not(.terminal)::after {
+        content: "\2193";
+        top: auto;
+        right: auto;
+        bottom: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .branched-flow .text-output::after {
+        content: none;
+      }
+
+      .branched-flow .motion-input {
+        margin-top: 8px;
       }
     }
 
@@ -1341,12 +3903,129 @@
         overflow-x: visible;
       }
 
+      .view-tab {
+        justify-content: center;
+        padding-inline: 5px;
+        font-size: 11px;
+      }
+
       .view-tab span:last-child {
         display: none;
       }
 
+      .overview-hero h1 {
+        font-size: 31px;
+      }
+
+      .lifecycle,
+      .boundary-grid,
+      .variant-brief,
+      .protocol-grid,
+      .evaluation-notes {
+        grid-template-columns: 1fr;
+      }
+
+      .lifecycle-stage {
+        min-height: 0;
+      }
+
+      .lifecycle-stage:not(:last-child)::after {
+        content: "\2193";
+        top: auto;
+        right: auto;
+        bottom: -18px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .protocol-item:last-child {
+        grid-column: auto;
+      }
+
       h1 {
         font-size: 23px;
+      }
+
+      .chapter-header {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 18px 0;
+      }
+
+      .chapter-number {
+        font-size: 42px;
+      }
+
+      .chapter-header h1 {
+        font-size: 29px;
+      }
+
+      .chapter-header p {
+        font-size: 14px;
+      }
+
+      .chapter-section-heading {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .chapter-view .variant-table {
+        min-width: 0;
+      }
+
+      .chapter-view .variant-table thead {
+        display: none;
+      }
+
+      .chapter-view .variant-table,
+      .chapter-view .variant-table tbody,
+      .chapter-view .variant-table tr,
+      .chapter-view .variant-table td {
+        display: block;
+        width: 100%;
+      }
+
+      .chapter-view .variant-table tr {
+        display: grid;
+        grid-template-columns: 1fr;
+        border-bottom: 2px solid var(--line-strong);
+      }
+
+      .chapter-view .variant-table tr:last-child {
+        border-bottom: 0;
+      }
+
+      .chapter-view .variant-table td:first-child {
+        width: 100%;
+        padding: 11px 14px;
+        color: var(--ink);
+        background: #e9eeeb;
+        border-bottom: 1px solid var(--line);
+        font-size: 14px;
+      }
+
+      .chapter-view .variant-table td:nth-child(2),
+      .chapter-view .variant-table td:nth-child(3) {
+        padding: 14px;
+      }
+
+      .chapter-view .variant-table td:nth-child(2)::before,
+      .chapter-view .variant-table td:nth-child(3)::before {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .chapter-view .variant-table td:nth-child(2)::before {
+        content: "冻结 Qwen 语义版";
+        color: var(--blue);
+      }
+
+      .chapter-view .variant-table td:nth-child(3)::before {
+        content: "Qwen Motion LoRA 版";
+        color: var(--violet);
       }
 
       .metric-strip {
@@ -1375,6 +4054,39 @@
       .metric-cell:last-child {
         grid-column: 1 / -1;
         border-right: 0;
+      }
+
+      .flow-board {
+        padding: 10px;
+      }
+
+      .flow-stage {
+        gap: 7px;
+      }
+
+      .flow-stage-head strong,
+      .flow-node h3 {
+        font-size: 15px;
+      }
+
+      .flow-copy,
+      .flow-shape,
+      .text-sample {
+        font-size: 12px;
+      }
+
+      .destination-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .destination-tabs {
+        width: 100%;
+      }
+
+      .destination-grid,
+      .branch-output-grid {
+        grid-template-columns: 1fr;
       }
 
       .condition-grid {
@@ -1413,6 +4125,14 @@
         grid-template-columns: 1fr;
       }
 
+      .pipeline-scroll {
+        padding: 11px;
+      }
+
+      .pipeline-foot {
+        grid-template-columns: 1fr;
+      }
+
       .result-cell {
         border-right: 0;
         border-bottom: 1px solid #c8dfd3;
@@ -1448,13 +4168,14 @@
         </div>
       </div>
       <div class="top-metrics" aria-label="模型摘要">
-        <div class="top-metric"><strong>12.394M</strong><span>parameters</span></div>
+        <div class="top-metric"><strong>12.394M</strong><span>ULA parameters</span></div>
         <div class="top-metric"><strong>264D</strong><span>condition</span></div>
-        <div class="top-metric"><strong>15 DoF</strong><span>motion frame</span></div>
+        <div class="top-metric"><strong>15 DoF</strong><span>joint-angle frame</span></div>
         <div class="top-metric"><strong>6 × 8</strong><span>layers × heads</span></div>
         <div class="top-metric"><strong>384D</strong><span>hidden width</span></div>
       </div>
-      <div class="run-state">50K COMPLETE</div>
+      <div class="run-state">2 MODEL VARIANTS</div>
+      <a href="ula_v2_18d_beat2_formal_architecture.html" style="font-size:11px;font-weight:800;padding:6px 10px;border-radius:6px;background:var(--teal-soft);color:#054952;text-decoration:none;white-space:nowrap;">18D BEAT2 formal pretrain →</a>
     </div>
   </header>
 
@@ -1462,20 +4183,29 @@
     <aside class="sidebar">
       <div class="sidebar-label">Views</div>
       <nav class="view-nav" role="tablist" aria-label="架构视图">
-        <button class="view-tab" role="tab" aria-selected="true" aria-controls="view-map" data-view="map">
-          <span>网络地图</span><span>01</span>
+        <button class="view-tab" role="tab" aria-selected="true" aria-controls="view-overview" data-view="overview">
+          <span>快速理解</span><span>00</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-flow" data-view="flow">
+          <span>数据流</span><span>01</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-map" data-view="map">
+          <span>模块剖面</span><span>02</span>
         </button>
         <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-tensors" data-view="tensors">
-          <span>张量审计</span><span>02</span>
+          <span>张量审计</span><span>03</span>
         </button>
         <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-training" data-view="training">
-          <span>训练目标</span><span>03</span>
+          <span>第 4 章 · 训练</span><span>04</span>
         </button>
         <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-inference" data-view="inference">
-          <span>推理过程</span><span>04</span>
+          <span>第 5 章 · 推理</span><span>05</span>
+        </button>
+        <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-evaluation" data-view="evaluation">
+          <span>第 6 章 · 评测</span><span>06</span>
         </button>
         <button class="view-tab" role="tab" aria-selected="false" aria-controls="view-source" data-view="source">
-          <span>源码索引</span><span>05</span>
+          <span>源码索引</span><span>07</span>
         </button>
       </nav>
 
@@ -1499,18 +4229,393 @@
           <div class="legend-row"><i class="legend-swatch" style="background:var(--blue-soft)"></i>语义与文本</div>
           <div class="legend-row"><i class="legend-swatch" style="background:var(--amber-soft)"></i>离散标签</div>
           <div class="legend-row"><i class="legend-swatch" style="background:var(--green-soft)"></i>动作风格</div>
-          <div class="legend-row"><i class="legend-swatch" style="background:var(--violet-soft)"></i>动作原型</div>
+          <div class="legend-row"><i class="legend-swatch" style="background:var(--violet-soft)"></i>动作条件 latent</div>
           <div class="legend-row"><i class="legend-swatch" style="background:var(--teal-soft)"></i>动作帧</div>
         </div>
       </div>
     </aside>
 
     <main class="main">
-      <section class="view" id="view-map" role="tabpanel" data-panel="map">
+      <section class="view" id="view-overview" role="tabpanel" data-panel="overview">
+        <header class="overview-hero">
+          <div>
+            <div class="view-kicker">先看这一页 · System boundary</div>
+            <h1>ULA MMDiT V2：从文本生成整段上半身关节角轨迹</h1>
+            <p>Qwen 在生成器上游理解文本；ULA 根据 264D 数值条件，从整段噪声生成 <code>[T,15]</code> 关节角轨迹。模型不是逐帧自回归，也不会在请求时检索一条相似动作。</p>
+          </div>
+          <div class="overview-definition">
+            <strong>每次推理需要查 dataset 吗？不需要。</strong>
+            <span>产品推理没有 nearest-neighbor 搜索，也不把参考动作作为模型输入。训练得到的 prototype、style 与统计契约已经保存在 checkpoint 中。</span>
+            <small>当前代码在进程启动时仍读取一次 <code>semantic_index.parquet</code> 做 condition bank 构建与哈希校验；这是元数据依赖，不是逐请求动作检索。</small>
+          </div>
+        </header>
+
+        <section class="overview-section" aria-labelledby="lifecycle-title">
+          <div class="overview-section-head">
+            <div><div class="view-kicker">Lifecycle</div><h2 id="lifecycle-title">四个阶段，不要混在一起理解</h2></div>
+            <p>dataset 只参与离线训练和评测。运行进程启动一次，每条指令只构建一次文本条件；冻结版内部执行 2 次 Qwen forward，LoRA 版把双指令合成 1 个 batch。最终轨迹再按 30Hz 从缓冲区读取。</p>
+          </div>
+          <div class="lifecycle">
+            <article class="lifecycle-stage training">
+              <small>01 · Offline</small>
+              <strong>训练阶段</strong>
+              <code>dataset → weights + contracts</code>
+              <span>输入真实动作、标签、style、噪声和 flow 时间</span>
+              <span>产出 generator best checkpoint</span>
+              <span>训练结束后不再逐条访问这些动作</span>
+            </article>
+            <article class="lifecycle-stage startup">
+              <small>02 · Once per process</small>
+              <strong>启动加载</strong>
+              <code>checkpoints + small metadata</code>
+              <span>加载 ULA、Qwen 基座与对应 adapter / LoRA</span>
+              <span>当前 LoRA loader 还会加载 Motion Metric checkpoint</span>
+              <span>读取 semantic index 校验 condition bank</span>
+            </article>
+            <article class="lifecycle-stage request">
+              <small>03 · Once per prompt</small>
+              <strong>单次生成</strong>
+              <code>text → c → Euler ×32 → [T,15]</code>
+              <span>文本条件构建一次：冻结版 Qwen ×2；LoRA 版双指令 batch ×1</span>
+              <span>ULA 对整段序列执行 32 次 velocity-field forward</span>
+              <span>输出完整弧度制关节角轨迹</span>
+            </article>
+            <article class="lifecycle-stage playback">
+              <small>04 · T frames</small>
+              <strong>30Hz 轨迹执行</strong>
+              <code>buffer[k] every 1/30 s</code>
+              <span>播放阶段不再运行 Qwen</span>
+              <span>也不为每一帧重新调用 ULA</span>
+              <span>当前输出是目标关节角，不是力矩控制律</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="frequency-title">
+          <div class="overview-section-head">
+            <div><div class="view-kicker">Execution frequency</div><h2 id="frequency-title">“30Hz”指播放频率，不是模型推理频率</h2></div>
+            <p>一次请求先把整条动作算完，再交给 MuJoCo 或机器人集成层。端到端生成耗时和 30Hz 轨迹采样是两个不同概念。</p>
+          </div>
+          <div class="frequency-grid">
+            <div class="frequency-table-wrap">
+              <table class="frequency-table">
+                <thead><tr><th>组件</th><th>执行次数</th><th>作用</th></tr></thead>
+                <tbody>
+                  <tr><td>动作 dataset 检索</td><td>0 次 / 请求</td><td>运行时不搜索相似 episode。</td></tr>
+                  <tr><td>Qwen 文本编码</td><td>冻结版 ×2；LoRA batch ×1</td><td>双指令得到标签与文本条件；不进入 Euler 循环。</td></tr>
+                  <tr><td>ULA MMDiT</td><td>32 次 / 请求</td><td>每次都并行更新整段 <code>T</code> 帧。</td></tr>
+                  <tr><td>轨迹消费者</td><td>T 次 @ 30Hz</td><td>按顺序读取已经生成好的 <code>[T,15]</code> 缓冲轨迹。</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="frequency-callout">
+              <strong>不是 30Hz 在线重规划</strong>
+              <span>当前链路是“先生成，后播放”。页面中的 30fps 表示轨迹时间离散与播放节拍，不代表 Qwen + ULA 每秒完成 30 次完整推理。</span>
+              <code>one prompt → one trajectory → 30Hz playback</code>
+            </div>
+          </div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="boundary-title">
+          <div class="overview-section-head">
+            <div><div class="view-kicker">I/O boundary</div><h2 id="boundary-title">产品需要提供什么，模型最终返回什么</h2></div>
+            <p>评测脚本会额外读取 reference，是为了计算误差；这些 reference 不属于产品推理接口。</p>
+          </div>
+          <div class="boundary-grid">
+            <div class="boundary-block"><strong>请求输入</strong><code>text: string</code><span>可选：behavior / emotion 覆盖</span><span>可选：style、fps、frames、seed</span></div>
+            <div class="boundary-block"><strong>不是请求输入</strong><span>相似动作 episode</span><span>训练 action parquet</span><span>评测 reference trajectory</span></div>
+            <div class="boundary-block"><strong>模型输出</strong><code>trajectory [T,15] · radians</code><span>腰部 3 + 双臂腕 12</span><span>不含头部、手指、腿、力矩或电流</span></div>
+          </div>
+        </section>
+
+        <section class="overview-section" aria-labelledby="variant-title">
+          <div class="overview-section-head">
+            <div><div class="view-kicker">Two checkpoints</div><h2 id="variant-title">两个版本共享架构，但不是同一权重上的开关</h2></div>
+            <p>它们都使用 12.394M 参数的 ULA MMDiT V2，本质差异是后 128D 条件来源。checkpoint contract 互斥，必须成套加载。</p>
+          </div>
+          <div class="variant-brief">
+            <article>
+              <small>Prototype-conditioned baseline</small>
+              <strong>标签选择 checkpoint 内置 motion prototype</strong>
+              <span>不同文本若归到同一 behavior × emotion，会使用同一个 128D 组原型。当前完整采样结果更稳，是默认推荐版本。</span>
+              <code>136D base + 128D prototype</code>
+            </article>
+            <article>
+              <small>Qwen-LoRA-conditioned generator</small>
+              <strong>每条文本产生一个连续 128D latent</strong>
+              <span>设计目标是保留同标签内的措辞差异；当前实验尚未证明动作生成收益，不能与 baseline checkpoint 混用。</span>
+              <code>136D base + 128D text-motion latent</code>
+            </article>
+          </div>
+          <div class="quick-jumps" aria-label="深入阅读">
+            <button class="quick-jump" data-jump-view="flow">查看端到端数据流</button>
+            <button class="quick-jump" data-jump-view="training">查看训练过程</button>
+            <button class="quick-jump" data-jump-view="inference">查看推理过程</button>
+            <button class="quick-jump" data-jump-view="evaluation">查看 A/B 评测</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="view-flow" role="tabpanel" data-panel="flow" hidden>
+        <div class="view-header">
+          <div>
+            <div class="view-kicker">第 1 章 · End-to-end tensor trace</div>
+            <h1>纯文本如何变成整段 15D 关节角轨迹</h1>
+          </div>
+          <p>Qwen 位于 ULA 生成器外部，负责把自由文本翻译成结构化标签和动作语义条件。ULA 不直接读取字符串，只接收 Qwen 上游构造的 264D 条件 <code>c</code>。</p>
+        </div>
+
+        <div class="version-switchbar flow-version-switchbar">
+          <div class="version-switch-copy"><strong>选择第 1 章的数据流版本</strong><span>切换后，Qwen 上游路径和 ULA 条件最后 128D 的来源会一起变化。</span></div>
+          <div class="version-toggle" aria-label="第 1 章版本选择">
+            <button class="version-button" aria-pressed="false" data-version="frozen">冻结 Qwen 语义版</button>
+            <button class="version-button" aria-pressed="true" data-version="lora">Motion LoRA 版</button>
+          </div>
+        </div>
+
+        <section class="qwen-overview" aria-labelledby="qwen-role-title">
+          <div class="qwen-overview-head">
+            <div class="view-kicker">Qwen upstream · outside ULA</div>
+            <h2 id="qwen-role-title">Qwen 的作用：把人类语言转换为 ULA 能使用的条件</h2>
+            <p>Qwen 不负责直接生成关节轨迹，也不进入 6 层 MMDiT 主干。它只在生成器上游处理文本；随后 ULA 使用数值条件、噪声动作和 flow 时间生成整段动作。</p>
+          </div>
+
+          <div data-version-panel="frozen" hidden>
+            <div class="qwen-path" aria-label="冻结 Qwen 语义版文本条件链路">
+              <div class="qwen-path-node"><small>输入</small><strong>自由文本指令</strong><code>UTF-8 string</code><span>例如“开心地向主人挥手”。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node qwen-node"><small>Qwen · 冻结</small><strong>双指令语义编码</strong><code>128D behavior + 128D emotion</code><span>同一个 Qwen3-Embedding-0.6B 分别理解动作和情绪；运行两次，无梯度。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node adapter-node"><small>Semantic adapter</small><strong>预测离散标签</strong><code>behavior 27-way + emotion 6-way</code><span>把 Qwen 特征分类成动作类别和情绪类别，不输出连续 motion latent。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node latent-node"><small>Checkpoint contract</small><strong>按标签取内置组原型</strong><code>(behavior, emotion) → prototype [128]</code><span>prototype 在离线训练时由同组动作建立，推理时直接从 generator checkpoint 读取，不搜索 dataset episode。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node condition-node"><small>ULA 输入</small><strong>组装条件 c</strong><code>base 136D + prototype 128D = [264]</code><span>Qwen 的标签决定查哪一个动作原型。</span></div>
+            </div>
+            <div class="qwen-use-boundary"><div><strong>ULA 训练时：</strong>不运行 Qwen。训练数据自带标签，直接查 train-group prototype。</div><div><strong>推理时：</strong>Qwen 分别执行 behavior / emotion 两个 forward，adapter 执行一次，再把标签转换成 prototype 条件。</div></div>
+          </div>
+
+          <div data-version-panel="lora">
+            <div class="qwen-path" aria-label="Qwen Motion LoRA 版文本条件链路">
+              <div class="qwen-path-node"><small>输入</small><strong>自由文本指令</strong><code>UTF-8 string</code><span>不同措辞会产生不同连续 latent；当前实验尚未证明它能稳定改善动作细节。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node qwen-node"><small>Qwen + LoRA</small><strong>跨模态文本编码</strong><code>base frozen · top-4 q/k/v/o LoRA</code><span>Qwen 基座冻结；rank-8 LoRA 把文本对齐到 Motion Metric 动作空间。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node adapter-node"><small>分类输出</small><strong>动作与情绪标签</strong><code>behavior 27-way + emotion 6-way</code><span>标签用于选择 136D base condition，并允许显式覆盖。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node latent-node"><small>连续输出</small><strong>逐文本动作语义</strong><code>text-motion latent [128] · L2 norm</code><span>连续 latent 直接表达这条文本的动作含义，不查 group prototype。</span></div>
+              <div class="qwen-path-arrow">→</div>
+              <div class="qwen-path-node condition-node"><small>ULA 输入</small><strong>组装条件 c</strong><code>base 136D + text latent 128D = [264]</code><span>ULA 只看到数值条件，不再读取原始文本。</span></div>
+            </div>
+            <div class="qwen-use-boundary"><div><strong>ULA 训练时：</strong>冻结 Qwen LoRA 只预编码 dataset 中 162 条唯一 canonical 文本，保存 128D latent 后卸载，不参与 generator 反向传播。</div><div><strong>推理时：</strong>Qwen LoRA 对输入文本编码一次；后续 32 步 Euler 循环只运行 ULA，不重复运行 Qwen。</div></div>
+          </div>
+        </section>
+
+        <div class="metric-strip">
+          <div class="metric-cell"><strong>Text → Qwen</strong><span>generator upstream</span></div>
+          <div class="metric-cell"><strong>c · x_t · t</strong><span>generator tensor inputs</span></div>
+          <div class="metric-cell"><strong>[B, 264]</strong><span>assembled condition c</span></div>
+          <div class="metric-cell"><strong>[B, <span data-seq>135</span>, 384]</strong><span>joint attention sequence</span></div>
+          <div class="metric-cell"><strong>[B, <span data-t>128</span>, 15]</strong><span>velocity field output</span></div>
+        </div>
+
+        <div class="flow-canvas">
+          <div class="flow-board">
+            <article class="flow-stage">
+              <div class="flow-stage-head"><span class="flow-stage-index">01</span><div><strong>数据源</strong><span>product + training</span></div></div>
+              <div class="flow-node semantic-lane">
+                <div class="lane-name"><span>产品接口 · 生成器外</span><i></i></div>
+                <h3>纯文本指令</h3>
+                <code class="flow-shape">UTF-8 string</code>
+                <div class="text-sample">“开心地向主人挥手”</div>
+                <div data-version-panel="frozen" hidden>
+                  <div class="adapter-strip"><strong>Frozen Qwen3-Embedding-0.6B · 2 passes</strong><span>behavior instruction + emotion instruction · no LoRA · no grad</span></div>
+                  <div class="projection-stack">
+                    <div class="projection-row" style="--row-color:var(--blue)"><strong>Behavior embedding</strong><span>128D</span></div>
+                    <div class="projection-row" style="--row-color:var(--coral)"><strong>Emotion embedding</strong><span>128D</span></div>
+                    <div class="projection-row" style="--row-color:var(--amber)"><strong>Semantic adapter</strong><span>27 + 6 labels</span></div>
+                  </div>
+                  <p class="flow-copy">Qwen 负责理解文本；adapter 输出标签，再按标签读取 generator checkpoint 内置的 128D group prototype。</p>
+                </div>
+                <div data-version-panel="lora">
+                  <div class="adapter-strip"><strong>Qwen3-Embedding-0.6B + LoRA</strong><span>top 4 layers · q/k/v/o · rank 8 · dual instructions</span></div>
+                  <div class="projection-stack">
+                    <div class="projection-row" style="--row-color:var(--blue)"><strong>Behavior branch</strong><span>27 classes</span></div>
+                    <div class="projection-row" style="--row-color:var(--coral)"><strong>Emotion branch</strong><span>6 classes</span></div>
+                    <div class="projection-row" style="--row-color:var(--violet)"><strong>Text projection</strong><span>128D latent</span></div>
+                  </div>
+                  <p class="flow-copy">分类结果选择 136D base condition；连续文本表示直接成为 128D text-motion latent。</p>
+                </div>
+              </div>
+              <div class="flow-node motion-lane">
+                <div class="lane-name"><span>动作与 flow 状态</span><i></i></div>
+                <h3>训练张量源</h3>
+                <div class="tensor-source-grid">
+                  <div class="tensor-source">真实动作 x<br><code>[B,T,15]</code></div>
+                  <div class="tensor-source">高斯噪声 z<br><code>[B,T,15]</code></div>
+                  <div class="tensor-source wide">flow 时间 t<br><code>[B]</code></div>
+                </div>
+                <p class="flow-copy">推理时没有真实动作 x，直接从 <code>x₀=z</code> 开始。</p>
+              </div>
+            </article>
+
+            <div class="signal-rail dual">
+              <span class="rail-track semantic-track"><i></i><em><span data-version-panel="frozen" hidden>base + group prototype</span><span data-version-panel="lora">base + Qwen latent</span></em></span>
+              <span class="rail-track motion-track"><i></i><em>x · z · t</em></span>
+            </div>
+
+            <article class="flow-stage">
+              <div class="flow-stage-head"><span class="flow-stage-index">02</span><div><strong>组装与混合</strong><span>conditioning + path</span></div></div>
+              <div class="flow-node semantic-lane">
+                <div class="lane-name"><span>Condition assembly</span><i></i></div>
+                <h3>构造 c</h3>
+                <code class="flow-shape">[B, 264]</code>
+                <div class="condition-slices" aria-label="264 维条件切片"><i class="legacy"></i><i class="behavior"></i><i class="emotion"></i><i class="family"></i><i class="style"></i><i class="prototype"></i></div>
+                <div class="slice-legend mono">
+                  <span>0:92 legacy</span><span>92:119 behavior · 119:125 emotion</span><span>125:133 family · 133:136 style</span><span data-version-panel="frozen" hidden>136:264 train-group motion prototype</span><span data-version-panel="lora">136:264 Qwen LoRA text latent</span>
+                </div>
+              </div>
+              <div class="flow-node motion-lane">
+                <div class="lane-name"><span>Flow interpolation</span><i></i></div>
+                <h3>构造 x_t</h3>
+                <code class="flow-shape">[B, T, 15]</code>
+                <div class="equation-panel mono">x_t = (1-t)z + tx<br>v* = x - z<br>x_hat = x_t + (1-t)vθ</div>
+                <p class="flow-copy"><code>t=0</code> 是噪声端，<code>t=1</code> 是真实动作端。网络监督目标是整段轨迹的速度场。</p>
+              </div>
+            </article>
+
+            <div class="signal-rail dual">
+              <span class="rail-track semantic-track"><i></i><em>c [B,264]</em></span>
+              <span class="rail-track motion-track"><i></i><em>x_t [B,T,15]</em></span>
+            </div>
+
+            <article class="flow-stage">
+              <div class="flow-stage-head"><span class="flow-stage-index">03</span><div><strong>Token 编码</strong><span>typed projections</span></div></div>
+              <div class="flow-node semantic-lane">
+                <div class="lane-name"><span>Semantic tokenizer</span><i></i></div>
+                <h3>6 个独立 MLP</h3>
+                <div class="projection-stack">
+                  <div class="projection-row" style="--row-color:var(--blue)"><strong>92D Legacy</strong><span>→ 1×384</span></div>
+                  <div class="projection-row" style="--row-color:var(--amber)"><strong>27D Behavior</strong><span>→ 1×384</span></div>
+                  <div class="projection-row" style="--row-color:var(--coral)"><strong>6D Emotion</strong><span>→ 1×384</span></div>
+                  <div class="projection-row" style="--row-color:#d68c24"><strong>8D Family</strong><span>→ 1×384</span></div>
+                  <div class="projection-row" style="--row-color:var(--green)"><strong>3D Style</strong><span>→ 1×384</span></div>
+                  <div class="projection-row" style="--row-color:var(--violet)" data-version-panel="frozen" hidden><strong>128D Motion prototype</strong><span>→ 2×384</span></div>
+                  <div class="projection-row" style="--row-color:var(--violet)" data-version-panel="lora"><strong>128D Qwen text latent</strong><span>→ 2×384</span></div>
+                </div>
+                <div class="token-mini-rack"><i style="--rack-color:var(--blue)">L</i><i style="--rack-color:var(--amber)">B</i><i style="--rack-color:var(--coral)">E</i><i style="--rack-color:#d68c24">F</i><i style="--rack-color:var(--green)">S</i><i>P₁</i><i>P₂</i></div>
+                <code class="flow-shape">[B, 7, 384]</code>
+              </div>
+              <div class="flow-node motion-lane">
+                <div class="lane-name"><span>Motion tokenizer</span><i></i></div>
+                <h3>逐帧嵌入</h3>
+                <code class="flow-shape">[B, T, 384]</code>
+                <div class="equation-panel mono">Linear₁₅→₃₈₄(x_t)<br>+ sinusoidal_time(t)<br>+ sinusoidal_frame(0..1)</div>
+                <div class="motion-rack"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <p class="flow-copy">每一帧的 15 个关节先混合成一个 token，共 <strong data-t>128</strong> 个动作 token。</p>
+              </div>
+            </article>
+
+            <div class="signal-rail dual fusion-rail">
+              <span class="rail-track semantic-track"><i></i><em>7 tokens</em></span>
+              <span class="rail-track motion-track"><i></i><em>T tokens</em></span>
+            </div>
+
+            <article class="flow-stage fused-stage">
+              <div class="flow-stage-head"><span class="flow-stage-index">04</span><div><strong>序列融合</strong><span>concat dim=1</span></div></div>
+              <div class="flow-node fusion-lane">
+                <div class="lane-name"><span>Joint sequence</span><i></i></div>
+                <h3>条件在前，动作在后</h3>
+                <div class="concat-display">
+                  <div class="concat-section">semantic<br>7 × 384</div>
+                  <div class="concat-section">motion<br><span data-t>128</span> × 384</div>
+                </div>
+                <code class="flow-shape">h₀ [B, <span data-seq>135</span>, 384]</code>
+                <p class="flow-copy">没有 cross-attention 子模块；拼接后所有位置进入同一个 self-attention 空间。</p>
+              </div>
+            </article>
+
+            <div class="signal-rail fusion-rail"><span class="rail-shape">h₀</span></div>
+
+            <article class="flow-stage fused-stage">
+              <div class="flow-stage-head"><span class="flow-stage-index">05</span><div><strong>生成主干</strong><span>6 pre-ln blocks</span></div></div>
+              <div class="flow-node fusion-lane">
+                <div class="lane-name"><span>Transformer encoder</span><i></i></div>
+                <h3>全序列双向建模</h3>
+                <code class="flow-shape">[B, T+7, 384]</code>
+                <div class="block-detail-stack">
+                  <div class="block-layer">
+                    <strong>Layer 1 · 展开</strong>
+                    <div class="block-ops"><span>Pre-LN</span><span>MHSA<br>8×48</span><span>Residual</span><span>Pre-LN</span><span>FFN<br>384→1536</span><span>GELU</span><span>384</span><span>Residual</span></div>
+                  </div>
+                  <div class="remaining-layers"><span>L2</span><span>L3</span><span>L4</span><span>L5</span><span>L6</span></div>
+                </div>
+                <p class="flow-copy">无 causal mask。任意动作帧可读取全部条件和整段过去/未来动作上下文。</p>
+              </div>
+            </article>
+
+            <div class="signal-rail"><span class="rail-shape">h₆</span></div>
+
+            <article class="flow-stage fused-stage">
+              <div class="flow-stage-head"><span class="flow-stage-index">06</span><div><strong>Flow 速度场预测</strong><span>normalized trajectory space</span></div></div>
+              <div class="flow-node output-lane">
+                <div class="lane-name"><span>Velocity head</span><i></i></div>
+                <h3>只保留动作位置</h3>
+                <div class="output-stack">
+                  <div class="output-step"><strong>Slice</strong><span class="mono">h[:, 7:, :]<br>[B,T,384]</span></div>
+                  <div class="output-step"><strong>LayerNorm</strong><span class="mono">384D per frame</span></div>
+                  <div class="output-step"><strong>Linear</strong><span class="mono">384 → 15</span></div>
+                  <div class="output-step"><strong>vθ</strong><span class="mono">[B,T,15]</span></div>
+                </div>
+                <p class="flow-copy">输出是归一化关节空间中的 flow 速度，不是电机力矩或电流。</p>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="parallel-branch">
+          <div class="branch-node"><strong>同一个条件 c</strong><span class="mono">[B,264]</span><span>从主干输入旁路，不经过动作 Transformer。</span></div>
+          <div class="signal-rail semantic-rail"><span class="rail-shape">c</span></div>
+          <div class="branch-node"><strong>Planner MLP</strong><span class="mono">264 → 384 → 384</span><span>两层 Linear + SiLU，参数量 249,600。</span></div>
+          <div class="signal-rail semantic-rail"><span class="rail-shape">plan h</span></div>
+          <div class="branch-output-grid">
+            <div class="branch-output"><strong>duration_sec</strong><span class="mono">Softplus(Linear) + 0.25</span><span>有监督</span></div>
+            <div class="branch-output"><strong>transition_logits</strong><span class="mono">Linear → 4</span><span>当前无监督</span></div>
+          </div>
+        </div>
+
+        <div class="flow-destination">
+          <div class="destination-head">
+            <div><div class="view-kicker">Velocity consumer</div><h2>vθ 后续去向</h2></div>
+            <div class="destination-tabs" aria-label="速度场使用模式">
+              <button class="destination-tab" aria-pressed="true" data-destination="train">训练</button>
+              <button class="destination-tab" aria-pressed="false" data-destination="infer">推理</button>
+            </div>
+          </div>
+          <div class="destination-panel" data-destination-panel="train">
+            <div class="destination-grid">
+              <div class="destination-node"><strong>直接速度监督</strong><code>MSE(vθ, x-z)</code><span>核心 flow loss，权重 1.0。</span></div>
+              <div class="destination-node"><strong>估计终点</strong><code>x_hat=x_t+(1-t)vθ</code><span>从随机 t 直接重建真实动作。</span></div>
+              <div class="destination-node"><strong>结构损失</strong><code>position / velocity / acceleration</code><span>同时约束姿态与时序导数。</span></div>
+              <div class="destination-node"><strong>感知与规划</strong><code>descriptor / latent / duration</code><span>对齐全局动作模式和秒数。</span></div>
+            </div>
+          </div>
+          <div class="destination-panel" data-destination-panel="infer" hidden>
+            <div class="destination-grid">
+              <div class="destination-node"><strong>初始化</strong><code>x₀ ~ N(0,I)</code><span>按预测时长创建 [T,15] 噪声。</span></div>
+              <div class="destination-node"><strong>Euler 更新 ×32</strong><code>x ← clamp(x+dt·vθ)</code><span>dt=1/32，每步重新计算网络。</span></div>
+              <div class="destination-node"><strong>反归一化</strong><code>x·std_train + mean_train</code><span>回到关节弧度空间。</span></div>
+              <div class="destination-node"><strong>安全后处理</strong><code>joint limits + 3 rad/s</code><span>输出可播放的 [T,15] 关节轨迹。</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-map" role="tabpanel" data-panel="map" hidden>
         <div class="view-header">
           <div>
             <div class="view-kicker">Model anatomy</div>
-            <h1>条件槽位与动作层栈</h1>
+            <h1>条件槽位与模块剖面</h1>
           </div>
           <p>模型把 264 维条件拆成 7 个有固定语义的 token；每一帧的 15 个关节先合并为一个动作 token。两者共享同一组双向自注意力层。</p>
         </div>
@@ -1521,6 +4626,14 @@
           <div class="metric-cell"><strong data-seq>135</strong><span>joint sequence length</span></div>
           <div class="metric-cell"><strong>48</strong><span>dimensions per attention head</span></div>
           <div class="metric-cell"><strong>15</strong><span>joint angles per output frame</span></div>
+        </div>
+
+        <div class="version-switchbar flow-version-switchbar">
+          <div class="version-switch-copy"><strong>选择第 2 章的条件版本</strong><span>前 136D 和 ULA 主干相同；切换后查看最后 128D 条件的真实来源。</span></div>
+          <div class="version-toggle" aria-label="第 2 章版本选择">
+            <button class="version-button" aria-pressed="false" data-version="frozen">冻结 Qwen 语义版</button>
+            <button class="version-button" aria-pressed="true" data-version="lora">Motion LoRA 版</button>
+          </div>
         </div>
 
         <div class="map-shell">
@@ -1543,8 +4656,11 @@
                 <button class="condition-unit inspectable" style="--accent:var(--green)" data-title="Style controls" data-kicker="Condition encoder" data-shape="[B, 3] → [B, 1, 384]" data-body="三个 train-only 标准化特征：左右臂平衡、动作幅度、动作速度。推理时可以从同标签训练风格库采样或显式指定。" data-source="upper_body_skeleton/ula_training.py:529">
                   <strong>Style</strong><span>平衡 · 幅度 · 速度</span><small>3D · 1 token</small>
                 </button>
-                <button class="condition-unit inspectable" style="--accent:var(--violet)" data-title="Motion prototype" data-kicker="Condition encoder" data-shape="[B, 128] → [B, 2, 384]" data-body="Motion Metric Encoder 为每个 behavior × emotion 组生成训练集动作原型。128D 经 768D MLP 后拆成两个 token。" data-source="upper_body_skeleton/ula_training.py:530">
-                  <strong>Prototype</strong><span>组级动作先验</span><small>128D · 2 tokens</small>
+                <button class="condition-unit inspectable" style="--accent:var(--violet)" data-version-panel="frozen" hidden data-title="Train-group motion prototype" data-kicker="Condition encoder · Frozen version" data-shape="[B, 128] → [B, 2, 384]" data-body="根据 behavior × emotion 从 generator checkpoint 的 prototype bank 读取训练组平均 Motion Metric 表示。它不是逐请求检索动作 episode。" data-source="upper_body_skeleton/ula_v2_conditioning.py:665">
+                  <strong>Motion prototype</strong><span>训练组动作原型</span><small>128D · 2 tokens</small>
+                </button>
+                <button class="condition-unit inspectable" style="--accent:var(--violet)" data-version-panel="lora" data-title="Qwen LoRA text-motion latent" data-kicker="Condition encoder · LoRA version" data-shape="[B, 128] → [B, 2, 384]" data-body="Qwen 顶部四层 q/k/v/o LoRA 将原始文本对齐到 Motion Metric 空间。归一化 128D 连续 latent 经 768D MLP 后拆成两个 token。" data-source="upper_body_skeleton/cross_modal_latent.py:226">
+                  <strong>Text latent</strong><span>Qwen LoRA 动作语义</span><small>128D · 2 tokens</small>
                 </button>
               </div>
             </div>
@@ -1679,17 +4795,437 @@
         </div>
       </section>
 
-      <section class="view" id="view-training" role="tabpanel" data-panel="training" hidden>
-        <div class="view-header">
-          <div><div class="view-kicker">Learning objective</div><h1>Flow Matching 训练台</h1></div>
-          <p>在直线路径上随机抽取 t。网络不是直接回归最终动作，而是学习从噪声指向真实动作的条件速度场。</p>
+      <section class="view chapter-view" id="view-training" role="tabpanel" data-panel="training" hidden>
+        <header class="chapter-header">
+          <div class="chapter-number" aria-hidden="true">04</div>
+          <div>
+            <div class="chapter-eyebrow">Chapter 04 · Training</div>
+            <h1>训练过程：先训练文本条件，再训练动作生成器</h1>
+            <p>训练不是一次端到端更新。冻结版与 LoRA 版都分成两个阶段：先得到可用的文本条件组件，再固定文本侧并训练同一个 12.394M ULA MMDiT V2 生成器。</p>
+          </div>
+        </header>
+
+        <div class="chapter-roadmap" aria-label="训练过程总览">
+          <div class="chapter-roadmap-item"><span class="roadmap-index">4.1</span><div><strong>先区分两个版本</strong><span>确认哪些文本侧参数可训练，以及条件向量最后 128D 从哪里来。</span></div></div>
+          <div class="chapter-roadmap-item"><span class="roadmap-index">4.2</span><div><strong>训练文本条件组件</strong><span>冻结版训练 semantic adapter；LoRA 版训练跨模态 Qwen Motion LoRA。</span></div></div>
+          <div class="chapter-roadmap-item"><span class="roadmap-index">4.3</span><div><strong>训练 ULA 生成器</strong><span>固定文本侧，组装 264D 条件，用 Flow Matching、七项损失和 EMA 更新 ULA。</span></div></div>
         </div>
 
-        <div class="training-layout">
+        <div class="architecture-boundary">
+          <strong>“冻结版”与“LoRA 版”都冻结 Qwen 基座：</strong>冻结版只训练小型 semantic adapter，并用标签查 128D group prototype；LoRA 版额外训练 Qwen 顶部四层的 LoRA，把每条文本映射为独立 128D motion latent。顶部的 <strong>12.394M</strong> 只统计两版共有的 ULA 生成器。
+        </div>
+
+        <div class="variant-matrix">
+          <div class="variant-matrix-head">
+            <h2>4.1 冻结版与 LoRA 版的核心区别</h2>
+            <p>两列描述的是完整产品链路，不只是 Qwen 内部是否出现 LoRA。</p>
+          </div>
+          <div class="variant-matrix-scroll">
+            <table class="variant-table">
+              <thead><tr><th>比较项</th><th>冻结 Qwen 语义版</th><th>Qwen Motion LoRA 版</th></tr></thead>
+              <tbody>
+                <tr><td>文本侧可训练参数</td><td><strong>仅 dual-task adapter</strong>Qwen 0.6B 全冻结，预先产出 128D behavior embedding + 128D emotion embedding。</td><td><strong>LoRA + projections + heads</strong>Qwen 基座冻结；顶部 4 层 q/k/v/o 的 rank-8 LoRA 可训练，并联合调整 Motion Metric student 顶层。</td></tr>
+                <tr><td>文本侧输出</td><td><code>behavior 27-way + emotion 6-way</code><br>只有离散标签和置信度。</td><td><code>behavior + emotion + text-motion latent [128]</code><br>同时给出离散标签与连续动作语义。</td></tr>
+                <tr><td>条件 c 的 136:264</td><td><strong>train-group motion prototype</strong>同一 behavior × emotion 的文本共享训练集动作原型。</td><td><strong>Qwen LoRA text-motion latent</strong>每条 language_instruction 拥有自己的归一化连续 latent。</td></tr>
+                <tr><td>ULA 训练时的 Qwen</td><td><strong>完全不运行</strong>直接按数据标签取 prototype bank。</td><td><strong>训练前离线运行一次</strong>冻结 LoRA encoder 预编码 162 条 dataset canonical 文本，记录哈希后释放显存。</td></tr>
+                <tr class="same-row"><td>ULA 主干与 objective</td><td><strong>相同</strong>264D → 7 tokens，6 层 MMDiT；七项 Flow/结构/时长损失。</td><td><strong>相同</strong>264D → 7 tokens，6 层 MMDiT；七项 Flow/结构/时长损失。</td></tr>
+                <tr><td>表达能力</td><td>稳健、训练成本低，但同标签不同措辞最终回落到同一 group prototype。</td><td>连续 latent 允许措辞差异进入生成器；当前 generator 尚未充分使用 paraphrase latent 训练，动作收益未成立。</td></tr>
+                <tr class="incompatible-row"><td>checkpoint 兼容性</td><td><code>text_motion_latent contract = absent</code></td><td><code>text_motion_latent contract = qwen_lora</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="version-switchbar">
+          <div class="version-switch-copy"><strong>4.2–4.3 选择要查看的训练链路</strong><span>先看文本条件训练，再看 ULA 生成器训练；所选版本会同步到第 5 章。</span></div>
+          <div class="version-toggle" aria-label="训练版本选择">
+            <button class="version-button" aria-pressed="false" data-version="frozen">冻结 Qwen 语义版</button>
+            <button class="version-button" aria-pressed="true" data-version="lora">Motion LoRA 版</button>
+          </div>
+        </div>
+
+        <div class="dataflow-stack" data-version-panel="frozen" hidden>
+          <article class="pipeline-diagram" aria-labelledby="frozen-adapter-flow-title">
+            <div class="pipeline-heading">
+              <div class="pipeline-heading-main">
+                <div class="pipeline-stage-id">4.2A · frozen semantic adapter</div>
+                <h2 id="frozen-adapter-flow-title">冻结 Qwen 语义分类训练</h2>
+                <p>Qwen 只做一次无梯度特征提取；后续 2k-step 配置训练的是两条小型分类 adapter，不学习 text-motion 连续空间。</p>
+              </div>
+              <div class="state-legend"><span class="state-key frozen">Qwen 冻结</span><span class="state-key trainable">Adapter 可训练</span></div>
+            </div>
+            <div class="pipeline-scroll">
+              <div class="linear-flow">
+                <div class="data-node text-tone">
+                  <div class="data-node-head"><span class="data-node-index">F1 · PROMPTS</span><span class="node-state">catalog</span></div>
+                  <h3>语义提示词数据</h3>
+                  <code>27 behaviors × 6 emotions</code>
+                  <div class="node-lines">
+                    <span>规范英文提示 + 独立中文 paraphrases</span>
+                    <span>双任务 instruction：动作 / 情绪解耦</span>
+                  </div>
+                </div>
+
+                <div class="data-node text-tone">
+                  <div class="data-node-head"><span class="data-node-index">F2 · QWEN</span><span class="node-state frozen">no grad</span></div>
+                  <h3>Frozen Qwen3-Embedding</h3>
+                  <code>2 passes · each [N,128]</code>
+                  <div class="node-lines">
+                    <span>全部 0.6B 参数 <code>requires_grad=False</code></span>
+                    <span>last-token pool + slice 128D + L2 norm</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/semantic_adapter.py">semantic_adapter.py:466</a></span>
+                </div>
+
+                <div class="data-node artifact-tone">
+                  <div class="data-node-head"><span class="data-node-index">F3 · CACHE</span><span class="node-state offline">offline</span></div>
+                  <h3>固定文本特征</h3>
+                  <code>[N,128] + [N,128] = [N,256]</code>
+                  <div class="node-lines">
+                    <span>整个 adapter 优化期间不再运行 Qwen</span>
+                    <span>文本 embedding 不接收梯度</span>
+                  </div>
+                </div>
+
+                <div class="data-node lora-tone">
+                  <div class="data-node-head"><span class="data-node-index">F4 · ADAPTER</span><span class="node-state trainable">trainable</span></div>
+                  <h3>Dual-task MLP</h3>
+                  <code>128→128→27 · 128→128→6</code>
+                  <div class="node-lines">
+                    <span>behavior backbone + head</span>
+                    <span>emotion backbone + head</span>
+                    <span>两条任务支路参数独立</span>
+                  </div>
+                </div>
+
+                <div class="data-node loss-tone">
+                  <div class="data-node-head"><span class="data-node-index">F5 · UPDATE</span><span class="node-state trainable">adapter only</span></div>
+                  <h3>分类监督</h3>
+                  <code>CE_behavior + CE_emotion</code>
+                  <div class="node-lines">
+                    <span>AdamW · lr 1e-3 · grad norm 1.0</span>
+                    <span>validation joint accuracy + early stopping</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/semantic_adapter.py">semantic_adapter.py:1040</a></span>
+                </div>
+
+                <div class="data-node update-tone terminal">
+                  <div class="data-node-head"><span class="data-node-index">F6 · ARTIFACT</span><span class="node-state offline">saved</span></div>
+                  <h3>Semantic adapter</h3>
+                  <code>semantic_adapter_checkpoint.pt</code>
+                  <div class="node-lines">
+                    <span>adapter weights + Qwen revision</span>
+                    <span>27 × 6 × 136 condition bank</span>
+                    <span>不包含 Qwen 0.6B 基座权重</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pipeline-foot">
+              <span><strong>用途：</strong>只把自由文本分类为 behavior / emotion。</span>
+              <span><strong>没有：</strong>Motion Metric 对齐、128D text-motion latent、LoRA 参数。</span>
+            </div>
+          </article>
+
+          <article class="pipeline-diagram" aria-labelledby="frozen-generator-flow-title">
+            <div class="pipeline-heading">
+              <div class="pipeline-heading-main">
+                <div class="pipeline-stage-id">4.3A · prototype-conditioned generator</div>
+                <h2 id="frozen-generator-flow-title">冻结版 ULA V2 生成器训练</h2>
+                <p>这里不加载 Qwen，也不加载 semantic adapter。训练数据自带的 behavior / emotion 标签直接选择训练集 motion prototype。</p>
+              </div>
+              <div class="state-legend"><span class="state-key frozen">Metric 冻结</span><span class="state-key trainable">ULA 可训练</span></div>
+            </div>
+            <div class="pipeline-scroll">
+              <div class="linear-flow">
+                <div class="data-node motion-tone">
+                  <div class="data-node-head"><span class="data-node-index">G1 · DATA</span><span class="node-state">labeled</span></div>
+                  <h3>分层动作数据</h3>
+                  <code>x [B,T,15] · label · duration</code>
+                  <div class="node-lines">
+                    <span>clean / trim / normalize</span>
+                    <span>T 在 64 / 96 / 128 中采样</span>
+                  </div>
+                </div>
+
+                <div class="data-node artifact-tone">
+                  <div class="data-node-head"><span class="data-node-index">G2 · PROTOTYPE</span><span class="node-state frozen">train split</span></div>
+                  <h3>Motion Metric 原型库</h3>
+                  <code>(behavior, emotion) → p [128]</code>
+                  <div class="node-lines">
+                    <span>只由 train split 建立 162 个语义组 prototype</span>
+                    <span>同组 episode 共享连续动作条件</span>
+                  </div>
+                </div>
+
+                <div class="data-node text-tone">
+                  <div class="data-node-head"><span class="data-node-index">G3 · CONDITION</span><span class="node-state">assemble</span></div>
+                  <h3>Prototype 条件</h3>
+                  <code>c = base 136D + prototype 128D</code>
+                  <div class="node-lines">
+                    <span>condition contract 标记 <code>train_group_motion_prototype</code></span>
+                    <span>最终仍是 <code>[B,264]</code></span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/ula_v2_conditioning.py">ula_v2_conditioning.py:900</a></span>
+                </div>
+
+                <div class="data-node motion-tone">
+                  <div class="data-node-head"><span class="data-node-index">G4 · FLOW PATH</span><span class="node-state">random</span></div>
+                  <h3>构造训练路径</h3>
+                  <code>x_t=(1-t)z+tx · v*=x-z</code>
+                  <div class="node-lines">
+                    <span><code>z ~ N(0,I)</code>，<code>t ~ U(0,1)</code></span>
+                    <span>与 LoRA 版完全相同</span>
+                  </div>
+                </div>
+
+                <div class="data-node lora-tone">
+                  <div class="data-node-head"><span class="data-node-index">G5 · ULA + LOSS</span><span class="node-state trainable">same core</span></div>
+                  <h3>MMDiT V2 objective</h3>
+                  <code>vθ + duration · 7 weighted losses</code>
+                  <div class="node-lines">
+                    <span>7 condition tokens + T motion tokens</span>
+                    <span>flow / structure / latent / duration</span>
+                  </div>
+                </div>
+
+                <div class="data-node update-tone terminal">
+                  <div class="data-node-head"><span class="data-node-index">G6 · CHECKPOINT</span><span class="node-state trainable">EMA</span></div>
+                  <h3>General ULA V2</h3>
+                  <code>ula_fm_checkpoint.pt</code>
+                  <div class="node-lines">
+                    <span>AdamW · lr 1e-4 · EMA 0.999</span>
+                    <span>保存 prototype/style/duration contracts</span>
+                    <span>不记录 LoRA checkpoint 哈希</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pipeline-foot">
+              <span><strong>文本不参与训练：</strong>generator 只看到结构化标签、style 和 group prototype。</span>
+              <span><strong>运行时补上文本入口：</strong>冻结 Qwen semantic adapter 预测标签后再查同一 prototype。</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="dataflow-stack" data-version-panel="lora">
+          <article class="pipeline-diagram" aria-labelledby="align-flow-title">
+            <div class="pipeline-heading">
+              <div class="pipeline-heading-main">
+                <div class="pipeline-stage-id">4.2B · cross-modal pretraining</div>
+                <h2 id="align-flow-title">Qwen Motion LoRA 对齐训练</h2>
+                <p>文本分支和动作分支并行进入同一个 128D 单位球空间；这一阶段生成独立 LoRA checkpoint，不训练 ULA MMDiT。</p>
+              </div>
+              <div class="state-legend" aria-label="参数状态图例">
+                <span class="state-key trainable">可训练</span>
+                <span class="state-key frozen">冻结</span>
+              </div>
+            </div>
+            <div class="pipeline-scroll">
+              <div class="branched-flow">
+                <div class="data-node text-tone text-input">
+                  <div class="data-node-head"><span class="data-node-index">T1 · TEXT</span><span class="node-state">batch</span></div>
+                  <h3>语义文本</h3>
+                  <code>language_instruction · B strings</code>
+                  <div class="node-lines">
+                    <span><strong>双指令模板</strong><br>behavior instruction + emotion instruction</span>
+                    <span>Tokenizer 输出 <code>[2B, L]</code></span>
+                  </div>
+                </div>
+
+                <div class="data-node lora-tone text-encoder">
+                  <div class="data-node-head"><span class="data-node-index">T2 · QWEN</span><span class="node-state trainable">LoRA only</span></div>
+                  <h3>Qwen3-Embedding-0.6B</h3>
+                  <code>base frozen · top 4 layers adapted</code>
+                  <div class="node-lines">
+                    <span><strong>冻结：</strong>Qwen 基座权重</span>
+                    <span><strong>训练：</strong>q/k/v/o LoRA，rank 8，alpha 16</span>
+                    <span>last-token pool，两个分支各取前 128D</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/cross_modal_latent.py">cross_modal_latent.py:470</a></span>
+                </div>
+
+                <div class="data-node lora-tone text-output">
+                  <div class="data-node-head"><span class="data-node-index">T3 · PROJECT</span><span class="node-state trainable">trainable</span></div>
+                  <h3>文本动作表示</h3>
+                  <code>[B,256] → [B,128] → L2 norm</code>
+                  <div class="node-lines">
+                    <span>Text projection head</span>
+                    <span>behavior 27-way + emotion 6-way logits</span>
+                    <span>与动作表示共同汇入 A4 loss</span>
+                  </div>
+                </div>
+
+                <div class="data-node motion-tone motion-input">
+                  <div class="data-node-head"><span class="data-node-index">M1 · MOTION</span><span class="node-state">paired</span></div>
+                  <h3>真实动作轨迹</h3>
+                  <code>x · [B,T,15]</code>
+                  <div class="node-lines">
+                    <span>与文本属于同一个 behavior × emotion 语义组</span>
+                    <span>构造姿态、速度与描述符特征</span>
+                  </div>
+                </div>
+
+                <div class="data-node motion-tone motion-encoder">
+                  <div class="data-node-head"><span class="data-node-index">M2 · METRIC</span><span class="node-state trainable">partial</span></div>
+                  <h3>Motion Metric 双路</h3>
+                  <code>student + frozen teacher</code>
+                  <div class="node-lines">
+                    <span><strong>训练：</strong>student 顶层、projection 与任务 heads</span>
+                    <span><strong>冻结：</strong>teacher 全部参数，用作 anchor</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/cross_modal_latent.py">cross_modal_latent.py:283</a></span>
+                </div>
+
+                <div class="data-node motion-tone motion-output">
+                  <div class="data-node-head"><span class="data-node-index">M3 · PROJECT</span><span class="node-state trainable">trainable</span></div>
+                  <h3>动作表示</h3>
+                  <code>[B,128] → L2 norm</code>
+                  <div class="node-lines">
+                    <span>Motion projection head</span>
+                    <span>保留 teacher embedding 计算 anchor</span>
+                    <span>与文本表示共同汇入 A4 loss</span>
+                  </div>
+                </div>
+
+                <div class="data-node loss-tone merge-node">
+                  <div class="data-node-head"><span class="data-node-index">A4 · LOSSES</span><span class="node-state trainable">gradient</span></div>
+                  <h3>跨模态联合目标</h3>
+                  <code>L_align + L_cls + L_metric + L_reg</code>
+                  <div class="node-lines">
+                    <span><strong>InfoNCE：</strong>text ↔ motion 双向检索</span>
+                    <span><strong>分类：</strong>behavior CE + emotion CE</span>
+                    <span><strong>动作：</strong>metric + frozen-teacher anchor</span>
+                    <span><strong>分布：</strong>variance + covariance</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/cross_modal_latent.py">cross_modal_latent.py:611</a></span>
+                </div>
+
+                <div class="data-node update-tone update-node">
+                  <div class="data-node-head"><span class="data-node-index">A5 · UPDATE</span><span class="node-state trainable">3 groups</span></div>
+                  <h3>AdamW 反向传播</h3>
+                  <code>clip grad norm = 1.0</code>
+                  <div class="node-lines">
+                    <span>Qwen LoRA · 5e-6</span>
+                    <span>text projection / heads · 1e-4</span>
+                    <span>motion selected layers · 1e-5</span>
+                  </div>
+                </div>
+
+                <div class="data-node artifact-tone artifact-node terminal">
+                  <div class="data-node-head"><span class="data-node-index">A6 · ARTIFACT</span><span class="node-state offline">saved</span></div>
+                  <h3>Qwen Motion LoRA</h3>
+                  <code>best.pt</code>
+                  <div class="node-lines">
+                    <span>LoRA state + projectors + heads</span>
+                    <span>Motion student state + exact Qwen revision</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pipeline-foot">
+              <span><strong>进入下一阶段：</strong>只使用冻结后的文本编码路径与其 128D 输出。</span>
+              <span><strong>不会进入下一阶段：</strong>动作 teacher、跨模态 loss 和 LoRA optimizer state。</span>
+            </div>
+          </article>
+
+          <article class="pipeline-diagram" aria-labelledby="generator-flow-title">
+            <div class="pipeline-heading">
+              <div class="pipeline-heading-main">
+                <div class="pipeline-stage-id">4.3B · generator training</div>
+                <h2 id="generator-flow-title">ULA MMDiT V2 生成器训练</h2>
+                <p>Qwen LoRA 只在数据准备时执行一次。进入 50k step 主循环后，GPU 上训练的是 12.394M 参数的 ULA 生成器。</p>
+              </div>
+              <div class="state-legend"><span class="state-key offline">离线编码</span><span class="state-key trainable">ULA 可训练</span><span class="state-key frozen">Metric 冻结</span></div>
+            </div>
+            <div class="pipeline-scroll">
+              <div class="linear-flow">
+                <div class="data-node artifact-tone">
+                  <div class="data-node-head"><span class="data-node-index">B1 · PRECOMPUTE</span><span class="node-state offline">once</span></div>
+                  <h3>冻结 Qwen LoRA 编码</h3>
+                  <code>unique text → [N,128]</code>
+                  <div class="node-lines">
+                    <span>为每条 episode 写入归一化 text-motion latent</span>
+                    <span>记录 checkpoint SHA-256 后卸载 Qwen</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/ula_training_v2.py">ula_training_v2.py:570</a></span>
+                </div>
+
+                <div class="data-node text-tone">
+                  <div class="data-node-head"><span class="data-node-index">B2 · BATCH</span><span class="node-state">B=64</span></div>
+                  <h3>均衡采样与组装</h3>
+                  <code>x [B,T,15] · c [B,264]</code>
+                  <div class="node-lines">
+                    <span><strong>T：</strong>64 / 96 / 128 phase frames</span>
+                    <span><strong>c：</strong>136D base + 128D Qwen latent</span>
+                    <span>duration 与有效监督 mask</span>
+                  </div>
+                </div>
+
+                <div class="data-node motion-tone">
+                  <div class="data-node-head"><span class="data-node-index">B3 · FLOW PATH</span><span class="node-state">random</span></div>
+                  <h3>噪声与随机时间</h3>
+                  <code>z ~ N(0,I) · t ~ U(0,1)</code>
+                  <div class="node-lines">
+                    <span><code>x_t=(1-t)z+tx</code></span>
+                    <span>监督速度 <code>v*=x-z</code></span>
+                  </div>
+                </div>
+
+                <div class="data-node lora-tone">
+                  <div class="data-node-head"><span class="data-node-index">B4 · FORWARD</span><span class="node-state trainable">ULA only</span></div>
+                  <h3>MMDiT + Planner</h3>
+                  <code>vθ [B,T,15] · duration [B]</code>
+                  <div class="node-lines">
+                    <span>7 condition tokens + T motion tokens</span>
+                    <span>6 层双向 self-attention</span>
+                    <span><code>x_hat=x_t+(1-t)vθ</code></span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/ula_training.py">ula_training.py:573</a></span>
+                </div>
+
+                <div class="data-node loss-tone">
+                  <div class="data-node-head"><span class="data-node-index">B5 · OBJECTIVE</span><span class="node-state frozen">teacher</span></div>
+                  <h3>七项加权损失</h3>
+                  <code>flow + structure + duration</code>
+                  <div class="node-lines">
+                    <span>flow / position / velocity / acceleration</span>
+                    <span>descriptor / duration</span>
+                    <span>冻结 Motion Metric 计算 motion-latent cosine</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/ula_training_v2.py">ula_training_v2.py:328</a></span>
+                </div>
+
+                <div class="data-node update-tone terminal">
+                  <div class="data-node-head"><span class="data-node-index">B6 · UPDATE</span><span class="node-state trainable">50k steps</span></div>
+                  <h3>AdamW + EMA</h3>
+                  <code>lr 1e-4 · EMA 0.999</code>
+                  <div class="node-lines">
+                    <span>1k warmup + cosine decay</span>
+                    <span>只更新 ULA 参数；grad norm ≤ 1.0</span>
+                    <span>EMA validation → best generator checkpoint</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/ula_training_v2.py">ula_training_v2.py:699</a></span>
+                </div>
+              </div>
+            </div>
+            <div class="pipeline-foot">
+              <span><strong>梯度边界：</strong>ULA loss 不会反传到 Qwen LoRA，因为文本 latent 已经预编码，模型随后被释放。</span>
+              <span><strong>可复现边界：</strong>generator checkpoint 保存 LoRA 哈希、condition contract、数据源哈希和 EMA 权重。</span>
+            </div>
+          </article>
+        </div>
+
+        <div class="chapter-section-heading">
+          <span class="chapter-section-number">4.4</span>
+          <div><h2>两版本共享的 Flow Matching 优化</h2><p>进入 ULA 主循环后，两版使用同一条直线概率路径、同一组七项损失和相同的 AdamW + EMA 更新策略。</p></div>
+        </div>
+
+        <div class="training-layout training-objective-block">
           <div class="training-workbench">
             <div class="frame-head"><h2>直线概率路径</h2><span>x_t = (1-t)z + tx</span></div>
             <div class="flow-lab">
-              <div class="flow-topline"><div><strong>Flow time</strong><div style="color:var(--muted);font-size:10px">0 = noise · 1 = data</div></div><div class="flow-time mono">t = <span id="flow-t">0.50</span></div></div>
+              <div class="flow-topline"><div><strong>Flow time</strong><div style="color:var(--muted);font-size:12px">0 = noise · 1 = data</div></div><div class="flow-time mono">t = <span id="flow-t">0.50</span></div></div>
               <input class="flow-slider" id="flow-slider" type="range" min="0" max="100" value="50" aria-label="Flow time">
               <div class="mix-track">
                 <div class="mix-part mix-noise" id="noise-part">0.50 · noise</div>
@@ -1704,7 +5240,7 @@
           </div>
 
           <div class="table-frame">
-            <div class="frame-head"><h2>Loss weights</h2><span>配置权重</span></div>
+            <div class="frame-head"><h2>ULA loss weights</h2><span>generator config</span></div>
             <div class="loss-list">
               <div class="bar-row"><strong>flow</strong><div class="bar-track"><div class="bar-fill" style="--width:100%;--bar-color:var(--violet)"></div></div><span class="bar-value">1.0</span></div>
               <div class="bar-row"><strong>position</strong><div class="bar-track"><div class="bar-fill" style="--width:50%;--bar-color:var(--blue)"></div></div><span class="bar-value">0.25</span></div>
@@ -1717,45 +5253,235 @@
           </div>
         </div>
 
-        <div class="training-pipeline">
-          <div class="process-tile"><span class="index">01 · SPLIT</span><strong>严格分层</strong><span>1296 train / 162 validation / 162 test，按 162 个语义组分层。</span></div>
-          <div class="process-tile"><span class="index">02 · CLEAN</span><strong>物理边界</strong><span>关节限位、3 rad/s 速度限制；smooth window 为 1。</span></div>
-          <div class="process-tile"><span class="index">03 · TRIM</span><strong>有效动作窗</strong><span>裁掉过长静止段，并标记 near-static 与边界截断。</span></div>
-          <div class="process-tile"><span class="index">04 · TRAIN ONLY</span><strong>统计与原型</strong><span>归一化、style bank、Motion Metric prototype 只拟合 train。</span></div>
-          <div class="process-tile"><span class="index">05 · SAMPLE</span><strong>语义与 mode 均衡</strong><span>均匀轮换 27 × 6 组，兼顾左右偏向和动作幅度。</span></div>
-          <div class="process-tile"><span class="index">06 · OPTIMIZE</span><strong>AdamW + EMA</strong><span>1k warmup、cosine decay、global grad norm 1.0、EMA 0.999。</span></div>
-        </div>
-
         <div class="notice"><strong>Transition head 边界：</strong>V2 objective 只监督 duration，没有 transition cross-entropy。四类 transition logits 虽存在于网络和 checkpoint 中，但当前不具备可解释的预测意义。</div>
       </section>
 
-      <section class="view" id="view-inference" role="tabpanel" data-panel="inference" hidden>
-        <div class="view-header">
-          <div><div class="view-kicker">Runtime</div><h1>从文本到关节轨迹</h1></div>
-          <p>文本编码器和 Motion Metric 训练教师不属于生成主干。部署时，checkpoint 内的条件契约、style bank 和 prototype bank 负责组装数值条件。</p>
+      <section class="view chapter-view" id="view-inference" role="tabpanel" data-panel="inference" hidden>
+        <header class="chapter-header">
+          <div class="chapter-number" aria-hidden="true">05</div>
+          <div>
+            <div class="chapter-eyebrow">Chapter 05 · Inference</div>
+            <h1>推理过程：从自由文本生成 15 DoF 动作轨迹</h1>
+            <p>推理阶段所有参数都冻结。系统先校验成套 checkpoint，再把文本转换为 264D 条件，最后预测时长、初始化整段噪声并执行 32 步 Euler Flow 积分。</p>
+          </div>
+        </header>
+
+        <div class="chapter-roadmap" aria-label="推理过程总览">
+          <div class="chapter-roadmap-item"><span class="roadmap-index">5.1</span><div><strong>加载并校验契约</strong><span>冻结版加载 semantic adapter；LoRA 版加载哈希匹配的 Motion LoRA。</span></div></div>
+          <div class="chapter-roadmap-item"><span class="roadmap-index">5.2</span><div><strong>文本变成 264D 条件</strong><span>冻结版按标签查 prototype；LoRA 版直接输出逐文本 128D motion latent。</span></div></div>
+          <div class="chapter-roadmap-item"><span class="roadmap-index">5.3</span><div><strong>生成并安全后处理</strong><span>预测 T，创建 [1,T,15] 噪声，Euler ×32 后反归一化、限位和平滑。</span></div></div>
+        </div>
+
+        <div class="version-switchbar">
+          <div class="version-switch-copy"><strong>5.1–5.3 选择要查看的推理链路</strong><span>完整阅读 checkpoint 校验、文本条件、Flow 采样和输出；所选版本会同步到第 4 章。</span></div>
+          <div class="version-toggle" aria-label="推理版本选择">
+            <button class="version-button" aria-pressed="false" data-version="frozen">冻结 Qwen 语义版</button>
+            <button class="version-button" aria-pressed="true" data-version="lora">Motion LoRA 版</button>
+          </div>
+        </div>
+
+        <div data-version-panel="frozen" hidden>
+          <article class="pipeline-diagram" aria-labelledby="frozen-inference-flow-title">
+            <div class="pipeline-heading">
+              <div class="pipeline-heading-main">
+                <div class="pipeline-stage-id">5.2A · frozen inference · label to prototype</div>
+                <h2 id="frozen-inference-flow-title">冻结 Qwen 语义版执行顺序</h2>
+                <p>Qwen 和 semantic adapter 只产生离散标签；128D 动作条件来自 generator checkpoint 内记录的训练组 prototype bank。</p>
+              </div>
+              <div class="state-legend"><span class="state-key frozen">Qwen 冻结</span><span class="state-key frozen">ULA 冻结</span></div>
+            </div>
+            <div class="pipeline-scroll">
+              <div class="linear-flow">
+                <div class="data-node artifact-tone">
+                  <div class="data-node-head"><span class="data-node-index">FI1 · PREFLIGHT</span><span class="node-state frozen">strict</span></div>
+                  <h3>加载两类 checkpoint</h3>
+                  <code>general ULA + semantic adapter</code>
+                  <div class="node-lines">
+                    <span>验证 Qwen model / revision</span>
+                    <span>condition bank 数据源哈希必须匹配 generator</span>
+                    <span>generator 不得含 text-motion contract</span>
+                  </div>
+                </div>
+
+                <div class="data-node text-tone">
+                  <div class="data-node-head"><span class="data-node-index">FI2 · FROZEN QWEN</span><span class="node-state frozen">2 passes</span></div>
+                  <h3>动作 / 情绪双指令编码</h3>
+                  <code>string → 128D + 128D</code>
+                  <div class="node-lines">
+                    <span>同一个 Qwen 基座分别处理两条 task instruction</span>
+                    <span>last-token pool + L2 norm</span>
+                    <span>没有 LoRA，也不输出 motion latent</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/semantic_adapter.py">semantic_adapter.py:517</a></span>
+                </div>
+
+                <div class="data-node lora-tone">
+                  <div class="data-node-head"><span class="data-node-index">FI3 · ADAPTER</span><span class="node-state frozen">1×</span></div>
+                  <h3>离散语义分类</h3>
+                  <code>256D → behavior 27 + emotion 6</code>
+                  <div class="node-lines">
+                    <span>dual-task adapter 输出两个 softmax</span>
+                    <span>得到 label、confidence；显式 label 可覆盖</span>
+                    <span>文本细节在这一步压缩为类别</span>
+                  </div>
+                </div>
+
+                <div class="data-node text-tone">
+                  <div class="data-node-head"><span class="data-node-index">FI4 · LOOKUP</span><span class="node-state">prototype</span></div>
+                  <h3>组装 Prototype 条件</h3>
+                  <code>base 136D + group p 128D = c [1,264]</code>
+                  <div class="node-lines">
+                    <span>按预测 behavior × emotion 查 condition bank</span>
+                    <span>从 generator contract 查同组 motion prototype</span>
+                    <span>style 仍可采样、指定或由文本关键词覆盖</span>
+                  </div>
+                  <span class="node-source"><a href="../../upper_body_skeleton/pt_mujoco_infer.py">pt_mujoco_infer.py:385</a></span>
+                </div>
+
+                <div class="data-node motion-tone">
+                  <div class="data-node-head"><span class="data-node-index">FI5 · GENERATE</span><span class="node-state frozen">1 + 32</span></div>
+                  <h3>时长规划与 Flow 积分</h3>
+                  <code>duration(c) → x₀ → Euler ×32</code>
+                  <div class="node-lines">
+                    <span><code>T=round(duration × fps)</code></span>
+                    <span><code>x₀ [1,T,15] ~ N(0,I)</code></span>
+                    <span>每步重算 <code>vθ(xₖ,k/32,c)</code></span>
+                  </div>
+                </div>
+
+                <div class="data-node update-tone terminal">
+                  <div class="data-node-head"><span class="data-node-index">FI6 · OUTPUT</span><span class="node-state">radians</span></div>
+                  <h3>安全关节轨迹</h3>
+                  <code>[T,15] joint trajectory</code>
+                  <div class="node-lines">
+                    <span>反归一化 + joint limits</span>
+                    <span>3 rad/s 速度限制 + smooth window</span>
+                    <span>CSV / MuJoCo / robot integration boundary</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pipeline-foot">
+              <span><strong>同标签收敛：</strong>不同措辞若分类结果相同，会使用同一个 128D group prototype。</span>
+              <span><strong>启动依赖：</strong>Qwen 基座缓存 + semantic adapter + general ULA V2 checkpoint + semantic index 元数据。</span>
+            </div>
+          </article>
+        </div>
+
+        <div data-version-panel="lora">
+        <article class="pipeline-diagram" aria-labelledby="lora-inference-flow-title">
+          <div class="pipeline-heading">
+            <div class="pipeline-heading-main">
+              <div class="pipeline-stage-id">5.2B · LoRA inference · text to trajectory</div>
+              <h2 id="lora-inference-flow-title">Motion LoRA 版执行顺序</h2>
+              <p>箭头表示实际运行时依赖；Euler 节点内部循环 32 次，但 Qwen 编码、条件组装和时长预测都只执行一次。</p>
+            </div>
+            <div class="state-legend"><span class="state-key frozen">全部冻结</span><span class="state-key">no grad</span></div>
+          </div>
+          <div class="pipeline-scroll">
+            <div class="linear-flow">
+              <div class="data-node artifact-tone">
+                <div class="data-node-head"><span class="data-node-index">I1 · PREFLIGHT</span><span class="node-state frozen">strict</span></div>
+                <h3>加载与契约校验</h3>
+                <code>ULA + LoRA + Motion Metric + semantic metadata</code>
+                <div class="node-lines">
+                  <span>LoRA SHA-256 必须匹配 generator 训练记录</span>
+                  <span>加载 Qwen 基座缓存与 LoRA 记录的 Motion Metric checkpoint</span>
+                  <span>读取 semantic index，校验 condition bank 和 V2 contracts</span>
+                </div>
+                <span class="node-source"><a href="../../upper_body_skeleton/pt_mujoco_infer.py">pt_mujoco_infer.py:326</a></span>
+              </div>
+
+              <div class="data-node lora-tone">
+                <div class="data-node-head"><span class="data-node-index">I2 · QWEN LORA</span><span class="node-state frozen">1×</span></div>
+                <h3>自由文本编码</h3>
+                <code>string → 27 + 6 + 128D</code>
+                <div class="node-lines">
+                  <span>双指令 Qwen + top-4 q/k/v/o LoRA</span>
+                  <span>输出 behavior、emotion、L2-normalized latent</span>
+                  <span>显式标签可覆盖分类预测</span>
+                </div>
+              </div>
+
+              <div class="data-node text-tone">
+                <div class="data-node-head"><span class="data-node-index">I3 · CONDITION</span><span class="node-state">assemble</span></div>
+                <h3>组装生成条件</h3>
+                <code>136D base + 128D latent = c [1,264]</code>
+                <div class="node-lines">
+                  <span>condition bank 按 behavior × emotion 取 136D base</span>
+                  <span>采样/指定 3D style，并解析左右、幅度、速度词</span>
+                </div>
+                <span class="node-source"><a href="../../upper_body_skeleton/pt_mujoco_infer.py">pt_mujoco_infer.py:495</a></span>
+              </div>
+
+              <div class="data-node motion-tone">
+                <div class="data-node-head"><span class="data-node-index">I4 · PLAN + INIT</span><span class="node-state frozen">1×</span></div>
+                <h3>预测长度并创建噪声</h3>
+                <code>duration(c) → T · x₀ ~ N(0,I)</code>
+                <div class="node-lines">
+                  <span>duration 裁剪到训练时长范围</span>
+                  <span><code>T=round(duration × fps)</code></span>
+                  <span><code>x₀ [1,T,15]</code> 限制到归一化关节范围</span>
+                </div>
+              </div>
+
+              <div class="data-node lora-tone">
+                <div class="data-node-head"><span class="data-node-index">I5 · EULER LOOP</span><span class="node-state frozen">×32</span></div>
+                <h3>条件 Flow 积分</h3>
+                <code>xₖ₊₁ = clamp(xₖ + vθ·1/32)</code>
+                <div class="node-lines">
+                  <span>每步设置 <code>t=k/32</code></span>
+                  <span>MMDiT 重算 <code>vθ(xₖ,t,c)</code></span>
+                  <span>整段 T 帧并行更新，不是逐帧自回归</span>
+                </div>
+                <span class="node-source"><a href="../../upper_body_skeleton/ula_training.py">ula_training.py:729</a></span>
+              </div>
+
+              <div class="data-node update-tone terminal">
+                <div class="data-node-head"><span class="data-node-index">I6 · OUTPUT</span><span class="node-state">radians</span></div>
+                <h3>反归一化与安全后处理</h3>
+                <code>[T,15] joint trajectory</code>
+                <div class="node-lines">
+                  <span>恢复训练集 mean / std</span>
+                  <span>关节限位 + 3 rad/s 速度限制 + smooth window</span>
+                  <span>输出 CSV / MuJoCo playback / robot integration boundary</span>
+                </div>
+                <span class="node-source"><a href="../../upper_body_skeleton/pt_mujoco_infer.py">pt_mujoco_infer.py:541</a></span>
+              </div>
+            </div>
+          </div>
+          <div class="pipeline-foot">
+            <span><strong>执行一次：</strong>Qwen 文本编码、condition 组装、duration 预测。</span>
+            <span><strong>执行 32 次：</strong>只有 ULA MMDiT velocity forward 与 Euler 更新。</span>
+          </div>
+        </article>
+        </div>
+
+        <div class="chapter-section-heading">
+          <span class="chapter-section-number">5.3</span>
+          <div><h2>运行依赖与最终输出</h2><p>每条推理请求不检索动作 dataset；但当前 loader 在进程启动时仍需要语义元数据，LoRA 版还会按 best.pt 记录加载 Motion Metric checkpoint。</p></div>
         </div>
 
         <div class="inference-layout">
           <div>
-            <div class="inference-steps">
-              <div class="process-tile"><span class="index">01 · PARSE</span><strong>Semantic adapter</strong><span>解析 behavior、emotion，并选择兼容的 136D base condition。</span></div>
-              <div class="process-tile"><span class="index">02 · ASSEMBLE</span><strong>264D condition</strong><span>base 136D + 训练 style + 128D group prototype。</span></div>
-              <div class="process-tile"><span class="index">03 · PLAN</span><strong>Duration head</strong><span>预测秒数并裁剪到训练时长契约的有效范围。</span></div>
-              <div class="process-tile"><span class="index">04 · INITIALIZE</span><strong>Gaussian motion</strong><span>按自动帧数创建 [T,15] 噪声，并限制在归一化关节范围。</span></div>
-              <div class="process-tile"><span class="index">05 · INTEGRATE</span><strong>Euler × 32</strong><span>反复计算 vθ，以 dt=1/32 更新整段动作。</span></div>
-              <div class="process-tile"><span class="index">06 · SAFETY</span><strong>Postprocess</strong><span>反归一化、关节限位、速度限制，得到可播放弧度轨迹。</span></div>
+            <div data-version-panel="frozen" hidden>
+              <div class="runtime-split">
+                <div class="runtime-band"><strong>冻结版启动需要</strong><span>General ULA V2 best EMA checkpoint</span><span>Frozen-Qwen semantic_adapter_checkpoint.pt + Qwen 基座缓存</span><span><code>meta/semantic_index.parquet</code> 用于来源哈希校验</span></div>
+                <div class="runtime-band"><strong>冻结版不需要</strong><span>Qwen Motion LoRA best.pt</span><span>Motion Metric checkpoint</span><span>动作 data parquet、reference trajectory 与 optimizer state</span></div>
+              </div>
             </div>
-
-            <div class="runtime-split">
-              <div class="runtime-band"><strong>生成时需要</strong><span>ULA V2 best EMA checkpoint</span><span>condition / style / prototype contracts</span><span>semantic adapter（自由文本模式）</span></div>
-              <div class="runtime-band"><strong>普通生成时不需要</strong><span>Motion Metric Encoder</span><span>训练集 parquet</span><span>optimizer 与 sampler state</span></div>
+            <div data-version-panel="lora">
+              <div class="runtime-split">
+                <div class="runtime-band"><strong>LoRA 版启动需要</strong><span>LoRA-condition ULA V2 best EMA checkpoint + 匹配的 Qwen Motion LoRA best.pt</span><span>Qwen 基座缓存 + LoRA 记录的 Motion Metric checkpoint</span><span><code>meta/semantic_index.parquet</code> + condition / style / text-latent contracts</span></div>
+                <div class="runtime-band"><strong>LoRA 版不需要</strong><span>Frozen-Qwen semantic adapter checkpoint</span><span>动作 data parquet或相似 episode 检索</span><span>reference trajectory、训练 batch 与 optimizer state</span></div>
+              </div>
             </div>
           </div>
 
           <div class="training-workbench">
-            <div class="frame-head"><h2>自动时长实例</h2><span>smoke checkpoint</span></div>
+            <div class="frame-head"><h2>自动时长链路实例</h2><span>20-step smoke · 只验证链路</span></div>
             <div class="inference-console">
-              <div style="font-size:11px;color:var(--muted)">开心地向主人挥手</div>
+              <div class="inference-example-text" style="color:var(--muted)">开心地向主人挥手</div>
               <div class="duration-display">
                 <div class="duration-value"><strong>0.955s</strong><span>predicted duration</span></div>
                 <div class="duration-op">× 30 fps</div>
@@ -1775,6 +5501,73 @@
         </div>
       </section>
 
+      <section class="view chapter-view" id="view-evaluation" role="tabpanel" data-panel="evaluation" hidden>
+        <header class="chapter-header">
+          <div class="chapter-number" aria-hidden="true">06</div>
+          <div>
+            <div class="chapter-eyebrow">Chapter 06 · Evaluation</div>
+            <h1>评测过程：先分清 objective，再看完整采样</h1>
+            <p>teacher-forced test objective 与从纯噪声开始的 32 步完整采样回答不同问题。固定标签 K1 主要比较生成器条件质量，不等同于端到端文本分类能力。</p>
+          </div>
+        </header>
+
+        <div class="evaluation-verdict">
+          <strong>当前结论：保留 baseline</strong>
+          <p>Qwen LoRA 的 test objective 小幅改善 0.32%，但 canonical K1 的位置和动力学没有收益；使用严格未见中文改写时，位置 RMSE 显著恶化 4.33%。LoRA checkpoint 适合作为实验产物，暂不替换默认生成器。</p>
+        </div>
+
+        <div class="protocol-grid" aria-label="三种评测协议">
+          <article class="protocol-item">
+            <small>A · Optimization metric</small>
+            <strong>Teacher-forced objective</strong>
+            <span>在真实 noise-data 直线上做单步重建，固定重采样为 128 帧。适合训练选点，但不代表从纯噪声 rollout 的最终轨迹质量。</span>
+          </article>
+          <article class="protocol-item">
+            <small>B · Generator A/B</small>
+            <strong>Canonical K1 sampling</strong>
+            <span>162 条 test episode，固定真值 behavior / emotion、reference style、帧数、seed=7 和 32 sampling steps。比较两套生成器，不测试标签分类。</span>
+          </article>
+          <article class="protocol-item">
+            <small>C · Text generalization</small>
+            <strong>Held-out Chinese K1</strong>
+            <span>保持同一 reference 和采样协议，只把文本替换为 Qwen 训练未见的中文 test paraphrase，用于测量文本 latent 分布变化。</span>
+          </article>
+        </div>
+
+        <div class="chapter-section-heading">
+          <span class="chapter-section-number">6.1</span>
+          <div><h2>Baseline 与 Qwen LoRA 实测对比</h2><p>所有误差指标均为越低越好；变化按 LoRA 相对 baseline 计算。</p></div>
+        </div>
+
+        <div class="evaluation-table-wrap">
+          <table class="evaluation-table">
+            <thead><tr><th>协议 / 指标</th><th>Prototype baseline</th><th>Qwen LoRA</th><th>LoRA 变化</th><th>解读</th></tr></thead>
+            <tbody>
+              <tr><td>Best validation objective</td><td>0.374903 · step 18k</td><td>0.376470 · step 17k</td><td class="worse">+0.42%</td><td>LoRA 略差</td></tr>
+              <tr><td>Episode-held-out test objective</td><td>0.360780</td><td>0.359612</td><td class="better">-0.32%</td><td>变化处于小波动量级</td></tr>
+              <tr><td>Canonical K1 · position RMSE</td><td>0.288792 rad</td><td>0.291968 rad</td><td class="worse">+1.10%</td><td>LoRA 略差</td></tr>
+              <tr><td>Canonical K1 · range RMSE</td><td>0.261397 rad</td><td>0.260093 rad</td><td class="better">-0.50%</td><td>小幅改善，不显著</td></tr>
+              <tr><td>Canonical K1 · velocity RMSE</td><td>0.976054 rad/s</td><td>0.981518 rad/s</td><td class="worse">+0.56%</td><td>LoRA 略差</td></tr>
+              <tr><td>Canonical K1 · acceleration RMSE</td><td>23.7133 rad/s²</td><td>24.0062 rad/s²</td><td class="worse">+1.24%</td><td>LoRA 退化稳定</td></tr>
+              <tr><td>Held-out Chinese K1 · position RMSE</td><td>0.288792 rad</td><td>0.301292 rad</td><td class="worse">+4.33%</td><td>显著退化</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="evaluation-notes">
+          <div class="evaluation-note"><strong>“test”不是未见文本：</strong>generator test episode 没进训练，但 162 个 canonical 文本及全部 behavior × emotion 组都在训练中出现。只有中文 paraphrase 协议测试文本泛化。</div>
+          <div class="evaluation-note"><strong>baseline 中文结果不变：</strong>固定标签 baseline 的条件只查 checkpoint prototype，不读取当前文本细节，因此 canonical 与中文改写轨迹完全一致；这是控制组设计，不是语言能力。</div>
+          <div class="evaluation-note"><strong>K1 不做 oracle 选优：</strong>每条 reference 只生成 seed=7 的一个候选。K&gt;1 可测模型上限，但会利用 reference 选最佳，不应作为主结果。</div>
+          <div class="evaluation-note"><strong>逐帧 RMSE 有边界：</strong>它会惩罚合理的相位差与多模态动作，因此还应结合 range、左右活动、Motion Metric 和视频检查。</div>
+        </div>
+
+        <div class="quick-jumps" aria-label="评测产物">
+          <a class="quick-jump" href="../../training/runs/kimodo_ula_v2_general_50k/v2_evaluation/test_k1.json">Baseline canonical JSON</a>
+          <a class="quick-jump" href="../../training/runs/kimodo_ula_v2_lora_50k/v2_evaluation/test_k1.json">LoRA canonical JSON</a>
+          <a class="quick-jump" href="../../training/runs/kimodo_ula_v2_lora_50k/v2_evaluation/test_zh_paraphrase_k1.json">LoRA Chinese JSON</a>
+        </div>
+      </section>
+
       <section class="view" id="view-source" role="tabpanel" data-panel="source" hidden>
         <div class="view-header">
           <div><div class="view-kicker">Code map</div><h1>源码阅读索引</h1></div>
@@ -1783,18 +5576,20 @@
 
         <div class="source-layout">
           <div class="source-frame">
-            <div class="frame-head"><h2>推荐顺序</h2><span>8 source anchors</span></div>
+            <div class="frame-head"><h2>推荐顺序</h2><span>10 source anchors</span></div>
             <table class="source-table">
               <thead><tr><th>#</th><th>Source</th><th>Purpose</th></tr></thead>
               <tbody>
                 <tr><td>01</td><td><a href="../../upper_body_skeleton/retarget_v2.py"><code>retarget_v2.py:9</code></a></td><td>15 个输出关节与安全范围</td></tr>
-                <tr><td>02</td><td><a href="../../upper_body_skeleton/ula_v2_conditioning.py"><code>ula_v2_conditioning.py:810</code></a></td><td>split、style、prototype 和 264D 条件</td></tr>
-                <tr><td>03</td><td><a href="../../upper_body_skeleton/ula_training.py"><code>ula_training.py:484</code></a></td><td>UlaMMDiTV2Model 本体</td></tr>
-                <tr><td>04</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:260</code></a></td><td>batch 和多分辨率相位重采样</td></tr>
-                <tr><td>05</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:310</code></a></td><td>完整 flow matching objective</td></tr>
-                <tr><td>06</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:531</code></a></td><td>优化、EMA、验证和 checkpoint</td></tr>
-                <tr><td>07</td><td><a href="../../upper_body_skeleton/ula_training.py"><code>ula_training.py:729</code></a></td><td>Euler flow sampler</td></tr>
-                <tr><td>08</td><td><a href="../../upper_body_skeleton/pt_mujoco_infer.py"><code>pt_mujoco_infer.py:330</code></a></td><td>条件组装、自动时长与后处理</td></tr>
+                <tr><td>02</td><td><a href="../../upper_body_skeleton/semantic_adapter.py"><code>semantic_adapter.py:466</code></a></td><td>冻结 Qwen、dual-task 分类 adapter 与 condition bank</td></tr>
+                <tr><td>03</td><td><a href="../../upper_body_skeleton/cross_modal_latent.py"><code>cross_modal_latent.py:227</code></a></td><td>Qwen LoRA、跨模态对齐与 128D text-motion latent</td></tr>
+                <tr><td>04</td><td><a href="../../upper_body_skeleton/ula_v2_conditioning.py"><code>ula_v2_conditioning.py:860</code></a></td><td>prototype / LoRA 两种 264D 条件契约</td></tr>
+                <tr><td>05</td><td><a href="../../upper_body_skeleton/ula_training.py"><code>ula_training.py:484</code></a></td><td>两版共享的 UlaMMDiTV2Model 本体</td></tr>
+                <tr><td>06</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:260</code></a></td><td>batch 和多分辨率相位重采样</td></tr>
+                <tr><td>07</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:328</code></a></td><td>共享的 flow matching V2 objective</td></tr>
+                <tr><td>08</td><td><a href="../../upper_body_skeleton/ula_training_v2.py"><code>ula_training_v2.py:570</code></a></td><td>可选 LoRA 预编码、ULA 优化、EMA 与 checkpoint</td></tr>
+                <tr><td>09</td><td><a href="../../upper_body_skeleton/ula_training.py"><code>ula_training.py:729</code></a></td><td>两版共享的 Euler flow sampler</td></tr>
+                <tr><td>10</td><td><a href="../../upper_body_skeleton/pt_mujoco_infer.py"><code>pt_mujoco_infer.py:326</code></a></td><td>两种互斥 condition builder、契约校验与后处理</td></tr>
               </tbody>
             </table>
           </div>
@@ -1811,11 +5606,17 @@
           </div>
         </div>
 
-        <div class="result-band">
+        <div class="result-band" data-version-panel="frozen" hidden>
           <div class="result-cell"><strong>50,000</strong><span>completed steps</span></div>
           <div class="result-cell"><strong>18,000</strong><span>best EMA step</span></div>
-          <div class="result-cell"><strong>0.374903</strong><span>best validation loss</span></div>
-          <div class="result-cell"><strong>0.360780</strong><span>held-out test loss</span></div>
+          <div class="result-cell"><strong>0.374903</strong><span>best validation objective</span></div>
+          <div class="result-cell"><strong>0.360780</strong><span>episode-held-out test objective</span></div>
+        </div>
+        <div class="result-band" data-version-panel="lora">
+          <div class="result-cell"><strong>50,000</strong><span>completed steps</span></div>
+          <div class="result-cell"><strong>17,000</strong><span>best EMA step</span></div>
+          <div class="result-cell"><strong>0.376470</strong><span>best validation objective</span></div>
+          <div class="result-cell"><strong>0.359612</strong><span>episode-held-out test objective</span></div>
         </div>
       </section>
     </main>
@@ -1829,12 +5630,43 @@
       const selected = tabs.find((tab) => tab.dataset.view === target) || tabs[0];
       tabs.forEach((item) => item.setAttribute('aria-selected', String(item === selected)));
       panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== selected.dataset.view; });
-      if (updateLocation) history.replaceState(null, '', `#${selected.dataset.view}`);
+      document.documentElement.dataset.activeView = selected.dataset.view;
+      if (updateLocation) {
+        const url = new URL(location.href);
+        url.hash = selected.dataset.view;
+        history.replaceState(null, '', url);
+      }
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
 
     tabs.forEach((tab) => tab.addEventListener('click', () => activateView(tab.dataset.view)));
-    activateView(location.hash.slice(1) || 'map', false);
+    activateView(location.hash.slice(1) || 'overview', false);
+
+    document.querySelectorAll('[data-jump-view]').forEach((button) => {
+      button.addEventListener('click', () => activateView(button.dataset.jumpView));
+    });
+
+    const versionButtons = [...document.querySelectorAll('[data-version]')];
+    const versionPanels = [...document.querySelectorAll('[data-version-panel]')];
+
+    function setVersion(version, updateLocation = true) {
+      const resolved = version === 'frozen' ? 'frozen' : 'lora';
+      versionButtons.forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.version === resolved));
+      });
+      versionPanels.forEach((panel) => { panel.hidden = panel.dataset.versionPanel !== resolved; });
+      document.documentElement.dataset.version = resolved;
+      if (updateLocation) {
+        const url = new URL(location.href);
+        url.searchParams.set('version', resolved);
+        history.replaceState(null, '', url);
+      }
+    }
+
+    versionButtons.forEach((button) => {
+      button.addEventListener('click', () => setVersion(button.dataset.version));
+    });
+    setVersion(new URLSearchParams(location.search).get('version') || 'lora', false);
 
     const frameOptions = [...document.querySelectorAll('.frame-option')];
     const tValues = [...document.querySelectorAll('[data-t]')];
@@ -1848,6 +5680,17 @@
     }
 
     frameOptions.forEach((button) => button.addEventListener('click', () => setFrames(Number(button.dataset.frames))));
+
+    const destinationTabs = [...document.querySelectorAll('.destination-tab')];
+    const destinationPanels = [...document.querySelectorAll('[data-destination-panel]')];
+
+    destinationTabs.forEach((button) => {
+      button.addEventListener('click', () => {
+        const destination = button.dataset.destination;
+        destinationTabs.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        destinationPanels.forEach((panel) => { panel.hidden = panel.dataset.destinationPanel !== destination; });
+      });
+    });
 
     const inspectables = [...document.querySelectorAll('.inspectable')];
     const inspectTitle = document.getElementById('inspect-title');
@@ -1869,8 +5712,8 @@
     });
 
     const heatmap = document.getElementById('heatmap');
-    for (let row = 0; row < 18; row += 1) {
-      for (let col = 0; col < 18; col += 1) {
+    for (let row = 0; row < 15; row += 1) {
+      for (let col = 0; col < 15; col += 1) {
         const cell = document.createElement('i');
         const diagonal = Math.max(0, 1 - Math.abs(row - col) / 6);
         const conditionBand = row < 3 || col < 3 ? 0.28 : 0;

@@ -9,6 +9,7 @@ import torch
 from upper_body_skeleton.kimodo_semantics import kimodo_condition_metadata
 from upper_body_skeleton.mujoco_playback import play_motion, render_motion
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
+from upper_body_skeleton.retarget_v2_18d import joint_order_for_action_dim
 from upper_body_skeleton.ula_infer import load_model
 from upper_body_skeleton.ula_training import (
     KIMODO_CONDITION_DIM,
@@ -16,7 +17,10 @@ from upper_body_skeleton.ula_training import (
     TRANSITION_IDS,
     build_condition_from_text,
     choose_device,
+    frame_count_to_coverage,
+    frame_count_to_sample_span,
     sample_trajectory,
+    sample_span_to_frame_count,
     write_generated_csv,
 )
 
@@ -57,12 +61,24 @@ def _condition_for_segment(text, segment_index, previous_transition, *, behavior
     )
 
 
-def _predict_plan(model, condition, device):
+def _transition_inference_enabled(model):
+    contract = getattr(model, "planner_supervision_contract", None)
+    if not isinstance(contract, dict) or not contract:
+        return True
+    return contract.get("transition_inference_enabled") is True
+
+
+def _predict_plan(model, condition, device, *, transition_enabled=True):
     tensor = torch.as_tensor(condition, dtype=torch.float32, device=device)
     with torch.no_grad():
         plan = model.plan_condition(tensor)
-        probs = torch.softmax(plan["transition_logits"], dim=-1)[0].detach().cpu().numpy()
         duration = float(plan["duration_sec"][0].detach().cpu())
+        if transition_enabled:
+            probs = torch.softmax(plan["transition_logits"], dim=-1)[0].detach().cpu().numpy()
+        else:
+            probs = np.empty((0,), dtype=np.float32)
+    if not transition_enabled:
+        return duration, None, probs
     transition_id = int(np.argmax(probs))
     return duration, transition_id, probs
 
@@ -176,6 +192,9 @@ def generate_long_emotion_motion(
     last_pose = None
     action_stats = getattr(model, "action_stats", None)
     sample_pose_bounds = GENERATION_POSE_BOUNDS if action_stats is not None else None
+    transition_enabled = _transition_inference_enabled(model)
+    action_dim = int(getattr(model, "action_dim", len(JOINT_ORDER)))
+    joint_order = joint_order_for_action_dim(action_dim)
 
     for segment_index in range(int(max_segments)):
         condition = _condition_for_segment(
@@ -186,18 +205,26 @@ def generate_long_emotion_motion(
             emotion_id=emotion_id,
             condition_dim=condition_dim,
         )
-        predicted_duration, transition_id, transition_probs = _predict_plan(model, condition, device)
+        predicted_duration, transition_id, transition_probs = _predict_plan(
+            model,
+            condition,
+            device,
+            transition_enabled=transition_enabled,
+        )
         remaining = max(0.0, float(max_duration_sec) - elapsed)
         if remaining <= 1.0 / float(fps):
             break
         duration_sec = _clamp(predicted_duration, min_segment_sec, max_segment_sec)
         duration_sec = min(duration_sec, remaining)
-        frames = max(2, int(round(duration_sec * float(fps))))
+        frames = sample_span_to_frame_count(duration_sec, fps)
+        while frames > 2 and frame_count_to_sample_span(frames, fps) > remaining:
+            frames -= 1
+        used_sample_span = frame_count_to_sample_span(frames, fps)
         trajectory = sample_trajectory(
             model,
             condition=condition,
             frames=frames,
-            action_dim=len(JOINT_ORDER),
+            action_dim=action_dim,
             steps=sampling_steps,
             device=device,
             seed=None if seed is None else int(seed) + segment_index,
@@ -207,24 +234,39 @@ def generate_long_emotion_motion(
         if last_pose is not None and len(trajectory):
             trajectory[0] = last_pose
         last_pose = trajectory[-1].copy()
-        transition_name = TRANSITION_NAMES.get(transition_id, "continue")
+        transition_name = (
+            TRANSITION_NAMES.get(transition_id, "continue")
+            if transition_enabled
+            else "unavailable"
+        )
         start_sec = elapsed
-        elapsed += frames / float(fps)
+        elapsed += used_sample_span
+        shared_boundary = bool(trajectories)
         segments.append(
             {
                 "segment_index": segment_index,
                 "start_sec": start_sec,
                 "end_sec": elapsed,
                 "frames": int(frames),
+                "generated_frame_count": int(frames),
+                "appended_frame_count": int(frames - 1 if shared_boundary else frames),
                 "predicted_duration_sec": predicted_duration,
-                "used_duration_sec": float(frames / float(fps)),
+                "used_duration_sec": used_sample_span,
+                "used_sample_span_sec": used_sample_span,
+                "frame_coverage_sec": frame_count_to_coverage(frames, fps),
+                "shared_boundary_frame": shared_boundary,
                 "transition": transition_name,
-                "transition_probs": {TRANSITION_NAMES[i]: float(v) for i, v in enumerate(transition_probs)},
+                "transition_probs": (
+                    {TRANSITION_NAMES[i]: float(v) for i, v in enumerate(transition_probs)}
+                    if transition_enabled
+                    else {}
+                ),
+                "transition_inference_enabled": transition_enabled,
             }
         )
-        trajectories.append(trajectory)
+        trajectories.append(trajectory[1:] if shared_boundary else trajectory)
         previous_transition = transition_name
-        if transition_name == "end" and len(segments) >= int(min_segments):
+        if transition_enabled and transition_name == "end" and len(segments) >= int(min_segments):
             break
 
     if not trajectories:
@@ -234,13 +276,13 @@ def generate_long_emotion_motion(
             emotion_id=emotion_id,
             condition_dim=condition_dim,
         )
-        frames = max(2, int(round(float(min_segment_sec) * float(fps))))
+        frames = sample_span_to_frame_count(min_segment_sec, fps)
         trajectories.append(
             sample_trajectory(
                 model,
                 condition=condition,
                 frames=frames,
-                action_dim=len(JOINT_ORDER),
+                action_dim=action_dim,
                 steps=sampling_steps,
                 device=device,
                 seed=seed,
@@ -248,7 +290,7 @@ def generate_long_emotion_motion(
                 action_stats=action_stats,
             )
         )
-        elapsed = frames / float(fps)
+        elapsed = frame_count_to_sample_span(frames, fps)
         segments.append(
             {
                 "segment_index": 0,
@@ -257,8 +299,12 @@ def generate_long_emotion_motion(
                 "frames": int(frames),
                 "predicted_duration_sec": float(min_segment_sec),
                 "used_duration_sec": elapsed,
+                "used_sample_span_sec": elapsed,
+                "frame_coverage_sec": frame_count_to_coverage(frames, fps),
+                "shared_boundary_frame": False,
                 "transition": "end",
                 "transition_probs": {},
+                "transition_inference_enabled": transition_enabled,
             }
         )
 
@@ -280,7 +326,7 @@ def generate_long_emotion_motion(
         npz_path,
         trajectory=trajectory,
         raw_trajectory=raw_trajectory,
-        joint_order=np.asarray(JOINT_ORDER, dtype=object),
+        joint_order=np.asarray(joint_order, dtype=object),
         text=text,
         fps=np.asarray(fps, dtype=np.float32),
         segments=np.asarray(json.dumps(segments, ensure_ascii=False), dtype=object),
@@ -306,6 +352,12 @@ def generate_long_emotion_motion(
         "rendered_mp4": rendered_mp4,
         "viewer": viewer_summary,
         "kimodo_condition": kimodo_meta,
+        "planner_supervision": {
+            "transition_inference_enabled": transition_enabled,
+            "transition_head_status": (
+                getattr(model, "planner_supervision_contract", {}) or {}
+            ).get("transition_head_status", "legacy_unspecified"),
+        },
     }
     plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
     summary = {
@@ -315,7 +367,10 @@ def generate_long_emotion_motion(
         "emotion_id": emotion_id,
         "segments": len(segments),
         "frames": int(trajectory.shape[0]),
-        "duration_sec": float(trajectory.shape[0] / float(fps)),
+        "duration_sec": frame_count_to_sample_span(trajectory.shape[0], fps),
+        "sample_span_sec": frame_count_to_sample_span(trajectory.shape[0], fps),
+        "frame_coverage_sec": frame_count_to_coverage(trajectory.shape[0], fps),
+        "duration_contract": "sample_span=(frame_count-1)/fps",
         "csv": str(csv_path),
         "npz": str(npz_path),
         "plan_json": str(plan_path),

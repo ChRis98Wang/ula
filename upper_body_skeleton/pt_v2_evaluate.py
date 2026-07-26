@@ -27,6 +27,7 @@ from upper_body_skeleton.pt_mujoco_infer import (
     DEFAULT_SEMANTIC_ADAPTER_CHECKPOINT,
     EXPERIMENTAL_KIMODO_CHECKPOINT,
     PtMotionGenerator,
+    load_motion_latent_lora_condition_builder,
     validate_generator_condition_source,
 )
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
@@ -38,6 +39,11 @@ from upper_body_skeleton.semantic_adapter import (
     validate_semantic_adapter_checkpoint,
     validate_semantic_labels,
 )
+from upper_body_skeleton.ula_training import (
+    frame_count_to_coverage,
+    frame_count_to_sample_span,
+)
+from upper_body_skeleton.ula_training_v2 import resample_motion_phase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -266,6 +272,125 @@ def best_of_k_metrics(candidates, reference, *, fps):
     }
 
 
+def free_length_best_of_k_metrics(candidates, reference, *, fps):
+    """Score native-length candidates without using reference length at generation."""
+    candidates = list(candidates)
+    if not candidates:
+        raise ValueError("free-length best-of-K evaluation requires candidates")
+    reference = _validated_trajectory(reference, name="reference trajectory")
+    if reference.shape[0] < 2:
+        raise ValueError("free-length evaluation requires at least two reference frames")
+    fps = _validated_fps(fps)
+    reference_frames = int(reference.shape[0])
+    reference_span = frame_count_to_sample_span(reference_frames, fps)
+    scored = []
+    for candidate_index, candidate in enumerate(candidates):
+        generated = _validated_trajectory(
+            candidate.get("trajectory"), name="free-length generated trajectory"
+        )
+        if generated.shape[0] < 2:
+            raise ValueError("free-length generation must contain at least two frames")
+        generated_frames = int(generated.shape[0])
+        generated_span = frame_count_to_sample_span(generated_frames, fps)
+        aligned = resample_motion_phase(generated, reference_frames)
+        metrics = trajectory_pair_metrics(aligned, reference, fps=fps)
+        scored.append(
+            {
+                "candidate_index": int(candidate_index),
+                "seed": int(candidate["seed"]),
+                "metrics": metrics,
+                "generated_frame_count": generated_frames,
+                "generated_sample_span_sec": generated_span,
+                "generated_frame_coverage_sec": frame_count_to_coverage(
+                    generated_frames, fps
+                ),
+                "sample_span_error_sec": generated_span - reference_span,
+                "sample_span_absolute_error_sec": abs(
+                    generated_span - reference_span
+                ),
+                "frame_count_error": generated_frames - reference_frames,
+                "frame_count_absolute_error": abs(
+                    generated_frames - reference_frames
+                ),
+                "semantic_label_match": bool(
+                    candidate.get("semantic_label_match", True)
+                ),
+                "predicted_duration_sec": candidate.get(
+                    "predicted_duration_sec"
+                ),
+            }
+        )
+    best = min(
+        scored,
+        key=lambda row: (
+            row["metrics"]["position_rmse_rad"],
+            row["sample_span_absolute_error_sec"],
+            row["candidate_index"],
+        ),
+    )
+    return {
+        "k": len(scored),
+        "generation_length_policy": "duration_head_native_length_no_reference_frames",
+        "comparison_alignment": "phase_resample_generated_to_reference_for_action_metrics_only",
+        "selection_metric": (
+            "phase_aligned_position_rmse_rad_then_sample_span_absolute_error_sec"
+        ),
+        "position_rmse_best_of_k_rad": float(
+            best["metrics"]["position_rmse_rad"]
+        ),
+        "best_candidate_index": int(best["candidate_index"]),
+        "best_seed": int(best["seed"]),
+        "selected_metrics": best["metrics"],
+        "selected_generated_frame_count": int(best["generated_frame_count"]),
+        "selected_generated_sample_span_sec": float(
+            best["generated_sample_span_sec"]
+        ),
+        "selected_sample_span_error_sec": float(best["sample_span_error_sec"]),
+        "selected_sample_span_absolute_error_sec": float(
+            best["sample_span_absolute_error_sec"]
+        ),
+        "selected_frame_count_error": int(best["frame_count_error"]),
+        "selected_frame_count_absolute_error": int(
+            best["frame_count_absolute_error"]
+        ),
+        "selected_semantic_label_match": bool(best["semantic_label_match"]),
+        "candidate_scores": [
+            {
+                "candidate_index": int(row["candidate_index"]),
+                "seed": int(row["seed"]),
+                "generated_frame_count": int(row["generated_frame_count"]),
+                "generated_sample_span_sec": float(
+                    row["generated_sample_span_sec"]
+                ),
+                "generated_frame_coverage_sec": float(
+                    row["generated_frame_coverage_sec"]
+                ),
+                "sample_span_error_sec": float(row["sample_span_error_sec"]),
+                "sample_span_absolute_error_sec": float(
+                    row["sample_span_absolute_error_sec"]
+                ),
+                "frame_count_error": int(row["frame_count_error"]),
+                "frame_count_absolute_error": int(
+                    row["frame_count_absolute_error"]
+                ),
+                "semantic_label_match": bool(row["semantic_label_match"]),
+                "predicted_duration_sec": row["predicted_duration_sec"],
+                "phase_aligned_position_rmse_rad": float(
+                    row["metrics"]["position_rmse_rad"]
+                ),
+                "phase_aligned_velocity_rmse_rad_s": float(
+                    row["metrics"]["velocity_rmse_rad_s"]
+                ),
+                "phase_aligned_acceleration_rmse_rad_s2": float(
+                    row["metrics"]["acceleration_rmse_rad_s2"]
+                ),
+                "range_rmse_rad": float(row["metrics"]["range_rmse_rad"]),
+            }
+            for row in scored
+        ],
+    }
+
+
 def _scalar_summary(values):
     values = np.asarray(list(values), dtype=np.float64)
     if values.size == 0:
@@ -321,6 +446,33 @@ def aggregate_episode_metrics(results, *, include_groups=True):
             )
         },
     }
+    if all(
+        "selected_sample_span_absolute_error_sec" in row["best_of_k"]
+        for row in results
+    ):
+        aggregate.update(
+            {
+                "primary_length_policy": (
+                    "duration_head_native_length_no_reference_frames"
+                ),
+                "sample_span_mae_selected_sec": _scalar_summary(
+                    row["best_of_k"]["selected_sample_span_absolute_error_sec"]
+                    for row in results
+                ),
+                "frame_count_absolute_error_selected": _scalar_summary(
+                    row["best_of_k"]["selected_frame_count_absolute_error"]
+                    for row in results
+                ),
+                "semantic_label_match_rate_selected": float(
+                    np.mean(
+                        [
+                            bool(row["best_of_k"]["selected_semantic_label_match"])
+                            for row in results
+                        ]
+                    )
+                ),
+            }
+        )
     if include_groups:
         grouped = defaultdict(list)
         for row in results:
@@ -506,9 +658,59 @@ def evaluate_reference_rows(
         if not isinstance(prompt, EvaluationPrompt) or not prompt.text.strip():
             raise ValueError("prompt_provider must return a non-empty EvaluationPrompt")
 
-        candidates = []
+        primary_candidates = []
+        oracle_candidates = []
         for seed in seeds:
-            cache_key = (
+            primary_cache_key = (
+                "primary_non_oracle",
+                prompt.text,
+                behavior_id,
+                emotion_id,
+                float(fps),
+                int(sampling_steps),
+                int(seed),
+                float(max_velocity_rad_s),
+                None if smooth_window is None else int(smooth_window),
+                "default_style",
+            )
+            primary_motion = generated_cache.get(primary_cache_key)
+            if primary_motion is None:
+                primary_motion = generator.infer(
+                    prompt.text,
+                    behavior_id=behavior_id,
+                    emotion_id=emotion_id,
+                    frames=None,
+                    fps=fps,
+                    sampling_steps=sampling_steps,
+                    seed=seed,
+                    max_velocity_rad_s=max_velocity_rad_s,
+                    smooth_window=smooth_window,
+                    condition_builder=condition_builder,
+                    style_controls=None,
+                )
+                generated_cache[primary_cache_key] = primary_motion
+            if (
+                primary_motion.behavior_id != behavior_id
+                or primary_motion.emotion_id != emotion_id
+            ):
+                raise ValueError(
+                    f"generator resolved {primary_motion.behavior_id}/"
+                    f"{primary_motion.emotion_id}, "
+                    f"expected {behavior_id}/{emotion_id}"
+                )
+            primary_candidates.append(
+                {
+                    "seed": seed,
+                    "trajectory": primary_motion.trajectory,
+                    "predicted_duration_sec": getattr(
+                        primary_motion, "predicted_duration_sec", None
+                    ),
+                    "semantic_label_match": True,
+                }
+            )
+
+            oracle_cache_key = (
+                "secondary_oracle_length",
                 prompt.text,
                 behavior_id,
                 emotion_id,
@@ -522,9 +724,9 @@ def evaluate_reference_rows(
                 if reference_style_controls is None
                 else tuple(float(value) for value in reference_style_controls),
             )
-            motion = generated_cache.get(cache_key)
-            if motion is None:
-                motion = generator.infer(
+            oracle_motion = generated_cache.get(oracle_cache_key)
+            if oracle_motion is None:
+                oracle_motion = generator.infer(
                     prompt.text,
                     behavior_id=behavior_id,
                     emotion_id=emotion_id,
@@ -537,19 +739,36 @@ def evaluate_reference_rows(
                     condition_builder=condition_builder,
                     style_controls=reference_style_controls,
                 )
-                generated_cache[cache_key] = motion
-            if motion.behavior_id != behavior_id or motion.emotion_id != emotion_id:
+                generated_cache[oracle_cache_key] = oracle_motion
+            if (
+                oracle_motion.behavior_id != behavior_id
+                or oracle_motion.emotion_id != emotion_id
+            ):
                 raise ValueError(
-                    f"generator resolved {motion.behavior_id}/{motion.emotion_id}, "
-                    f"expected {behavior_id}/{emotion_id}"
+                    f"oracle diagnostic resolved {oracle_motion.behavior_id}/"
+                    f"{oracle_motion.emotion_id}, expected {behavior_id}/{emotion_id}"
                 )
-            candidates.append(
+            oracle_candidates.append(
                 {
                     "seed": seed,
-                    "trajectory": motion.trajectory,
-                    "predicted_duration_sec": getattr(motion, "predicted_duration_sec", None),
+                    "trajectory": oracle_motion.trajectory,
+                    "predicted_duration_sec": getattr(
+                        oracle_motion, "predicted_duration_sec", None
+                    ),
                 }
             )
+
+        primary = free_length_best_of_k_metrics(
+            primary_candidates, reference, fps=fps
+        )
+        secondary = best_of_k_metrics(oracle_candidates, reference, fps=fps)
+        secondary["generation_length_policy"] = (
+            "reference_frame_count_for_secondary_diagnostic_only"
+        )
+        reference_frame_count = int(reference.shape[0])
+        reference_sample_span = frame_count_to_sample_span(
+            reference_frame_count, fps
+        )
 
         results.append(
             {
@@ -557,16 +776,24 @@ def evaluate_reference_rows(
                 "sample_id": row.get("sample_id"),
                 "behavior_id": behavior_id,
                 "emotion_id": emotion_id,
-                "frames": int(reference.shape[0]),
+                "frames": reference_frame_count,
+                "reference_frame_count": reference_frame_count,
                 "prompt": {
                     "text": prompt.text,
                     "source": prompt.source,
                     "pair_id": prompt.pair_id,
                 },
-                "best_of_k": best_of_k_metrics(candidates, reference, fps=fps),
-                "reference_duration_sec": float(reference.shape[0] / fps),
+                "primary_non_oracle": primary,
+                "secondary_oracle_length": secondary,
+                "best_of_k": primary,
+                "reference_duration_sec": reference_sample_span,
+                "reference_sample_span_sec": reference_sample_span,
+                "reference_frame_coverage_sec": frame_count_to_coverage(
+                    reference_frame_count, fps
+                ),
                 "predicted_duration_sec": [
-                    candidate["predicted_duration_sec"] for candidate in candidates
+                    candidate["predicted_duration_sec"]
+                    for candidate in primary_candidates
                 ],
             }
         )
@@ -616,8 +843,40 @@ def _generator_training_coverage(checkpoint, *, dataset_episode_count, reference
 
 
 def _load_fixed_label_condition_builder(
-    semantic_adapter_checkpoint, *, generator_checkpoint, dataset_dir
+    semantic_adapter_checkpoint,
+    *,
+    generator_checkpoint,
+    dataset_dir,
+    motion_latent_lora_checkpoint=None,
+    motion_latent_device="auto",
+    motion_latent_local_files_only=True,
 ):
+    text_motion_contract = (generator_checkpoint.get("v2_contracts") or {}).get(
+        "text_motion_latent"
+    )
+    if text_motion_contract is not None:
+        if motion_latent_lora_checkpoint is None:
+            raise ValueError(
+                "this V2 evaluation requires the Qwen Motion LoRA checkpoint recorded by the generator"
+            )
+        builder, lora_checkpoint, condition_source, checkpoint_hash = (
+            load_motion_latent_lora_condition_builder(
+                generator_checkpoint,
+                motion_latent_lora_checkpoint,
+                dataset_dir=dataset_dir,
+                device=motion_latent_device,
+                local_files_only=motion_latent_local_files_only,
+            )
+        )
+        builder.motion_latent_lora_provenance = {
+            "checkpoint": str(Path(motion_latent_lora_checkpoint).resolve()),
+            "checkpoint_sha256": checkpoint_hash,
+            "qwen": lora_checkpoint["qwen"],
+            "best_step": int(lora_checkpoint["best_step"]),
+        }
+        return builder, condition_source
+    if motion_latent_lora_checkpoint is not None:
+        raise ValueError("generator was not trained with Qwen LoRA text-motion latents")
     semantic_checkpoint = torch.load(
         semantic_adapter_checkpoint, map_location="cpu", weights_only=True
     )
@@ -643,6 +902,7 @@ def run_v2_evaluation(
     split_checkpoint_path=DEFAULT_MOTION_SPLIT_CHECKPOINT,
     generator_checkpoint=EXPERIMENTAL_KIMODO_CHECKPOINT,
     semantic_adapter_checkpoint=DEFAULT_SEMANTIC_ADAPTER_CHECKPOINT,
+    motion_latent_lora_checkpoint=None,
     output_json=DEFAULT_OUTPUT_JSON,
     split="test",
     behavior_ids=None,
@@ -650,6 +910,8 @@ def run_v2_evaluation(
     max_references=None,
     seeds=DEFAULT_SEEDS,
     device="auto",
+    motion_latent_device=None,
+    motion_latent_local_files_only=True,
     sampling_steps=32,
     max_velocity_rad_s=3.0,
     smooth_window=None,
@@ -678,6 +940,12 @@ def run_v2_evaluation(
         semantic_adapter_checkpoint,
         generator_checkpoint=generator.checkpoint,
         dataset_dir=dataset_dir,
+        motion_latent_lora_checkpoint=motion_latent_lora_checkpoint,
+        motion_latent_device=motion_latent_device or device,
+        motion_latent_local_files_only=motion_latent_local_files_only,
+    )
+    motion_latent_lora_provenance = getattr(
+        condition_builder, "motion_latent_lora_provenance", None
     )
     results = evaluate_reference_rows(
         generator,
@@ -699,11 +967,38 @@ def run_v2_evaluation(
     payload = {
         "schema_version": 1,
         "protocol": {
-            "name": "v2_fixed_label_heldout_best_of_k",
+            "name": "v2_fixed_label_heldout_free_length_primary_v2",
             "trajectory_variant": "postprocessed",
-            "selection_metric": "position_rmse_rad",
+            "primary_generation_length": (
+                "duration_head_native_length_no_reference_frames"
+            ),
+            "primary_action_comparison": (
+                "phase_aligned_position_rmse_reference_length_not_generation_input"
+            ),
+            "primary_length_metrics": [
+                "sample_span_mae_selected_sec",
+                "frame_count_absolute_error_selected",
+            ],
+            "secondary_diagnostic": "oracle_reference_frame_count_best_of_k",
+            "selection_metric": (
+                "validation_only_phase_aligned_position_rmse_then_duration_error"
+            ),
+            "duration_time_axis": "sample_span=(frame_count-1)/fps",
             "prompt_provider": "dataset.language_instruction",
             "condition_source": "canonical_behavior_emotion_bank",
+            "primary_style_policy": "default_style_no_reference_trajectory_style",
+            "split_policy": {
+                "validation": "model_selection_and_threshold_definition_allowed",
+                "test": "sealed_final_report_once_no_model_selection_no_threshold_definition",
+                "requested_split_model_selection_eligible": split == "validation",
+                "requested_split_threshold_definition_eligible": split
+                == "validation",
+            },
+            "text_motion_conditioning": (
+                "qwen_motion_lora_128d"
+                if motion_latent_lora_provenance is not None
+                else "none"
+            ),
             "extension_points": [
                 "prompt_provider_for_paraphrase",
                 "reference_selector_for_pair_holdout",
@@ -728,12 +1023,13 @@ def run_v2_evaluation(
             "generator_configured_steps": generator.info.configured_steps,
             "split_checkpoint": str(Path(split_checkpoint_path).resolve()),
             "split_checkpoint_sha256": _file_sha256(split_checkpoint_path),
-            "semantic_adapter_checkpoint": str(
-                Path(semantic_adapter_checkpoint).resolve()
-            ),
-            "semantic_adapter_checkpoint_sha256": _file_sha256(
-                semantic_adapter_checkpoint
-            ),
+            "semantic_adapter_checkpoint": None
+            if motion_latent_lora_provenance is not None
+            else str(Path(semantic_adapter_checkpoint).resolve()),
+            "semantic_adapter_checkpoint_sha256": None
+            if motion_latent_lora_provenance is not None
+            else _file_sha256(semantic_adapter_checkpoint),
+            "motion_latent_lora": motion_latent_lora_provenance,
             "condition_source": condition_source,
             "generator_training_coverage": coverage,
         },
@@ -761,6 +1057,9 @@ def main(argv=None):
         "--semantic-adapter-checkpoint",
         default=str(DEFAULT_SEMANTIC_ADAPTER_CHECKPOINT),
     )
+    parser.add_argument("--motion-latent-lora-checkpoint")
+    parser.add_argument("--motion-latent-device")
+    parser.add_argument("--allow-motion-latent-download", action="store_true")
     parser.add_argument("--output-json", default=str(DEFAULT_OUTPUT_JSON))
     parser.add_argument("--split", choices=SPLIT_NAMES, default="test")
     parser.add_argument("--behavior-id", action="append", dest="behavior_ids")
@@ -788,6 +1087,7 @@ def main(argv=None):
         split_checkpoint_path=args.split_checkpoint,
         generator_checkpoint=args.generator_checkpoint,
         semantic_adapter_checkpoint=args.semantic_adapter_checkpoint,
+        motion_latent_lora_checkpoint=args.motion_latent_lora_checkpoint,
         output_json=args.output_json,
         split=args.split,
         behavior_ids=args.behavior_ids,
@@ -795,6 +1095,8 @@ def main(argv=None):
         max_references=args.max_references,
         seeds=seeds,
         device=args.device,
+        motion_latent_device=args.motion_latent_device,
+        motion_latent_local_files_only=not args.allow_motion_latent_download,
         sampling_steps=args.sampling_steps,
         max_velocity_rad_s=args.max_velocity_rad_s,
         smooth_window=args.smooth_window,

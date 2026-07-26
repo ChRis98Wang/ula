@@ -15,8 +15,16 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
+from upper_body_skeleton.retarget_v2_18d import (
+    CONTRACT_VERSION as ULA_V2_18D_CONTRACT,
+    JOINT_ORDER_18D,
+    joint_order_for_action_dim,
+)
 from upper_body_skeleton.side_by_side_preview import build_camera, build_front_camera
 from upper_body_skeleton.v2_axis_calibration import DEFAULT_URDF, resolve_mujoco_urdf
+
+
+DEFAULT_FULL_BODY_CAMERA_MARGIN = 1.12
 
 
 V2_UPPER_BODY_XML = """
@@ -74,22 +82,70 @@ V2_UPPER_BODY_XML = """
           </body>
         </body>
       </body>
+      <body name="head_roll" pos="0 0 0.55">
+        <joint name="head_roll_joint" type="hinge" axis="1 0 0" range="-0.785 0.785"/>
+        <geom type="sphere" size="0.01" mass="0.001" rgba="0 0 0 0"/>
+        <body name="head_pitch">
+          <joint name="head_pitch_joint" type="hinge" axis="0 1 0" range="-1.57 1.57"/>
+          <geom type="sphere" size="0.01" mass="0.001" rgba="0 0 0 0"/>
+          <body name="head_yaw" pos="0 0 0.08">
+            <joint name="head_yaw_joint" type="hinge" axis="0 0 -1" range="-1.57 1.57"/>
+            <geom name="head" type="ellipsoid" size="0.12 0.10 0.15" material="joint"/>
+          </body>
+        </body>
+      </body>
     </body>
   </worldbody>
 </mujoco>
 """
 
 
-def read_joint_csv(path):
+def _validated_joint_order(joint_order):
+    resolved = list(JOINT_ORDER if joint_order is None else joint_order)
+    if resolved not in (JOINT_ORDER, JOINT_ORDER_18D):
+        raise ValueError("joint_order must be the ULA V2 15D or versioned 18D contract")
+    return resolved
+
+
+def read_joint_csv(path, *, joint_order=None):
     rows = []
     with Path(path).open("r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        fieldnames = set(reader.fieldnames or [])
+        if joint_order is None:
+            head_fields = set(JOINT_ORDER_18D[len(JOINT_ORDER) :])
+            present_head_fields = head_fields & fieldnames
+            if present_head_fields and present_head_fields != head_fields:
+                missing = sorted(head_fields - present_head_fields)
+                raise ValueError(f"joint CSV contains a partial ULA V2 18D head contract: {missing}")
+            if set(JOINT_ORDER_18D).issubset(fieldnames):
+                joint_order = JOINT_ORDER_18D
+            elif set(JOINT_ORDER).issubset(fieldnames):
+                joint_order = JOINT_ORDER
+            else:
+                missing = sorted(set(JOINT_ORDER) - fieldnames)
+                raise ValueError(f"joint CSV does not contain the ULA V2 15D contract: {missing}")
+        joint_order = _validated_joint_order(joint_order)
+        missing = sorted(set(joint_order) - fieldnames)
+        if missing:
+            raise ValueError(f"joint CSV is missing columns for the requested contract: {missing}")
         for row in reader:
-            rows.append([float(row[joint]) for joint in JOINT_ORDER])
-    return np.asarray(rows, dtype=np.float32)
+            rows.append([float(row[joint]) for joint in joint_order])
+    return np.asarray(rows, dtype=np.float32).reshape(-1, len(joint_order))
 
 
-def load_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
+def _joint_to_qpos_map(model, joint_order):
+    joint_to_qpos = {}
+    for index, joint in enumerate(joint_order):
+        joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, joint)
+        if joint_id < 0:
+            raise ValueError(f"missing joint in MuJoCo model: {joint}")
+        joint_to_qpos[index] = int(model.jnt_qposadr[joint_id])
+    return joint_to_qpos
+
+
+def load_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False, joint_order=JOINT_ORDER):
+    joint_order = _validated_joint_order(joint_order)
     if simplified:
         model = mujoco.MjModel.from_xml_string(V2_UPPER_BODY_XML)
         model_source = "simplified_builtin_xml"
@@ -97,24 +153,126 @@ def load_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
         urdf_path = resolve_mujoco_urdf(urdf_path)
         model = mujoco.MjModel.from_xml_path(str(urdf_path))
         model_source = str(urdf_path)
-    joint_to_qpos = {}
-    for index, joint in enumerate(JOINT_ORDER):
-        joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, joint)
-        if joint_id < 0:
-            raise ValueError(f"missing joint in MuJoCo model: {joint}")
-        joint_to_qpos[index] = int(model.jnt_qposadr[joint_id])
+    joint_to_qpos = _joint_to_qpos_map(model, joint_order)
     return model, joint_to_qpos, model_source
 
 
-def build_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False):
-    model, joint_to_qpos, _ = load_preview_model(urdf_path=urdf_path, simplified=simplified)
+def build_preview_model(urdf_path=DEFAULT_URDF, *, simplified=False, joint_order=JOINT_ORDER):
+    model, joint_to_qpos, _ = load_preview_model(
+        urdf_path=urdf_path,
+        simplified=simplified,
+        joint_order=joint_order,
+    )
     return model, joint_to_qpos
 
 
-def _validated_trajectory(values, *, name):
+def _set_joint_values(data, values, joint_to_qpos):
+    data.qpos[:] = 0.0
+    for action_index, value in enumerate(values):
+        data.qpos[joint_to_qpos[action_index]] = float(value)
+
+
+def trajectory_geom_bounds(model, data, trajectory, joint_to_qpos):
+    """Return conservative world-space bounds for every robot pose in a trajectory."""
+    trajectory = _validated_trajectory(trajectory, name="camera-fit")
+    geom_radii = np.asarray(model.geom_rbound, dtype=np.float64)
+    geom_body_ids = np.asarray(model.geom_bodyid, dtype=np.int32)
+    robot_geom_mask = (geom_body_ids != 0) & np.isfinite(geom_radii) & (geom_radii >= 0.0)
+    if not np.any(robot_geom_mask):
+        raise ValueError("MuJoCo model has no finite robot geometry for camera fitting")
+
+    radii = geom_radii[robot_geom_mask, None]
+    lower = np.full(3, np.inf, dtype=np.float64)
+    upper = np.full(3, -np.inf, dtype=np.float64)
+    for values in trajectory:
+        _set_joint_values(data, values, joint_to_qpos)
+        mujoco.mj_forward(model, data)
+        centers = np.asarray(data.geom_xpos, dtype=np.float64)[robot_geom_mask]
+        lower = np.minimum(lower, np.min(centers - radii, axis=0))
+        upper = np.maximum(upper, np.max(centers + radii, axis=0))
+
+    return lower, upper
+
+
+def fit_full_body_camera(
+    model,
+    data,
+    trajectory,
+    joint_to_qpos,
+    *,
+    width,
+    height,
+    margin=DEFAULT_FULL_BODY_CAMERA_MARGIN,
+):
+    """Fit a front camera to the union of robot geometry across all frames."""
+    width = int(width)
+    height = int(height)
+    margin = float(margin)
+    if width <= 0 or height <= 0:
+        raise ValueError("camera-fit width and height must be positive")
+    if not np.isfinite(margin) or margin < 1.0:
+        raise ValueError("camera margin must be finite and at least 1.0")
+
+    lower, upper = trajectory_geom_bounds(model, data, trajectory, joint_to_qpos)
+    center = 0.5 * (lower + upper)
+    radius = 0.5 * float(np.linalg.norm(upper - lower))
+    vertical_half_fov = 0.5 * np.deg2rad(float(model.vis.global_.fovy))
+    horizontal_half_fov = np.arctan(np.tan(vertical_half_fov) * width / height)
+    limiting_half_fov = min(vertical_half_fov, horizontal_half_fov)
+    if not 0.0 < limiting_half_fov < 0.5 * np.pi:
+        raise ValueError(f"invalid MuJoCo camera field of view: {model.vis.global_.fovy}")
+
+    camera = build_front_camera()
+    camera.lookat[:] = center
+    camera.distance = max(1e-3, margin * radius / np.sin(limiting_half_fov))
+    framing = {
+        "mode": "auto_full_body",
+        "margin": margin,
+        "bounds_min": lower.tolist(),
+        "bounds_max": upper.tolist(),
+        "bounds_center": center.tolist(),
+        "bounds_radius": radius,
+        "vertical_fov_deg": float(model.vis.global_.fovy),
+        "auto_distance": float(camera.distance),
+    }
+    return camera, framing
+
+
+def apply_camera_lookat_z_offset(camera, framing, z_offset):
+    """Shift the subject vertically while preserving the full-body fit margin."""
+    z_offset = float(z_offset)
+    if not np.isfinite(z_offset):
+        raise ValueError("camera look-at Z offset must be finite")
+    radius = float(framing["bounds_radius"])
+    margin = float(framing["margin"])
+    available_margin = max(0.0, (margin - 1.0) * radius)
+    if abs(z_offset) > available_margin + 1e-12:
+        raise ValueError(
+            "camera look-at Z offset exceeds the reserved full-body framing margin: "
+            f"abs({z_offset}) > {available_margin}"
+        )
+    camera.lookat[2] += z_offset
+    framing["lookat_z_offset"] = z_offset
+    framing["lookat_z_offset_limit"] = available_margin
+    framing["subject_screen_bias"] = (
+        "up" if z_offset < 0.0 else "down" if z_offset > 0.0 else "center"
+    )
+    return camera, framing
+
+
+def _validated_trajectory(values, *, name, joint_order=None):
     trajectory = np.asarray(values, dtype=np.float32)
-    if trajectory.ndim != 2 or trajectory.shape[1] != len(JOINT_ORDER):
-        raise ValueError(f"{name} trajectory must have shape [frames, {len(JOINT_ORDER)}]")
+    if trajectory.ndim != 2:
+        raise ValueError(f"{name} trajectory must have shape [frames, joints]")
+    resolved_order = (
+        joint_order_for_action_dim(trajectory.shape[1])
+        if joint_order is None
+        else _validated_joint_order(joint_order)
+    )
+    if trajectory.shape[1] != len(resolved_order):
+        raise ValueError(
+            f"{name} trajectory must have shape [frames, {len(resolved_order)}]"
+        )
     if trajectory.shape[0] < 1:
         raise ValueError(f"{name} trajectory must contain at least one frame")
     if not np.isfinite(trajectory).all():
@@ -175,6 +333,8 @@ def render_trajectory_comparison(
     urdf_path=DEFAULT_URDF,
     simplified=False,
     camera_view="upper",
+    network_label="NETWORK OUTPUT",
+    reference_label="DATASET REFERENCE",
 ):
     network_trajectory = _validated_trajectory(network_trajectory, name="network")
     reference_trajectory = _validated_trajectory(reference_trajectory, name="reference")
@@ -195,7 +355,12 @@ def render_trajectory_comparison(
     if camera_view not in {"front", "upper"}:
         raise ValueError("camera_view must be 'front' or 'upper'")
 
-    model, joint_to_qpos, model_source = load_preview_model(urdf_path=urdf_path, simplified=simplified)
+    joint_order = joint_order_for_action_dim(network_trajectory.shape[1])
+    model, joint_to_qpos, model_source = load_preview_model(
+        urdf_path=urdf_path,
+        simplified=simplified,
+        joint_order=joint_order,
+    )
     model.vis.global_.offwidth = max(int(model.vis.global_.offwidth), pane_width)
     model.vis.global_.offheight = max(int(model.vis.global_.offheight), pane_height)
     data = mujoco.MjData(model)
@@ -228,8 +393,10 @@ def render_trajectory_comparison(
             temporary_path,
             fps=fps,
             codec="libx264",
+            pixelformat="yuv420p",
             quality=7,
             macro_block_size=2,
+            output_params=["-movflags", "+faststart"],
         ) as writer:
             for network_values, reference_values in zip(network_trajectory, reference_trajectory):
                 network_frame = render_values(network_values)
@@ -238,6 +405,8 @@ def render_trajectory_comparison(
                     compose_labeled_comparison_frame(
                         network_frame,
                         reference_frame,
+                        network_label=network_label,
+                        reference_label=reference_label,
                         title_height=title_height,
                     )
                 )
@@ -252,7 +421,7 @@ def render_trajectory_comparison(
 
     return {
         "output_mp4": str(output_mp4),
-        "layout": {"left": "network_output", "right": "dataset_reference"},
+        "layout": {"left": str(network_label), "right": str(reference_label)},
         "frames": frames_written,
         "duration_sec": frames_written / fps,
         "fps": fps,
@@ -275,22 +444,45 @@ def render_motion(
     urdf_path=DEFAULT_URDF,
     simplified=False,
     camera_distance=None,
+    camera_margin=DEFAULT_FULL_BODY_CAMERA_MARGIN,
+    camera_lookat_z_offset=0.0,
 ):
-    trajectory = read_joint_csv(joint_csv)
-    model, joint_to_qpos, model_source = load_preview_model(urdf_path=urdf_path, simplified=simplified)
+    trajectory = _validated_trajectory(read_joint_csv(joint_csv), name="joint CSV")
+    joint_order = joint_order_for_action_dim(trajectory.shape[1])
+    model, joint_to_qpos, model_source = load_preview_model(
+        urdf_path=urdf_path,
+        simplified=simplified,
+        joint_order=joint_order,
+    )
     model.vis.global_.offwidth = max(int(model.vis.global_.offwidth), int(width))
     model.vis.global_.offheight = max(int(model.vis.global_.offheight), int(height))
     data = mujoco.MjData(model)
-    renderer = mujoco.Renderer(model, height=height, width=width)
-    camera = build_front_camera()
+    camera, camera_framing = fit_full_body_camera(
+        model,
+        data,
+        trajectory,
+        joint_to_qpos,
+        width=width,
+        height=height,
+        margin=camera_margin,
+    )
+    camera, camera_framing = apply_camera_lookat_z_offset(
+        camera,
+        camera_framing,
+        camera_lookat_z_offset,
+    )
     if camera_distance is not None:
-        camera.distance = float(camera_distance)
+        camera_distance = float(camera_distance)
+        if not np.isfinite(camera_distance) or camera_distance <= 0.0:
+            raise ValueError("camera distance must be finite and positive")
+        camera.distance = camera_distance
+        camera_framing["mode"] = "manual_distance"
+        camera_framing["distance_override"] = camera_distance
+    renderer = mujoco.Renderer(model, height=height, width=width)
 
     frames = []
     for values in trajectory:
-        data.qpos[:] = 0.0
-        for action_index, value in enumerate(values):
-            data.qpos[joint_to_qpos[action_index]] = float(value)
+        _set_joint_values(data, values, joint_to_qpos)
         mujoco.mj_forward(model, data)
         renderer.update_scene(data, camera=camera)
         frames.append(renderer.render().copy())
@@ -298,7 +490,16 @@ def render_motion(
     output_mp4 = Path(output_mp4)
     output_mp4.parent.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("IMAGEIO_FFMPEG_EXE", imageio_ffmpeg.get_ffmpeg_exe())
-    imageio.mimwrite(output_mp4, frames, fps=fps, codec="libx264", quality=7, macro_block_size=8)
+    imageio.mimwrite(
+        output_mp4,
+        frames,
+        fps=fps,
+        codec="libx264",
+        pixelformat="yuv420p",
+        quality=7,
+        macro_block_size=8,
+        output_params=["-movflags", "+faststart"],
+    )
     return {
         "input_csv": str(joint_csv),
         "output_mp4": str(output_mp4),
@@ -307,9 +508,17 @@ def render_motion(
         "fps": float(fps),
         "width": int(width),
         "height": int(height),
+        "camera_distance": float(camera.distance),
+        "camera_lookat": [float(value) for value in camera.lookat],
+        "camera_azimuth_deg": float(camera.azimuth),
+        "camera_elevation_deg": float(camera.elevation),
+        "camera_framing": camera_framing,
         "model_source": model_source,
         "model_nq": int(model.nq),
         "model_nbody": int(model.nbody),
+        "action_dim": len(joint_order),
+        "joint_order": list(joint_order),
+        "output_contract": ULA_V2_18D_CONTRACT if len(joint_order) == 18 else "ula_v2_15d_v1",
     }
 
 
@@ -354,7 +563,9 @@ class MujocoMotionPlayer:
     def play_trajectory(self, trajectory, *, loops=1, realtime=True, input_csv=None, stop_event=None):
         if self.viewer is None:
             raise RuntimeError("MujocoMotionPlayer must be used as a context manager")
-        trajectory = np.asarray(trajectory, dtype=np.float32)
+        trajectory = _validated_trajectory(trajectory, name="player")
+        joint_order = joint_order_for_action_dim(trajectory.shape[1])
+        joint_to_qpos = _joint_to_qpos_map(self.model, joint_order)
         frame_period = 1.0 / self.fps if self.fps else 0.0
         frames_played = 0
         loops_completed = 0
@@ -371,9 +582,7 @@ class MujocoMotionPlayer:
                     loop_finished = False
                     break
                 start = time.monotonic()
-                self.data.qpos[:] = 0.0
-                for action_index, value in enumerate(values):
-                    self.data.qpos[self.joint_to_qpos[action_index]] = float(value)
+                _set_joint_values(self.data, values, joint_to_qpos)
                 mujoco.mj_forward(self.model, self.data)
                 self.viewer.sync()
                 frames_played += 1
@@ -401,6 +610,8 @@ class MujocoMotionPlayer:
             "model_source": self.model_source,
             "model_nq": int(self.model.nq),
             "model_nbody": int(self.model.nbody),
+            "action_dim": len(joint_order),
+            "joint_order": list(joint_order),
         }
 
 
@@ -425,6 +636,23 @@ def main():
     parser.add_argument("--fps", type=float, default=30.0)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
+    parser.add_argument(
+        "--camera-distance",
+        type=float,
+        help="Override the automatic full-body camera distance (smaller values may crop the robot)",
+    )
+    parser.add_argument(
+        "--camera-margin",
+        type=float,
+        default=DEFAULT_FULL_BODY_CAMERA_MARGIN,
+        help="Automatic full-body framing margin; must be at least 1.0",
+    )
+    parser.add_argument(
+        "--camera-lookat-z-offset",
+        type=float,
+        default=0.0,
+        help="World-Z look-at offset; a small negative value moves the robot up in frame",
+    )
     parser.add_argument("--urdf", default=str(DEFAULT_URDF))
     parser.add_argument("--simplified", action="store_true", help="Use the old built-in simplified preview model")
     parser.add_argument("--viewer", action="store_true", help="Open a MuJoCo viewer and play the motion interactively")
@@ -451,6 +679,9 @@ def main():
             height=args.height,
             urdf_path=args.urdf,
             simplified=args.simplified,
+            camera_distance=args.camera_distance,
+            camera_margin=args.camera_margin,
+            camera_lookat_z_offset=args.camera_lookat_z_offset,
         )
     if args.summary_json:
         Path(args.summary_json).parent.mkdir(parents=True, exist_ok=True)

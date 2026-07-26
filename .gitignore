@@ -7,8 +7,7 @@ weights/
 models/smplh/
 
 # training outputs
-training/runs/
-!training/runs/
+training/runs/*
 !training/runs/ula_fm_0514_close_v2_1m/
 training/runs/ula_fm_0514_close_v2_1m/*
 !training/runs/ula_fm_0514_close_v2_1m/ula_fm_checkpoint.pt
@@ -45,3 +44,16 @@ venv/
 # Generated MuJoCo conversion cache; regenerated from URDF/STL on demand.
 urdf_V2_20260514/.mujoco_assets/
 urdf_V2_20260514/urdf/xacro/*_meshdir.urdf
+
+# private / secret blind-review bundles - must never be committed or pushed
+.review_private/
+
+# large raw / working data dumps not meant for version control
+Kimodo_CSV/
+deliverables/expressive_human_motion_v2/
+deliverables/gmr_v2_quality/
+deliverables/interactive_human_motion_v1/
+deliverables/interactive_human_motion_v2/
+deliverables/interactive_human_motion_v3/
+deliverables/wave_videos/
+deliverables/wave_videos_v2/

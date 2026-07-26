@@ -36,6 +36,7 @@ from upper_body_skeleton.semantic_adapter import (
     last_token_pool,
     load_semantic_paraphrase_config,
     load_semantic_prompt_catalog,
+    validate_condition_bank,
 )
 
 
@@ -293,6 +294,97 @@ class QwenMotionLatentAligner(nn.Module):
         }
 
 
+@dataclass(frozen=True)
+class TextMotionPrediction:
+    text: str
+    behavior_id: str
+    emotion_id: str
+    behavior_confidence: float
+    emotion_confidence: float
+    motion_latent: np.ndarray
+
+
+class QwenMotionTextEncoder:
+    def __init__(self, model, tokenizer, checkpoint, *, device):
+        self.model = model.to(device).eval()
+        self.tokenizer = tokenizer
+        self.checkpoint = checkpoint
+        self.config = dict(checkpoint["config"])
+        self.device = torch.device(device)
+
+    def predict(self, texts: Sequence[str], *, batch_size=16):
+        raw_texts = [str(text).strip() for text in texts]
+        if not raw_texts or any(not text for text in raw_texts):
+            raise ValueError("Qwen motion text input must contain non-empty strings")
+        predictions = []
+        with torch.inference_mode():
+            for start in range(0, len(raw_texts), int(batch_size)):
+                batch_texts = raw_texts[start : start + int(batch_size)]
+                token_batch = tokenize_alignment_texts(
+                    self.tokenizer,
+                    batch_texts,
+                    behavior_instruction=self.config["behavior_instruction"],
+                    emotion_instruction=self.config["emotion_instruction"],
+                    max_length=self.config["max_length"],
+                    device=self.device,
+                )
+                output = self.model.encode_text(token_batch, text_count=len(batch_texts))
+                behavior_probability = output["behavior_logits"].softmax(dim=-1)
+                emotion_probability = output["emotion_logits"].softmax(dim=-1)
+                behavior_confidence, behavior_index = behavior_probability.max(dim=-1)
+                emotion_confidence, emotion_index = emotion_probability.max(dim=-1)
+                embeddings = output["embedding"].detach().cpu().numpy().astype(np.float32, copy=False)
+                for row, text in enumerate(batch_texts):
+                    predictions.append(
+                        TextMotionPrediction(
+                            text=text,
+                            behavior_id=KIMODO_BEHAVIOR_IDS[int(behavior_index[row])],
+                            emotion_id=KIMODO_EMOTION_IDS[int(emotion_index[row])],
+                            behavior_confidence=float(behavior_confidence[row].cpu()),
+                            emotion_confidence=float(emotion_confidence[row].cpu()),
+                            motion_latent=embeddings[row].copy(),
+                        )
+                    )
+        return predictions
+
+    def predict_one(self, text):
+        return self.predict([text], batch_size=1)[0]
+
+    def encode(self, texts: Sequence[str], *, batch_size=16):
+        return np.stack(
+            [prediction.motion_latent for prediction in self.predict(texts, batch_size=batch_size)]
+        ).astype(np.float32, copy=False)
+
+
+class LoRAMotionConditionBuilder:
+    def __init__(self, text_encoder, *, condition_bank):
+        self.text_encoder = text_encoder
+        self.condition_bank = validate_condition_bank(condition_bank)
+        self.last_prediction = None
+        self.last_motion_latent = None
+
+    def __call__(self, text, *, behavior_id=None, emotion_id=None, condition_dim=136, **_kwargs):
+        if int(condition_dim) != 136:
+            raise ValueError("Qwen Motion LoRA requires a 136-dimensional Kimodo base condition")
+        predicted = self.text_encoder.predict_one(text)
+        resolved_behavior = behavior_id or predicted.behavior_id
+        resolved_emotion = emotion_id or predicted.emotion_id
+        if resolved_behavior not in BEHAVIOR_TO_INDEX or resolved_emotion not in EMOTION_TO_INDEX:
+            raise ValueError("Qwen Motion LoRA predicted an unknown Kimodo semantic label")
+        self.last_prediction = TextMotionPrediction(
+            text=predicted.text,
+            behavior_id=resolved_behavior,
+            emotion_id=resolved_emotion,
+            behavior_confidence=1.0 if behavior_id else predicted.behavior_confidence,
+            emotion_confidence=1.0 if emotion_id else predicted.emotion_confidence,
+            motion_latent=np.asarray(predicted.motion_latent, dtype=np.float32).copy(),
+        )
+        self.last_motion_latent = self.last_prediction.motion_latent.copy()
+        vector = self.condition_bank["vectors"][
+            BEHAVIOR_TO_INDEX[resolved_behavior], EMOTION_TO_INDEX[resolved_emotion]
+        ]
+        return vector.detach().cpu().numpy().astype(np.float32, copy=True)
+
 def tokenize_alignment_texts(
     tokenizer,
     texts: Sequence[str],
@@ -446,6 +538,40 @@ def build_qwen_motion_aligner(config, *, device):
         "motion_trainable_parameter_names": motion_trainable,
     }
     return aligner, tokenizer, normalization, motion_checkpoint, metadata
+
+
+def load_qwen_motion_text_encoder(checkpoint_path, *, device="auto", local_files_only=None):
+    from peft import set_peft_model_state_dict
+
+    checkpoint_path = Path(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if checkpoint.get("schema_version") != CROSS_MODAL_CHECKPOINT_SCHEMA_VERSION:
+        raise ValueError(f"unsupported cross-modal checkpoint schema: {checkpoint_path}")
+    if checkpoint.get("artifact_kind") != CROSS_MODAL_ARTIFACT_KIND:
+        raise ValueError(f"not a cross-modal Qwen LoRA checkpoint: {checkpoint_path}")
+    config = dict(checkpoint.get("config") or {})
+    resolved_device = torch.device(
+        device if device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu")
+    )
+    config["device"] = str(resolved_device)
+    if local_files_only is not None:
+        config["local_files_only"] = bool(local_files_only)
+    model, tokenizer, _, _, metadata = build_qwen_motion_aligner(config, device=resolved_device)
+    set_result = set_peft_model_state_dict(model.qwen, checkpoint["qwen_lora_state_dict"])
+    if getattr(set_result, "unexpected_keys", None):
+        raise ValueError(f"unexpected Qwen LoRA keys: {set_result.unexpected_keys}")
+    model.motion_encoder.load_state_dict(checkpoint["motion_encoder_state_dict"], strict=True)
+    model.text_projection.load_state_dict(checkpoint["text_projection_state_dict"], strict=True)
+    model.motion_projection.load_state_dict(checkpoint["motion_projection_state_dict"], strict=True)
+    model.text_behavior_head.load_state_dict(checkpoint["text_behavior_head_state_dict"], strict=True)
+    model.text_emotion_head.load_state_dict(checkpoint["text_emotion_head_state_dict"], strict=True)
+    recorded_qwen = checkpoint.get("qwen") or {}
+    if recorded_qwen.get("model_name") != metadata.get("model_name"):
+        raise ValueError("Qwen LoRA model name does not match its checkpoint")
+    if recorded_qwen.get("revision") != metadata.get("revision"):
+        raise ValueError("Qwen LoRA revision does not match its checkpoint")
+    model.requires_grad_(False).eval()
+    return QwenMotionTextEncoder(model, tokenizer, checkpoint, device=resolved_device), checkpoint
 
 
 def bidirectional_alignment_loss(text_embedding, motion_embedding, *, temperature=0.07):

@@ -13,6 +13,7 @@ from upper_body_skeleton.pt_mujoco_infer import (
     GeneratorCheckpointInfo,
     PtMotionGenerator,
     infer_motion,
+    load_motion_latent_lora_condition_builder,
     require_graphical_display,
     resolve_runtime_paths,
     run_direct_pt_session,
@@ -270,7 +271,21 @@ def test_infer_motion_keeps_generated_trajectory_in_memory_and_postprocesses_it(
     assert calls["condition"][1]["condition_dim"] == 136
     assert calls["sample"][1]["device"] == "cuda"
     assert calls["sample"][1]["steps"] == 3
-    assert motion.summary()["duration_sec"] == 0.2
+    assert motion.summary()["duration_sec"] == pytest.approx(3 / 20)
+    assert motion.summary()["frame_coverage_sec"] == pytest.approx(4 / 20)
+
+
+def test_legacy_inference_without_duration_head_requires_explicit_frames():
+    with pytest.raises(ValueError, match="implicit fixed-duration generation is disabled"):
+        infer_motion(
+            object(),
+            _generator_checkpoint(),
+            text="Move both arms.",
+            condition_builder=lambda *_args, **_kwargs: np.zeros(136, dtype=np.float32),
+            sampler=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("sampler must not run")
+            ),
+        )
 
 
 def test_infer_motion_reports_semantic_adapter_resolved_labels():
@@ -360,13 +375,183 @@ def test_v2_inference_assembles_latent_style_and_predicts_variable_duration():
 
     assert calls["builder_kwargs"]["condition_dim"] == 136
     assert calls["sample"]["condition"].shape == (264,)
-    assert calls["sample"]["frames"] == 68
+    assert calls["sample"]["frames"] == 69
     assert calls["postprocess"]["smooth_window"] == 1
-    assert motion.trajectory.shape == (68, len(JOINT_ORDER))
+    assert motion.trajectory.shape == (69, len(JOINT_ORDER))
+    assert motion.summary()["sample_span_sec"] == pytest.approx(68 / 30)
+    assert motion.summary()["frame_coverage_sec"] == pytest.approx(69 / 30)
+    assert abs(motion.summary()["duration_quantization_error_sec"]) <= 0.5 / 30 + 1e-9
     assert motion.predicted_duration_sec == pytest.approx(2.25)
     assert motion.style_controls[0] >= 1.0
     assert motion.style_controls[1] >= 1.0
     assert motion.style_controls[2] >= 1.0
+
+
+def test_v2_inference_rejects_fixed_or_missing_duration_contract():
+    class DurationModel:
+        def plan_condition(self, condition):
+            return {
+                "duration_sec": torch.tensor([6.0], device=condition.device),
+                "transition_logits": torch.zeros((1, 4), device=condition.device),
+            }
+
+    class ConditionBuilder:
+        last_prediction = None
+
+        def __call__(self, text, **kwargs):
+            self.last_prediction = type(
+                "Prediction",
+                (),
+                {"behavior_id": KIMODO_BEHAVIOR_IDS[0], "emotion_id": KIMODO_EMOTION_IDS[0]},
+            )()
+            return np.zeros(136, dtype=np.float32)
+
+    fixed_contracts = _v2_contracts()
+    fixed_contracts["duration"] = {
+        "sha256": "3" * 64,
+        "fixed_duration_sec": 6.0,
+        "duration_supervision_sec": {"min": 1.0, "median": 3.0, "max": 8.0},
+    }
+    fixed = _generator_checkpoint(
+        architecture="ula_mmdit_v2",
+        condition_dim=264,
+        base_condition_dim=136,
+        v2_contracts=fixed_contracts,
+    )
+    with pytest.raises(ValueError, match="rejects fixed-frame or fixed-duration"):
+        infer_motion(
+            DurationModel(),
+            fixed,
+            text="complete an expressive greeting",
+            condition_builder=ConditionBuilder(),
+            sampler=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("sampler must not run")
+            ),
+        )
+
+    missing_contracts = _v2_contracts()
+    missing_contracts.pop("duration")
+    missing = _generator_checkpoint(
+        architecture="ula_mmdit_v2",
+        condition_dim=264,
+        base_condition_dim=136,
+        v2_contracts=missing_contracts,
+    )
+    with pytest.raises(ValueError, match="incomplete conditioning contracts"):
+        infer_motion(
+            DurationModel(),
+            missing,
+            text="complete an expressive greeting",
+            condition_builder=ConditionBuilder(),
+            sampler=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("sampler must not run")
+            ),
+        )
+
+
+def test_v2_inference_uses_lora_latent_from_condition_builder():
+    calls = {}
+    contracts = _v2_contracts()
+    contracts["text_motion_latent"] = {
+        "contract_type": "ula_v2_qwen_lora_text_motion_latent",
+        "contract_version": 1,
+        "latent_dim": 128,
+        "sha256": "8" * 64,
+        "source": {"checkpoint_sha256": "9" * 64},
+    }
+
+    class Model:
+        def plan_condition(self, condition):
+            return {
+                "duration_sec": torch.tensor([1.0]),
+                "transition_logits": torch.zeros((1, 4)),
+            }
+
+    class Builder:
+        last_prediction = None
+        last_motion_latent = None
+
+        def __call__(self, text, **kwargs):
+            self.last_prediction = type(
+                "Prediction",
+                (),
+                {
+                    "behavior_id": "Behavior.GreetingOwner01",
+                    "emotion_id": "happy",
+                    "behavior_confidence": 0.9,
+                    "emotion_confidence": 0.8,
+                },
+            )()
+            self.last_motion_latent = np.zeros(128, dtype=np.float32)
+            self.last_motion_latent[11] = 1.0
+            return np.zeros(136, dtype=np.float32)
+
+    def sampler(model, **kwargs):
+        calls["condition"] = kwargs["condition"]
+        return np.zeros((kwargs["frames"], len(JOINT_ORDER)), dtype=np.float32)
+
+    checkpoint = _generator_checkpoint(
+        architecture="ula_mmdit_v2",
+        condition_dim=264,
+        base_condition_dim=136,
+        v2_contracts=contracts,
+    )
+    infer_motion(
+        Model(),
+        checkpoint,
+        text="new paraphrase",
+        frames=4,
+        condition_builder=Builder(),
+        sampler=sampler,
+        postprocessor=lambda values, **_kwargs: values,
+    )
+
+    assert calls["condition"][136 + 11] == pytest.approx(1.0)
+
+
+def test_v2_lora_generator_rejects_missing_text_motion_latent():
+    contracts = _v2_contracts()
+    contracts["text_motion_latent"] = {
+        "contract_type": "ula_v2_qwen_lora_text_motion_latent",
+        "contract_version": 1,
+        "latent_dim": 128,
+        "sha256": "8" * 64,
+        "source": {"checkpoint_sha256": "9" * 64},
+    }
+    checkpoint = _generator_checkpoint(
+        architecture="ula_mmdit_v2",
+        condition_dim=264,
+        base_condition_dim=136,
+        v2_contracts=contracts,
+    )
+
+    with pytest.raises(ValueError, match="requires a Qwen LoRA"):
+        infer_motion(
+            object(),
+            checkpoint,
+            text="wave",
+            frames=4,
+            condition_builder=lambda *_args, **_kwargs: np.zeros(136, dtype=np.float32),
+        )
+
+
+def test_lora_condition_loader_rejects_checkpoint_hash_mismatch(tmp_path):
+    lora_path = tmp_path / "lora.pt"
+    lora_path.write_bytes(b"wrong checkpoint")
+    contracts = _v2_contracts()
+    contracts["text_motion_latent"] = {
+        "contract_type": "ula_v2_qwen_lora_text_motion_latent",
+        "latent_dim": 128,
+        "sha256": "8" * 64,
+        "source": {"checkpoint_sha256": "9" * 64},
+    }
+
+    with pytest.raises(ValueError, match="hash does not match"):
+        load_motion_latent_lora_condition_builder(
+            _generator_checkpoint(condition_dim=264, v2_contracts=contracts),
+            lora_path,
+            device="cpu",
+        )
 
 
 def test_infer_motion_rejects_structured_labels_for_legacy_conditioning():

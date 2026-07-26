@@ -54,6 +54,104 @@ def test_long_emotion_generation_writes_multisegment_outputs(tmp_path):
     assert torch.isfinite(torch.tensor(summary["last_pose"])).all()
 
 
+def test_two_segments_share_endpoint_and_preserve_exact_sample_span(
+    tmp_path, monkeypatch
+):
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    calls = []
+
+    def fake_plan(_model, _condition, _device, *, transition_enabled=True):
+        return 0.1, 0, np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+    def fake_sample(_model, **kwargs):
+        index = len(calls)
+        values = np.full(
+            (kwargs["frames"], kwargs["action_dim"]),
+            float(index),
+            dtype=np.float32,
+        )
+        values[:, 0] += np.arange(kwargs["frames"], dtype=np.float32)
+        calls.append(values.copy())
+        return values
+
+    monkeypatch.setattr(
+        "upper_body_skeleton.long_emotion_infer._predict_plan", fake_plan
+    )
+    monkeypatch.setattr(
+        "upper_body_skeleton.long_emotion_infer.sample_trajectory", fake_sample
+    )
+    monkeypatch.setattr(
+        "upper_body_skeleton.long_emotion_infer.postprocess_trajectory",
+        lambda values, **_kwargs: values,
+    )
+
+    summary = generate_long_emotion_motion(
+        model,
+        text="two linked gestures",
+        output_dir=tmp_path / "linked",
+        fps=30.0,
+        max_duration_sec=0.2,
+        min_segment_sec=0.1,
+        max_segment_sec=0.1,
+        min_segments=2,
+        max_segments=2,
+        sampling_steps=1,
+        device="cpu",
+        render=False,
+    )
+    payload = np.load(tmp_path / "linked/long_motion.npz", allow_pickle=True)
+    raw = payload["raw_trajectory"]
+    plan = json.loads((tmp_path / "linked/plan.json").read_text(encoding="utf-8"))
+
+    assert [row["generated_frame_count"] for row in plan["segments"]] == [4, 4]
+    assert [row["appended_frame_count"] for row in plan["segments"]] == [4, 3]
+    assert [row["shared_boundary_frame"] for row in plan["segments"]] == [False, True]
+    assert raw.shape == (7, len(JOINT_ORDER))
+    assert raw[3, 0] == pytest.approx(calls[0][-1, 0])
+    assert summary["sample_span_sec"] == pytest.approx(6 / 30)
+    assert summary["duration_sec"] == pytest.approx(0.2)
+    assert summary["frame_coverage_sec"] == pytest.approx(7 / 30)
+
+
+def test_untrained_transition_head_is_disabled_for_long_inference(
+    tmp_path, monkeypatch
+):
+    model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
+    model.planner_supervision_contract = {
+        "transition_head_status": "untrained_no_verified_adjacent_sequence_labels",
+        "transition_inference_enabled": False,
+    }
+    monkeypatch.setattr(
+        "upper_body_skeleton.long_emotion_infer.sample_trajectory",
+        lambda _model, **kwargs: np.zeros(
+            (kwargs["frames"], kwargs["action_dim"]), dtype=np.float32
+        ),
+    )
+
+    summary = generate_long_emotion_motion(
+        model,
+        text="linked gestures",
+        output_dir=tmp_path / "disabled_transition",
+        fps=30.0,
+        max_duration_sec=0.2,
+        min_segment_sec=0.1,
+        max_segment_sec=0.1,
+        min_segments=1,
+        max_segments=2,
+        sampling_steps=1,
+        device="cpu",
+        render=False,
+    )
+    plan = json.loads(
+        (tmp_path / "disabled_transition/plan.json").read_text(encoding="utf-8")
+    )
+
+    assert summary["segments"] == 2
+    assert plan["planner_supervision"]["transition_inference_enabled"] is False
+    assert all(row["transition"] == "unavailable" for row in plan["segments"])
+    assert all(row["transition_probs"] == {} for row in plan["segments"])
+
+
 def test_long_emotion_generation_can_open_mujoco_viewer(tmp_path, monkeypatch):
     model = UlaFmModel(action_dim=len(JOINT_ORDER), condition_dim=92, hidden_dim=64)
     calls = []

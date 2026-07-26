@@ -1,0 +1,44 @@
+dataset_dir: datasets/kimodo_lerobot_mmdit_lite
+split_checkpoint: training/runs/kimodo_motion_latent_v1/motion_latent_checkpoint.pt
+text_motion_checkpoint: training/runs/kimodo_qwen_motion_latent_lora_v2/best.pt
+text_motion_batch_size: 16
+text_motion_local_files_only: true
+output_dir: training/runs/kimodo_ula_v2_lora_50k
+
+steps: 50000
+batch_size: 64
+lr: 0.0001
+minimum_lr_ratio: 0.1
+weight_decay: 0.0001
+adam_eps: 0.000001
+warmup_steps: 1000
+max_grad_norm: 1.0
+
+architecture: ula_mmdit_v2
+hidden_dim: 384
+layers: 6
+semantic_tokens: 7
+device: cuda
+seed: 7
+ema_decay: 0.999
+
+phase_frame_choices: [64, 96, 128]
+mode_balanced_fraction: 0.5
+max_velocity_rad_s: 3.0
+smooth_window: 1
+style_clip: 5.0
+
+log_interval: 25
+validation_interval: 500
+validation_batch_size: 16
+checkpoint_interval: 500
+overwrite: false
+
+loss:
+  flow: 1.0
+  position: 0.25
+  velocity: 0.01
+  acceleration: 0.0005
+  descriptor: 0.001
+  motion_latent: 0.1
+  duration: 0.1

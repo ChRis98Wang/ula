@@ -123,9 +123,11 @@ def test_active_window_trims_short_motion_and_preserves_static_context():
     assert window["active_end"] < window["trim_end"] < len(actions)
     assert trimmed["original_frame_count"] == len(actions)
     assert trimmed["frame_count"] == window["trim_end"] - window["trim_start"]
-    assert trimmed["duration_sec"] == pytest.approx(trimmed["frame_count"] / fps)
+    assert trimmed["duration_sec"] == pytest.approx(
+        (trimmed["frame_count"] - 1) / fps
+    )
     assert trimmed["effective_duration_sec"] == pytest.approx(
-        (window["active_end"] - window["active_start"]) / fps
+        (window["active_end"] - window["active_start"] - 1) / fps
     )
 
 
@@ -215,6 +217,35 @@ def test_prepare_v2_uses_train_only_style_stats_and_builds_finite_264d_condition
         assert np.array_equal(episode["condition"][-128:], prototype)
         assert np.array_equal(episode["condition"][KIMODO_CONDITION_DIM - 3 : KIMODO_CONDITION_DIM], episode["style_controls"])
     json.dumps(contracts, allow_nan=False)
+
+
+def test_prepare_v2_can_condition_on_normalized_qwen_lora_text_latents(tmp_path):
+    episodes, _, checkpoint_path = _episodes_and_checkpoint(tmp_path)
+    for index, episode in enumerate(episodes):
+        episode["meta"]["language_instruction"] = f"motion instruction {index % 2}"
+
+    def encode(texts):
+        values = np.zeros((len(texts), 128), dtype=np.float32)
+        for index in range(len(texts)):
+            values[index, index] = 3.0
+        return values
+
+    train, validation, test, contracts = prepare_v2_episode_splits(
+        None,
+        checkpoint_path,
+        episodes=episodes,
+        device="cpu",
+        text_motion_encoder=encode,
+        text_motion_source={"checkpoint_sha256": "a" * 64, "best_step": 100000},
+    )
+
+    assert contracts["condition"]["layout"][1]["name"] == "qwen_lora_text_motion_latent"
+    assert contracts["text_motion_latent"]["latent_dim"] == 128
+    assert contracts["text_motion_latent"]["unique_text_count"] == 2
+    for episode in train + validation + test:
+        latent = episode["condition"][-128:]
+        assert np.isclose(np.linalg.norm(latent), 1.0)
+        assert np.array_equal(latent, episode["text_motion_latent"] / 3.0)
 
 
 def test_prepare_v2_is_deterministic(tmp_path):

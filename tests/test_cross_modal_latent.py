@@ -5,6 +5,9 @@ import torch
 from training.scripts.train_qwen_motion_latent import validated_train_config
 from upper_body_skeleton.cross_modal_latent import (
     CrossModalBatchSampler,
+    LoRAMotionConditionBuilder,
+    QwenMotionLatentAligner,
+    TextMotionPrediction,
     bidirectional_alignment_loss,
     build_cross_modal_splits,
     cross_modal_training_loss,
@@ -12,7 +15,13 @@ from upper_body_skeleton.cross_modal_latent import (
     validation_selection_score,
     variance_covariance_loss,
 )
-from upper_body_skeleton.kimodo_semantics import KIMODO_BEHAVIOR_IDS, KIMODO_EMOTION_IDS
+from upper_body_skeleton.kimodo_semantics import (
+    KIMODO_BEHAVIOR_IDS,
+    KIMODO_CONDITION_CONTRACT_VERSION,
+    KIMODO_CONDITION_SCHEMA_VERSION,
+    KIMODO_EMOTION_IDS,
+    kimodo_condition_vectors_sha256,
+)
 from upper_body_skeleton.motion_latent import MotionMetricEncoder
 from upper_body_skeleton.semantic_adapter import SemanticPromptRecord
 
@@ -199,3 +208,43 @@ def test_validation_selection_prioritizes_bidirectional_recall():
     }
 
     assert validation_selection_score(higher_recall) > validation_selection_score(baseline)
+
+
+def test_lora_motion_condition_builder_preserves_continuous_text_latent():
+    vectors = np.zeros((len(KIMODO_BEHAVIOR_IDS), len(KIMODO_EMOTION_IDS), 136), dtype=np.float32)
+    condition_bank = {
+        "contract_version": KIMODO_CONDITION_CONTRACT_VERSION,
+        "condition_schema_version": KIMODO_CONDITION_SCHEMA_VERSION,
+        "condition_dim": 136,
+        "behavior_ids": list(KIMODO_BEHAVIOR_IDS),
+        "emotion_ids": list(KIMODO_EMOTION_IDS),
+        "source_semantic_index_sha256": "0" * 64,
+        "canonical_vectors_sha256": kimodo_condition_vectors_sha256(vectors),
+        "vectors": torch.from_numpy(vectors),
+    }
+    latent = np.zeros(128, dtype=np.float32)
+    latent[17] = 1.0
+
+    class Encoder:
+        def predict_one(self, text):
+            return TextMotionPrediction(
+                text=text,
+                behavior_id=KIMODO_BEHAVIOR_IDS[3],
+                emotion_id=KIMODO_EMOTION_IDS[2],
+                behavior_confidence=0.8,
+                emotion_confidence=0.9,
+                motion_latent=latent,
+            )
+
+    builder = LoRAMotionConditionBuilder(Encoder(), condition_bank=condition_bank)
+    condition = builder("new paraphrase", condition_dim=136)
+
+    assert condition.shape == (136,)
+    assert builder.last_prediction.behavior_id == KIMODO_BEHAVIOR_IDS[3]
+    assert builder.last_prediction.emotion_id == KIMODO_EMOTION_IDS[2]
+    assert np.array_equal(builder.last_motion_latent, latent)
+
+
+def test_encode_motion_is_owned_by_cross_modal_aligner():
+    assert "encode_motion" in QwenMotionLatentAligner.__dict__
+    assert "encode_motion" not in LoRAMotionConditionBuilder.__dict__

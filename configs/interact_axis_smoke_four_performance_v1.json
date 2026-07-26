@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_kind": "interact_axis_smoke_receipt_build_spec",
+  "catalog_task_manifest": "/home/gez/nas/cloud/gez/human_motion/catalog/interact_dyadic_turn_v2_axis_expansion/interact_actor_robot_episode_tasks.jsonl",
+  "catalog_summary": "/home/gez/nas/cloud/gez/human_motion/catalog/interact_dyadic_turn_v2_axis_expansion/summary.json",
+  "review_dir": "/home/gez/nas/cloud/gez/human_motion/review/interact_18d_axis_smoke_v12_four_performance",
+  "duration_policy": "semantic_affect_complete_at_predeclared_shared_rest_boundaries;no_fixed_target_minimum_or_maximum_duration",
+  "selected_quality_reports": [
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v7_replacement_performances/interact__20231119__scenario_055__turn_0000_f000000-000710__actor_001_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v7_replacement_performances/interact__20231119__scenario_055__turn_0000_f000000-000710__actor_002_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v11_scenario117_alternate/interact__20231208__scenario_117__turn_0003_f001100-001615__actor_005_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v11_scenario117_alternate/interact__20231208__scenario_117__turn_0003_f001100-001615__actor_006_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v5_episode_frame/interact__20231126__scenario_222__turn_0000_f000000-000241__actor_003_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v5_episode_frame/interact__20231126__scenario_222__turn_0000_f000000-000241__actor_007_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v6_alternate_natural_turns/interact__20240126__scenario_627__turn_0002_f001465-001612__actor_006_quality.json",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v6_alternate_natural_turns/interact__20240126__scenario_627__turn_0002_f001465-001612__actor_008_quality.json"
+  ],
+  "attempt_dirs": [
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v3_four_performance",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v4_explicit_basis",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v5_episode_frame",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v6_alternate_natural_turns",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v7_replacement_performances",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v8_scenario214_alternate",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v9_scenario214_alternate2",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v10_scenario117",
+    "/home/gez/nas/cloud/gez/human_motion/processed/interact_18d_axis_smoke_v11_scenario117_alternate"
+  ],
+  "isolated_performances": [
+    {
+      "performance_id": "interact__20231208__scenario_475",
+      "reason": "both complete natural turns retain actor-specific direction or fit failure"
+    },
+    {
+      "performance_id": "interact__20240128__scenario_960",
+      "reason": "two independent complete natural turns retain collision or direction failure"
+    },
+    {
+      "performance_id": "interact__20231126__scenario_214",
+      "reason": "three independent complete natural turns do not pass both actors together"
+    }
+  ]
+}

@@ -24,6 +24,7 @@ from upper_body_skeleton.pt_mujoco_infer import (
     DEFAULT_SEMANTIC_ADAPTER_CHECKPOINT,
     EXPERIMENTAL_KIMODO_CHECKPOINT,
     PtMotionGenerator,
+    load_motion_latent_lora_condition_builder,
     validate_generator_condition_source,
 )
 from upper_body_skeleton.retarget_v2 import JOINT_ORDER
@@ -394,6 +395,7 @@ def run_dataset_mujoco_comparison(
     split_checkpoint_path=DEFAULT_MOTION_SPLIT_CHECKPOINT,
     generator_checkpoint=EXPERIMENTAL_KIMODO_CHECKPOINT,
     semantic_adapter_checkpoint=DEFAULT_SEMANTIC_ADAPTER_CHECKPOINT,
+    motion_latent_lora_checkpoint=None,
     output_dir=DEFAULT_OUTPUT_DIR,
     motion_latent_split="test",
     episode_index=None,
@@ -403,6 +405,8 @@ def run_dataset_mujoco_comparison(
     device="auto",
     semantic_device=None,
     semantic_local_files_only=True,
+    motion_latent_device=None,
+    motion_latent_local_files_only=True,
     sampling_steps=32,
     seed=7,
     max_velocity_rad_s=3.0,
@@ -432,21 +436,47 @@ def run_dataset_mujoco_comparison(
         selected_rows,
         generator_checkpoint=generator.checkpoint,
     )
-    semantic_adapter, semantic_checkpoint = load_semantic_adapter(
-        semantic_adapter_checkpoint,
-        device=semantic_device or device,
-        local_files_only=semantic_local_files_only,
+    text_motion_contract = (generator.checkpoint.get("v2_contracts") or {}).get(
+        "text_motion_latent"
     )
-    condition_bank = semantic_checkpoint.get("condition_bank")
-    condition_source = validate_generator_condition_source(generator.checkpoint, condition_bank)
+    motion_latent_lora_provenance = None
+    if text_motion_contract is not None:
+        if motion_latent_lora_checkpoint is None:
+            raise ValueError(
+                "this V2 comparison requires the Qwen Motion LoRA checkpoint recorded by the generator"
+            )
+        condition_builder, lora_checkpoint, condition_source, lora_hash = (
+            load_motion_latent_lora_condition_builder(
+                generator.checkpoint,
+                motion_latent_lora_checkpoint,
+                dataset_dir=dataset_dir,
+                device=motion_latent_device or device,
+                local_files_only=motion_latent_local_files_only,
+            )
+        )
+        motion_latent_lora_provenance = {
+            "checkpoint": str(Path(motion_latent_lora_checkpoint).resolve()),
+            "checkpoint_sha256": lora_hash,
+            "qwen": lora_checkpoint["qwen"],
+            "best_step": int(lora_checkpoint["best_step"]),
+        }
+    else:
+        if motion_latent_lora_checkpoint is not None:
+            raise ValueError("generator was not trained with Qwen LoRA text-motion latents")
+        semantic_adapter, semantic_checkpoint = load_semantic_adapter(
+            semantic_adapter_checkpoint,
+            device=semantic_device or device,
+            local_files_only=semantic_local_files_only,
+        )
+        condition_bank = semantic_checkpoint.get("condition_bank")
+        condition_source = validate_generator_condition_source(generator.checkpoint, condition_bank)
+        condition_builder = AdapterConditionBuilder(semantic_adapter, condition_bank=condition_bank)
     dataset_semantic_index = dataset_dir / "meta" / "semantic_index.parquet"
     dataset_semantic_hash = _file_sha256(dataset_semantic_index)
     if dataset_semantic_hash != condition_source["semantic_index_sha256"]:
         raise ValueError(
             "comparison dataset does not match the semantic index recorded by the generator"
         )
-    condition_builder = AdapterConditionBuilder(semantic_adapter, condition_bank=condition_bank)
-
     dataset_episode_count = pq.read_table(dataset_semantic_index, columns=["episode_index"]).num_rows
     if dataset_action_stats["dataset_episode_count"] != dataset_episode_count:
         raise ValueError("action parquet episode count does not match the semantic index")
@@ -632,9 +662,12 @@ def run_dataset_mujoco_comparison(
                 "condition_dim": generator.info.condition_dim,
                 "sampling_steps": int(sampling_steps),
                 "seed": int(seed) + episode_index_value,
-                "uses_cross_modal_lora_checkpoint": False,
+                "uses_cross_modal_lora_checkpoint": motion_latent_lora_provenance is not None,
             },
-            "semantic_adapter": str(semantic_adapter_checkpoint),
+            "semantic_adapter": None
+            if motion_latent_lora_provenance is not None
+            else str(semantic_adapter_checkpoint),
+            "motion_latent_lora": motion_latent_lora_provenance,
             "condition_source": condition_source,
             "dataset_contract": dataset_contract,
             "trajectory": trajectory_comparison_metrics(
@@ -680,6 +713,7 @@ def main(argv=None):
     parser.add_argument("--split-checkpoint", default=str(DEFAULT_MOTION_SPLIT_CHECKPOINT))
     parser.add_argument("--generator-checkpoint", default=str(EXPERIMENTAL_KIMODO_CHECKPOINT))
     parser.add_argument("--semantic-adapter-checkpoint", default=str(DEFAULT_SEMANTIC_ADAPTER_CHECKPOINT))
+    parser.add_argument("--motion-latent-lora-checkpoint")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument(
         "--motion-latent-split",
@@ -698,6 +732,8 @@ def main(argv=None):
     parser.add_argument("--device", default="auto")
     parser.add_argument("--semantic-device")
     parser.add_argument("--allow-semantic-download", action="store_true")
+    parser.add_argument("--motion-latent-device")
+    parser.add_argument("--allow-motion-latent-download", action="store_true")
     parser.add_argument("--sampling-steps", type=int, default=32)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--max-velocity-rad-s", type=float, default=3.0)
@@ -717,6 +753,7 @@ def main(argv=None):
         split_checkpoint_path=args.split_checkpoint,
         generator_checkpoint=args.generator_checkpoint,
         semantic_adapter_checkpoint=args.semantic_adapter_checkpoint,
+        motion_latent_lora_checkpoint=args.motion_latent_lora_checkpoint,
         output_dir=args.output_dir,
         motion_latent_split=args.motion_latent_split,
         episode_index=args.episode_index,
@@ -726,6 +763,8 @@ def main(argv=None):
         device=args.device,
         semantic_device=args.semantic_device,
         semantic_local_files_only=not args.allow_semantic_download,
+        motion_latent_device=args.motion_latent_device,
+        motion_latent_local_files_only=not args.allow_motion_latent_download,
         sampling_steps=args.sampling_steps,
         seed=args.seed,
         max_velocity_rad_s=args.max_velocity_rad_s,
