@@ -1,5 +1,45 @@
 # Human Motion Collection
 
+Scripts for **data acquisition and batch annotation** — turning raw
+downloaded/mocap sources into candidate labeled clips. Nothing in this
+directory can grant training admission on its own; every output stays
+`accepted_for_training=false` until it passes retargeting QC and the
+independent human review pipeline in `tools/human_motion_review/`.
+
+## Script index
+
+| Script | Purpose |
+| --- | --- |
+| `build_catalog.py` | Initialize and inventory the NAS human-motion collection. |
+| `download_beat2_motion_only.py` | Download pinned BEAT2 motion and text metadata without audio; also verifies already-downloaded files against Git/LFS hashes with no network call. |
+| `build_beat2_multilingual_motion_inventory.py` | Prepare auditable, resumable BEAT2 multilingual motion-only windows (legacy six-second weak-label path). |
+| `build_beat2_full_window_inventory.py` | Build boundary-validated, non-overlapping BEAT2 six-second windows. |
+| `build_beat2_interaction_inventory.py` | Build a conservative BEAT2 conversational-interaction inventory. |
+| `build_beat2_semantic_event_inventory.py` | Build variable-length BEAT2 English semantic-event motion candidates (the current formal interaction source). |
+| `build_beat2_network_semantics.py` | Build fail-closed BEAT2 semantics for the Kimodo conditioning contract. |
+| `build_beat2_expression_turn_v8.py` | Build variable-length BEAT2 expression-turn candidates. |
+| `select_beat2_semantic_event_pilot.py` | Select a reproducible, speaker-disjoint, emotion-balanced BEAT2 semantic-event pilot. |
+| `select_semantic_event_qc_replacements.py` | Select deterministic same-stratum replacements after a candidate fails terminal 18D QC. |
+| `pseudolabel_beat2_audio_emotion.py` | Create fail-closed audio emotion pseudo-labels for BEAT2 windows (weak-supervision candidate only). |
+| `label_ula_v2_18d_motion.py` | Draft conservative bilingual (EN/ZH) motion labels from quality-gated ULA V2 18D trajectories. |
+| `run_beat2_annotation_pipeline.py` | Orchestrate the resumable BEAT2 -> retarget -> draft-label -> validate -> (optional) render pipeline end to end. |
+| `run_beat2_18d_posttrain_pipeline.py` | Run the resumable, audio-disabled BEAT2 18D post-training pipeline (binds steps, split, cache, checkpoints, replay). |
+| `build_ula0513_native_expression_turns.py` | Build a native-length 18D catalog from the user-provided 0513 robot CSVs. |
+| `build_haa500_full_inventory.py` | Build a deterministic inventory for every local Motion-X++ HAA500 clip. |
+| `build_haa500_interactive_primitives.py` | Build a conservative HAA500 supplement for robot interaction gestures. |
+| `package_haa500_interaction_samples.py` | Validate and package the fixed HAA500 interaction-primitives review sample. |
+| `build_expression_subset.py` | Build a review-only HAA500 subset for readable upper-body expression. |
+| `build_expression_semantics_v1.py` | Build deterministic, robot-observable semantics (GPT-4V caption as auxiliary only) for HAA500 expression clips. |
+| `build_interact_dyadic_turns.py` | Build a paired InterAct inventory and natural-rest expression-turn pilots. |
+| `build_interactive_release_manifests.py` | Build admission manifests for the low-dynamic interaction dataset. |
+| `acquire_interact_motion_only.py` | Audit a pinned, motion-only InterAct acquisition. |
+
+See `README_INTERACT.md` for the InterAct-specific acquisition workflow, and
+`tools/human_motion_review/README.md` for what happens to these outputs next
+(blind review, adjudication, training admission).
+
+## Getting started
+
 Initialize and inventory the NAS collection:
 
 ```bash
