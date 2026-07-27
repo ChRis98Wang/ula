@@ -46,6 +46,8 @@ validate_*.py / audit_*.py        -> integrity checks at any stage
 | `build_expression_turn_blind_review_bundle_v8.py` | Build separate anonymous arc/action and affect queues from v8 render passes. |
 | `build_expression_turn_expansion_blind_review_bundle_v8.py` | Build anonymous blind-review queues for BEAT2 v8 context expansions. |
 | `build_expression_turn_video_queue_v8.py` | Build internal MuJoCo queues for v8 expression-turn physical QC passes. |
+| `build_beat2_emotion_review_queue_v1.py` | Select a source-group-unique, split/emotion-balanced BEAT2 controller queue with two-reviewer/third-adjudicator fail-closed fields. |
+| `build_beat2_emotion_blind_review_bundle_v1.py` | Project the controller-only BEAT2 emotion queue into a generic render queue and two label-blind, hash-bound primary-review shard sets (see `README_BEAT2_EMOTION_BLIND_REVIEW.md`). |
 | `build_ula0513_native_blind_review_bundle.py` | Publish label-free blind review queues for rendered ULA0513 motions. |
 | `build_ula0513_native_video_queue.py` | Build a private, anonymous render queue for native-length ULA0513 motions. |
 | `build_interact_blind_review_bundle.py` | Build anonymous InterAct axis, dyadic semantics, and affect review queues. |
