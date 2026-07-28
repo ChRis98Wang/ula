@@ -46,6 +46,7 @@ ULA_MMDIT_LITE_ARCHITECTURE = "ula_mmdit_lite"
 ULA_MMDIT_V2_ARCHITECTURE = "ula_mmdit_v2"
 ULA_ADALN_LITE_ARCHITECTURE = "ula_adaln_lite"
 ULA_MMDIT_V3_ADALN_ARCHITECTURE = "ula_mmdit_v3_adaln"
+ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE = "ula_mmdit_v4_dual_text_adaln"
 
 
 INTENT_KEYWORDS = [
@@ -875,6 +876,64 @@ class UlaMMDiTV3AdaLNModel(nn.Module):
         return {"duration_sec": duration_sec, "transition_logits": self.transition_head(h)}
 
 
+class UlaMMDiTV4DualTextAdaLNModel(UlaMMDiTV3AdaLNModel):
+    """AdaLN generator with separate action-directive and dialogue roles.
+
+    The 128D text region remains checkpoint-compatible in width, but is split
+    into two explicit 64D inputs.  No learnable text mapping head is added.
+    """
+
+    def __init__(
+        self,
+        action_dim=15,
+        condition_dim=KIMODO_V2_CONDITION_DIM,
+        hidden_dim=384,
+        layers=6,
+        semantic_tokens=7,
+    ):
+        if int(semantic_tokens) != 7:
+            raise ValueError("dual-text AdaLN requires exactly seven semantic tokens")
+        super().__init__(
+            action_dim=action_dim,
+            condition_dim=condition_dim,
+            hidden_dim=hidden_dim,
+            layers=layers,
+            semantic_tokens=semantic_tokens,
+        )
+        self.architecture = ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE
+        del self.motion_latent_condition
+
+        def role_projection():
+            return nn.Sequential(
+                nn.Linear(64, self.hidden_dim),
+                nn.SiLU(),
+                nn.Linear(self.hidden_dim, self.hidden_dim),
+            )
+
+        self.action_directive_condition = role_projection()
+        self.dialogue_condition = role_projection()
+
+    def semantic_condition_tokens(self, condition):
+        behavior_start = LEGACY_CONDITION_DIM
+        emotion_start = behavior_start + len(KIMODO_BEHAVIOR_IDS)
+        family_start = emotion_start + len(KIMODO_EMOTION_IDS)
+        style_start = KIMODO_CONDITION_DIM - 3
+        text_start = KIMODO_CONDITION_DIM
+        dialogue_start = text_start + 64
+        tokens = [
+            self.legacy_condition(condition[:, :behavior_start])[:, None, :],
+            self.behavior_condition(condition[:, behavior_start:emotion_start])[:, None, :],
+            self.emotion_condition(condition[:, emotion_start:family_start])[:, None, :],
+            self.family_condition(condition[:, family_start:style_start])[:, None, :],
+            self.style_condition(condition[:, style_start:text_start])[:, None, :],
+            self.action_directive_condition(condition[:, text_start:dialogue_start])[
+                :, None, :
+            ],
+            self.dialogue_condition(condition[:, dialogue_start:])[:, None, :],
+        ]
+        return torch.cat(tokens, dim=1)
+
+
 def create_ula_model(
     architecture=ULA_FM_LEGACY_ARCHITECTURE,
     *,
@@ -909,6 +968,14 @@ def create_ula_model(
         )
     if architecture == ULA_MMDIT_V3_ADALN_ARCHITECTURE:
         return UlaMMDiTV3AdaLNModel(
+            action_dim=action_dim,
+            condition_dim=condition_dim,
+            hidden_dim=hidden_dim,
+            layers=layers,
+            semantic_tokens=semantic_tokens,
+        )
+    if architecture == ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE:
+        return UlaMMDiTV4DualTextAdaLNModel(
             action_dim=action_dim,
             condition_dim=condition_dim,
             hidden_dim=hidden_dim,

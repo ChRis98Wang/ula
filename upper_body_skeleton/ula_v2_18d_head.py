@@ -54,6 +54,7 @@ from upper_body_skeleton.ula_training import (
     STYLE_IDS,
     ULA_MMDIT_V2_ARCHITECTURE,
     ULA_MMDIT_V3_ADALN_ARCHITECTURE,
+    ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE,
     build_condition_from_text,
     create_ula_model,
     sample_span_to_frame_count,
@@ -70,7 +71,11 @@ HEAD_SLICE = slice(LEGACY_ACTION_DIM, ACTION_DIM)
 CHECKPOINT_SCHEMA_VERSION = 2
 ARTIFACT_KIND = "ula_mmdit_v2_generator"
 SUPPORTED_GENERATOR_ARCHITECTURES = frozenset(
-    {ULA_MMDIT_V2_ARCHITECTURE, ULA_MMDIT_V3_ADALN_ARCHITECTURE}
+    {
+        ULA_MMDIT_V2_ARCHITECTURE,
+        ULA_MMDIT_V3_ADALN_ARCHITECTURE,
+        ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE,
+    }
 )
 ADAPTER_POLICY = "new_input_columns_and_output_rows_only_v1"
 LEGACY_FORWARD_ATOL = 1e-5
@@ -4344,6 +4349,46 @@ def validate_condition_cache_for_generator(
                 else {}
             ),
             "generator_checkpoint_sha256": source_checkpoint_sha256,
+            "generator_checkpoint_compatibility": "direct_checkpoint",
+        }
+    if cache_artifact_kind == "ula_v2_dialogue_action_v11_dual_text_condition_cache":
+        from upper_body_skeleton.ula_v2_dialogue_action_episode import (
+            CONDITION_CACHE_SCHEMA_VERSION as DUAL_TEXT_CACHE_SCHEMA_VERSION,
+            FORMAL_EPISODE_CONTRACT as DUAL_TEXT_EPISODE_CONTRACT,
+        )
+
+        dual_contract = generator_checkpoint.get("dual_text_conditioning_contract") or {}
+        expected = {
+            "schema_version": DUAL_TEXT_CACHE_SCHEMA_VERSION,
+            "formal_episode_contract": DUAL_TEXT_EPISODE_CONTRACT,
+            "condition_dim": KIMODO_V2_CONDITION_DIM,
+            "dual_text_conditioning_contract_sha256": dual_contract.get("sha256"),
+            "qwen_checkpoint_sha256": dual_contract.get("qwen_checkpoint_sha256"),
+            "qwen_model_name": dual_contract.get("qwen_model_name"),
+            "qwen_revision": dual_contract.get("qwen_revision"),
+            "generator_checkpoint_sha256": cache_provenance.get(
+                "generator_checkpoint_sha256"
+            ),
+        }
+        if (
+            generator_checkpoint.get("formal_episode_contract")
+            != DUAL_TEXT_EPISODE_CONTRACT
+            or any(cache_provenance.get(field) != value for field, value in expected.items())
+        ):
+            raise ValueError("dual-text action cache/generator contract changed")
+        if generator_checkpoint_path is None:
+            raise ValueError(
+                "strict dual-text cache validation requires a generator checkpoint path"
+            )
+        current_sha256 = sha256_file(generator_checkpoint_path)
+        if cache_provenance.get("generator_checkpoint_sha256") != current_sha256:
+            raise ValueError("dual-text cache targets a different generator checkpoint")
+        return {
+            "validated": True,
+            "unsafe_condition_cache": False,
+            "formal_episode_contract": DUAL_TEXT_EPISODE_CONTRACT,
+            "dual_text_conditioning_contract_sha256": dual_contract["sha256"],
+            "generator_checkpoint_sha256": current_sha256,
             "generator_checkpoint_compatibility": "direct_checkpoint",
         }
     expression_turn_v8_cache = (

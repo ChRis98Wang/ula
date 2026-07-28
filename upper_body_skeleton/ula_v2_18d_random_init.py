@@ -48,6 +48,7 @@ from upper_body_skeleton.ula_training import (
     LEGACY_CONDITION_DIM,
     ULA_MMDIT_V2_ARCHITECTURE,
     ULA_MMDIT_V3_ADALN_ARCHITECTURE,
+    ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE,
     create_ula_model,
 )
 from upper_body_skeleton.ula_v2_18d_head import (
@@ -97,7 +98,11 @@ FORMAL_SEMANTIC_EVENT_SELECTION_STATUS = (
 )
 PROJECT_BEHAVIOR_MAPPING_SOURCE = "project_dataset_scope_weak_mapping_v1"
 SUPPORTED_GENERATOR_ARCHITECTURES = frozenset(
-    {ULA_MMDIT_V2_ARCHITECTURE, ULA_MMDIT_V3_ADALN_ARCHITECTURE}
+    {
+        ULA_MMDIT_V2_ARCHITECTURE,
+        ULA_MMDIT_V3_ADALN_ARCHITECTURE,
+        ULA_MMDIT_V4_DUAL_TEXT_ADALN_ARCHITECTURE,
+    }
 )
 DEFAULT_LENGTH_BUCKETS = (48, 64, 96, 128, 192, 256, 384, 512)
 DEFAULT_SPLIT_FRACTIONS = {"train": 0.8, "validation": 0.1, "test": 0.1}
@@ -370,6 +375,16 @@ def validate_formal_variable_length_episode(
         is_conversational_realization_v9_episode,
         validate_conversational_realization_v9_episode,
     )
+    from upper_body_skeleton.ula_v2_dialogue_action_episode import (
+        is_dialogue_action_v11_episode,
+        validate_dialogue_action_v11_episode,
+    )
+
+    if is_dialogue_action_v11_episode(episode):
+        validate_dialogue_action_v11_episode(
+            episode, require_attached_condition=require_attached_condition
+        )
+        return
 
     if is_conversational_realization_v9_episode(episode):
         validate_conversational_realization_v9_episode(

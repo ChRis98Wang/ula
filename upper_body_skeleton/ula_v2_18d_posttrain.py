@@ -97,6 +97,7 @@ DEFAULT_CONFIG = {
     "resume_from": None,
     "overwrite": False,
     "allow_unsafe_training_data": False,
+    "condition_contrastive_margin": 0.1,
     "loss": {
         "flow": 1.0,
         "position": 0.25,
@@ -123,6 +124,7 @@ OPTIONAL_LOSS_NAMES = frozenset(
         "planner",
         "planner_duration",
         "planner_transition",
+        "condition_contrastive",
     }
 )
 TRAINING_POLICIES = frozenset({"full_network", "head_projection_only"})
@@ -272,6 +274,7 @@ def resolve_posttrain_config(config: Mapping | None = None) -> dict:
         "early_stopping_min_delta",
         "maximum_replay_regression_fraction",
         "maximum_replay_regression_absolute",
+        "condition_contrastive_margin",
     ):
         resolved[name] = float(resolved[name])
         if not math.isfinite(resolved[name]):
@@ -293,6 +296,7 @@ def resolve_posttrain_config(config: Mapping | None = None) -> dict:
         or resolved["early_stopping_min_delta"] < 0
         or resolved["maximum_replay_regression_fraction"] < 0
         or resolved["maximum_replay_regression_absolute"] < 0
+        or resolved["condition_contrastive_margin"] < 0
     ):
         raise ValueError("weight decay, stopping delta, and replay tolerances must be non-negative")
     if resolved["adam_eps"] <= 0 or resolved["max_grad_norm"] <= 0:
@@ -1386,6 +1390,23 @@ def _batch_tensors_for_config(
     return actions, conditions, masks, durations, None
 
 
+def _counterfactual_conditions_for_episodes(
+    episodes: Sequence[Mapping], *, device
+) -> torch.Tensor:
+    values = [
+        np.asarray(episode.get("counterfactual_conditions"), dtype=np.float32)
+        for episode in episodes
+    ]
+    if any(value.shape != (2, KIMODO_V2_CONDITION_DIM) for value in values):
+        raise ValueError(
+            "condition_contrastive requires two 264D counterfactuals per episode"
+        )
+    stacked = np.stack(values)
+    if not np.isfinite(stacked).all():
+        raise ValueError("counterfactual conditions contain non-finite values")
+    return torch.as_tensor(stacked, dtype=torch.float32, device=device)
+
+
 def _transition_targets_for_episodes(
     episodes: Sequence[Mapping], *, device
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -1548,6 +1569,8 @@ def masked_18d_objective(
     transition_supervision_mask: torch.Tensor | None = None,
     noise: torch.Tensor | None = None,
     flow_times: torch.Tensor | None = None,
+    counterfactual_conditions: torch.Tensor | None = None,
+    condition_contrastive_margin: float = 0.1,
 ) -> dict[str, torch.Tensor]:
     """Flow and physical derivative losses with joint and optional frame masks.
 
@@ -1706,6 +1729,58 @@ def masked_18d_objective(
         "acceleration": acceleration,
     }
     requested_optional = OPTIONAL_LOSS_NAMES.intersection(loss_weights or {})
+    if (
+        "condition_contrastive" in requested_optional
+        and float(weights.get("condition_contrastive", 0.0)) > 0.0
+    ):
+        expected_shape = (actions.shape[0], 2, KIMODO_V2_CONDITION_DIM)
+        if (
+            counterfactual_conditions is None
+            or counterfactual_conditions.shape != expected_shape
+            or counterfactual_conditions.dtype != conditions.dtype
+            or counterfactual_conditions.device != conditions.device
+            or not torch.isfinite(counterfactual_conditions).all()
+        ):
+            raise ValueError(
+                "condition_contrastive requires finite [batch, 2, 264] conditions"
+            )
+        negative_conditions = counterfactual_conditions.reshape(
+            actions.shape[0] * 2, KIMODO_V2_CONDITION_DIM
+        )
+        repeated_x = x_t.repeat_interleave(2, dim=0)
+        repeated_t = t.repeat_interleave(2, dim=0)
+        repeated_observed = observed.repeat_interleave(2, dim=0)
+        if frame_valid_mask is None:
+            negative_predicted = model(repeated_x, repeated_t, negative_conditions)
+        else:
+            negative_predicted = forward_with_frame_mask(
+                model,
+                repeated_x,
+                repeated_t,
+                negative_conditions,
+                frame_valid_mask.repeat_interleave(2, dim=0),
+            )
+        repeated_target = target.repeat_interleave(2, dim=0)
+        positive_error = (
+            ((predicted - target).square() * observed).sum(dim=(1, 2))
+            / observed.sum(dim=(1, 2)).clamp_min(1)
+        )
+        negative_error = (
+            ((negative_predicted - repeated_target).square() * repeated_observed).sum(
+                dim=(1, 2)
+            )
+            / repeated_observed.sum(dim=(1, 2)).clamp_min(1)
+        ).reshape(actions.shape[0], 2)
+        role_contrastive = torch.relu(
+            float(condition_contrastive_margin)
+            + positive_error[:, None]
+            - negative_error
+        )
+        # Counterfactual index 0 changes dialogue; index 1 changes the action
+        # directive. Keep the optimized mean and expose both roles in metrics.
+        losses["dialogue_contrastive"] = role_contrastive[:, 0].mean()
+        losses["action_directive_contrastive"] = role_contrastive[:, 1].mean()
+        losses["condition_contrastive"] = role_contrastive.mean()
     if "planner" in requested_optional:
         if transition_targets is not None and transition_targets.shape != (actions.shape[0],):
             raise ValueError("planner transition targets must match the batch")
@@ -1862,6 +1937,12 @@ def evaluate_posttrain(
                     frame_valid_mask=frame_valid,
                     transition_targets=transition_targets,
                     transition_supervision_mask=transition_mask,
+                    counterfactual_conditions=(
+                        _counterfactual_conditions_for_episodes(rows, device=device)
+                        if float(loss_weights.get("condition_contrastive", 0.0)) > 0.0
+                        else None
+                    ),
+                    condition_contrastive_margin=0.1,
                 )
                 evaluated_frame_counts.extend(
                     frame_valid.sum(dim=1).detach().cpu().tolist()
@@ -2064,18 +2145,34 @@ def load_attached_beat_episodes(
         load_conversational_realization_v9_episodes,
         validate_conversational_realization_v9_episode,
     )
+    from upper_body_skeleton.ula_v2_dialogue_action_episode import (
+        is_dialogue_action_v11_episode,
+        load_dialogue_action_v11_episodes,
+        validate_dialogue_action_v11_episode,
+    )
+    from upper_body_skeleton.ula_v2_dialogue_action_training import (
+        attach_dual_text_condition_cache,
+    )
 
     v8_flags = [is_expression_turn_v8_episode(record) for record in raw_records]
     conversational_flags = [
         is_conversational_realization_v9_episode(record) for record in raw_records
     ]
-    if sum((any(v8_flags), any(conversational_flags))) > 1 or (
+    dialogue_action_flags = [
+        is_dialogue_action_v11_episode(record) for record in raw_records
+    ]
+    if sum((any(v8_flags), any(conversational_flags), any(dialogue_action_flags))) > 1 or (
         any(v8_flags) and not all(v8_flags)
-    ) or (any(conversational_flags) and not all(conversational_flags)):
+    ) or (any(conversational_flags) and not all(conversational_flags)) or (
+        any(dialogue_action_flags) and not all(dialogue_action_flags)
+    ):
         raise ValueError(f"manifest mixes incompatible episode contracts: {manifest}")
     expression_turn_v8 = bool(v8_flags and all(v8_flags))
     conversational_realization_v9 = bool(
         conversational_flags and all(conversational_flags)
+    )
+    dialogue_action_v11 = bool(
+        dialogue_action_flags and all(dialogue_action_flags)
     )
     if expression_turn_v8:
         if allow_unreviewed or allow_unsafe_condition_cache:
@@ -2089,6 +2186,11 @@ def load_attached_beat_episodes(
         attached = attach_conversational_realization_v9_condition_cache(
             loaded, condition_cache
         )
+    elif dialogue_action_v11:
+        if allow_unreviewed or allow_unsafe_condition_cache:
+            raise ValueError("dialogue/action v11 has no unsafe or unreviewed loading mode")
+        loaded = load_dialogue_action_v11_episodes(manifest)
+        attached = attach_dual_text_condition_cache(loaded, condition_cache)
     else:
         loaded = load_18d_episodes(manifest=manifest, allow_unreviewed=allow_unreviewed)
         attached = attach_condition_cache(
@@ -2126,6 +2228,10 @@ def load_attached_beat_episodes(
             validate_expression_turn_v8_episode(item, require_attached_condition=True)
         elif conversational_realization_v9:
             validate_conversational_realization_v9_episode(
+                item, require_attached_condition=True
+            )
+        elif dialogue_action_v11:
+            validate_dialogue_action_v11_episode(
                 item, require_attached_condition=True
             )
         enriched.append(item)
@@ -2251,14 +2357,19 @@ def build_data_provenance(
         record == cache_records[0] for record in cache_records[1:]
     )
     cache_provenance = cache_records[0] if cache_records and cache_consistent else {}
+    accepted_modes = {
+        "beat2_expression_turn_v8_train_episode_v1": (
+            "expression_turn_v8_adjudicated_train_ready"
+        ),
+        "ula_v2_18d_dialogue_action_v11_episode_v1": (
+            "dialogue_action_v11_train_ready"
+        ),
+    }
     all_adjudicated = all(
         bool(episode.get("accepted_for_training"))
         and episode.get("eligibility_mode")
-        == (
-            "expression_turn_v8_adjudicated_train_ready"
-            if episode.get("formal_episode_contract")
-            == "beat2_expression_turn_v8_train_episode_v1"
-            else "adjudicated_train_ready"
+        == accepted_modes.get(
+            episode.get("formal_episode_contract"), "adjudicated_train_ready"
         )
         for episode in all_beat
     )
@@ -3234,6 +3345,17 @@ def train_18d_posttrain(
                     frame_valid_mask=frame_valid,
                     transition_targets=transition_targets,
                     transition_supervision_mask=transition_mask,
+                    counterfactual_conditions=(
+                        _counterfactual_conditions_for_episodes(
+                            microbatch, device=device
+                        )
+                        if float(config["loss"].get("condition_contrastive", 0.0))
+                        > 0.0
+                        else None
+                    ),
+                    condition_contrastive_margin=float(
+                        config["condition_contrastive_margin"]
+                    ),
                 )
                 if not torch.isfinite(losses["total"]):
                     raise FloatingPointError(
@@ -3285,6 +3407,14 @@ def train_18d_posttrain(
                 frame_valid_mask=frame_valid,
                 transition_targets=transition_targets,
                 transition_supervision_mask=transition_mask,
+                counterfactual_conditions=(
+                    _counterfactual_conditions_for_episodes(selected, device=device)
+                    if float(config["loss"].get("condition_contrastive", 0.0)) > 0.0
+                    else None
+                ),
+                condition_contrastive_margin=float(
+                    config["condition_contrastive_margin"]
+                ),
             )
             if not torch.isfinite(losses["total"]):
                 raise FloatingPointError(f"non-finite post-training loss at step {step}")

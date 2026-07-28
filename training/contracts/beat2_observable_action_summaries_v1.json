@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.1.0",
+  "ontology_id": "beat2_observable_action_summaries_v1",
+  "purpose": "Concise Kimodo-like action summaries combining official BEAT2 event semantics with observable 18D robot motion form.",
+  "labels": [
+    {"id": "head_nod", "prompt_en": "Nod repeatedly while speaking.", "prompt_zh": "说话时反复点头。"},
+    {"id": "head_shake", "prompt_en": "Shake the head side to side while speaking.", "prompt_zh": "说话时反复左右摇头。"},
+    {"id": "head_scan", "prompt_en": "Look around with deliberate head turns while speaking.", "prompt_zh": "说话时转动头部查看周围。"},
+    {"id": "upper_body_bow", "prompt_en": "Bow the head and upper body forward while speaking.", "prompt_zh": "说话时头部和上身向前俯下。"},
+    {"id": "turn_away", "prompt_en": "Turn the head and upper body away while speaking.", "prompt_zh": "说话时将头部和上身转开。"},
+    {"id": "single_arm_wave", "prompt_en": "Wave one arm repeatedly while speaking.", "prompt_zh": "说话时反复挥动一只手臂。"},
+    {"id": "raise_one_arm", "prompt_en": "Raise one arm and hold it briefly while speaking.", "prompt_zh": "说话时举起一只手臂并短暂停住。"},
+    {"id": "bilateral_repeated_motion", "prompt_en": "Move both arms together repeatedly while speaking.", "prompt_zh": "说话时双臂一起反复动作。"},
+
+    {"id": "deictic_one_arm", "prompt_en": "Indicate a target with one arm while speaking.", "prompt_zh": "说话时用一只手臂指示目标。"},
+    {"id": "deictic_two_arm", "prompt_en": "Indicate a target with both arms while speaking.", "prompt_zh": "说话时用双臂指示目标。"},
+    {"id": "deictic_broad_two_arm", "prompt_en": "Use a broad two-arm action to indicate a target while speaking.", "prompt_zh": "说话时展开双臂指示目标。"},
+    {"id": "deictic_compact_two_arm", "prompt_en": "Use a compact two-arm action to indicate a target while speaking.", "prompt_zh": "说话时用双臂做紧凑的指示动作。"},
+    {"id": "deictic_head_led", "prompt_en": "Use a clear head-led action to indicate a target while speaking.", "prompt_zh": "说话时用清晰的头部动作指示目标。"},
+    {"id": "deictic_torso_led", "prompt_en": "Turn or lean the upper body to indicate a target while speaking.", "prompt_zh": "说话时转动或倾斜上身指示目标。"},
+    {"id": "deictic_subtle", "prompt_en": "Use a subtle upper-body action to indicate a target while speaking.", "prompt_zh": "说话时用轻微的上身动作指示目标。"},
+
+    {"id": "iconic_one_arm", "prompt_en": "Depict a concrete shape or action with one arm while speaking.", "prompt_zh": "说话时用一只手臂描绘具体形状或动作。"},
+    {"id": "iconic_two_arm", "prompt_en": "Depict a concrete shape or action with both arms while speaking.", "prompt_zh": "说话时用双臂描绘具体形状或动作。"},
+    {"id": "iconic_broad_two_arm", "prompt_en": "Use a broad two-arm action to depict a concrete idea while speaking.", "prompt_zh": "说话时展开双臂描绘具体内容。"},
+    {"id": "iconic_compact_two_arm", "prompt_en": "Use a compact two-arm action to depict a concrete idea while speaking.", "prompt_zh": "说话时用双臂做紧凑的具象描绘。"},
+    {"id": "iconic_head_led", "prompt_en": "Use a clear head-led action to depict something concrete while speaking.", "prompt_zh": "说话时用清晰的头部动作描绘具体内容。"},
+    {"id": "iconic_torso_led", "prompt_en": "Turn or lean the upper body to depict a concrete action while speaking.", "prompt_zh": "说话时转动或倾斜上身描绘具体动作。"},
+    {"id": "iconic_subtle", "prompt_en": "Use a subtle upper-body action to depict something concrete while speaking.", "prompt_zh": "说话时用轻微的上身动作描绘具体内容。"},
+
+    {"id": "metaphoric_one_arm", "prompt_en": "Emphasize an abstract idea with one arm while speaking.", "prompt_zh": "说话时用一只手臂强调抽象观点。"},
+    {"id": "metaphoric_two_arm", "prompt_en": "Emphasize an abstract idea with both arms while speaking.", "prompt_zh": "说话时用双臂强调抽象观点。"},
+    {"id": "metaphoric_broad_two_arm", "prompt_en": "Open both arms broadly to emphasize an abstract idea while speaking.", "prompt_zh": "说话时展开双臂强调抽象观点。"},
+    {"id": "metaphoric_compact_two_arm", "prompt_en": "Use a compact two-arm action to emphasize an abstract idea while speaking.", "prompt_zh": "说话时用双臂做紧凑的抽象强调动作。"},
+    {"id": "metaphoric_head_led", "prompt_en": "Use a clear head-led action to emphasize an abstract idea while speaking.", "prompt_zh": "说话时用清晰的头部动作强调抽象观点。"},
+    {"id": "metaphoric_torso_led", "prompt_en": "Turn or lean the upper body to emphasize an abstract idea while speaking.", "prompt_zh": "说话时转动或倾斜上身强调抽象观点。"},
+    {"id": "metaphoric_subtle", "prompt_en": "Use a subtle upper-body action to emphasize an abstract idea while speaking.", "prompt_zh": "说话时用轻微的上身动作强调抽象观点。"}
+  ],
+  "label_policy": {
+    "dialogue_used_to_assign_action": false,
+    "emotion_used_to_assign_action": false,
+    "pragmatic_intent_claimed": false,
+    "official_beat2_event_category_used": true,
+    "official_categories": ["deictic", "iconic", "metaphoric"],
+    "style_values_remain_separate_numeric_controls": true,
+    "specific_head_actions_require_tier_a_trajectory_evidence": true
+  }
+}

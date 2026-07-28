@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "beat2_dialogue_named_action_v12_video_config_v1",
+  "training_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_dialogue_named_action_v12_dual_text/training/training_summary.json",
+  "training_progress": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_dialogue_named_action_v12_dual_text/training/progress.jsonl",
+  "expected_training_target_steps": 100000,
+  "manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_dialogue_named_action_release_v12_expanded29/train_ready.jsonl",
+  "manifest_sha256": "c04b2be5c6b6ccf55e6abbd738e1a612bcc73c4c4ee4cc81da3007d5bf6b2ac3",
+  "condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_dialogue_named_action_v12_dual_text/conditioning/dual_text_conditions.npz",
+  "condition_cache_sha256": "67d97fb14b13431091880ea31e348ba82cd00d83391cf1faa5f2ac1cfabd2aeb",
+  "fixed_dialogue_clip_id": "beat_english_v2.0.0__10_kieks_0_14_14_sem0008_f001639-001731",
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/deliverables/beat2_dialogue_named_action_v12_final_video",
+  "video_filename": "BEAT2_V12_real_generated_action_prompt_AB_60s.mp4",
+  "sampling": {
+    "device": "cuda",
+    "fps": 30,
+    "frames_per_segment": 120,
+    "steps": 32,
+    "base_seed": 2026072900,
+    "transition_frames": 15
+  },
+  "playback": {
+    "smooth_window": 11,
+    "smooth_passes": 2,
+    "max_velocity_rad_s": 3.0
+  },
+  "render": {
+    "pane_width": 640,
+    "panel_width": 720,
+    "height": 720,
+    "simplified": false
+  },
+  "gpu_wait_gate": {
+    "index": 0,
+    "minimum_free_memory_mib": 6000,
+    "required_consecutive_passes": 2
+  },
+  "action_pairs": [
+    ["single_arm_wave", "turn_away"],
+    ["raise_one_arm", "bilateral_repeated_motion"],
+    ["deictic_one_arm", "deictic_two_arm"],
+    ["deictic_subtle", "deictic_broad_two_arm"],
+    ["deictic_compact_two_arm", "deictic_broad_two_arm"],
+    ["iconic_one_arm", "iconic_two_arm"],
+    ["iconic_subtle", "iconic_broad_two_arm"],
+    ["iconic_compact_two_arm", "iconic_broad_two_arm"],
+    ["metaphoric_one_arm", "metaphoric_two_arm"],
+    ["metaphoric_subtle", "metaphoric_broad_two_arm"],
+    ["metaphoric_compact_two_arm", "metaphoric_broad_two_arm"],
+    ["deictic_one_arm", "iconic_one_arm"],
+    ["iconic_two_arm", "metaphoric_two_arm"],
+    ["head_scan", "turn_away"],
+    ["single_arm_wave", "raise_one_arm"]
+  ]
+}
