@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ula_v2_18d_formal_from_scratch_entry_v1",
+  "formal_episode_contract": "ula_v2_18d_motion_only_physical_qc_v1",
+  "initialization_mode": "full_generator_random_qwen_lora_frozen_v1",
+  "audio_policy": "disabled_not_loaded",
+  "qwen_policy": "frozen_bound_checkpoint_prompt_latent_masked_zero_v1",
+  "conditioning_policy": {
+    "scope": "motion_head_style_duration_only_v1",
+    "qwen_prompt_latent": "masked_zero",
+    "official_category": "metadata_split_evaluation_only",
+    "communicative_intent": "masked_zero",
+    "legacy_gesture": "masked_zero",
+    "kimodo_behavior": "masked_zero",
+    "kimodo_emotion": "masked_zero",
+    "legacy_affect": "masked_zero",
+    "trajectory_style": "enabled",
+    "native_duration": "enabled"
+  },
+  "source_provenance_lock": "/home/gez/nas/cloud/gez/human_motion/catalog/beat2_semantic_event_pilot_v7_full/motion_only_pretrain_provenance_lock_min30f.json",
+  "source_provenance_lock_sha256": "fecfcfeb83467f6fa2b3810877e795e9a910e7232c6a1da22d958106eff1a411",
+  "qwen_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/kimodo_qwen_motion_latent_lora_v2/best.pt",
+  "qwen_checkpoint_sha256": "a153f32d401bb1a2747669d6ab4f5cc0e733b4fc3476b00a17edddaec2f6c2fb",
+  "condition_cache": null,
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v5",
+  "motion_sources": [
+    {
+      "dataset_source": "beat2_official_semantic_event_training_pool_v7",
+      "manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+      "source_inventory": "/home/gez/nas/cloud/gez/human_motion/catalog/beat2_semantic_event_pilot_v7_full/training_pool_low_medium.jsonl",
+      "source_inventory_sha256": "5bdd9c1f196b0c67a1456decc4db03810b7a415ceee53b189d6d81333296e42b",
+      "provenance_lock_artifact_key": "training_pool_low_medium",
+      "speaker_namespace": "beat2",
+      "source_group_namespace": "beat2-official-semantic-event",
+      "license_gate": {
+        "policy": "noncommercial_research_user_confirmation_required_v1",
+        "dataset_family": "BEAT2",
+        "terms_status": "conflicting_upstream_statements",
+        "metadata_statement": "apache-2.0",
+        "official_project_statement": "Non-commercial",
+        "allowed_scope": "non-commercial_research_only",
+        "user_confirmation": {
+          "confirmed": true,
+          "acknowledges_upstream_terms": true,
+          "authorized_scope": "non-commercial_research_only",
+          "confirmed_by": "evalyn_quidemhr@acdcfan.com",
+          "confirmed_at": "2026-07-25T12:26:39Z"
+        }
+      }
+    }
+  ],
+  "seed": 7,
+  "split_fractions": {
+    "train": 0.8,
+    "validation": 0.1,
+    "test": 0.1
+  },
+  "model": {
+    "hidden_dim": 384,
+    "layers": 6,
+    "semantic_tokens": 7
+  },
+  "training": {
+    "training_scope": "formal_variable_length_semantic_units",
+    "formal_training_enabled": true,
+    "temporal_unit_policy": "full_semantic_unit_variable_length_30hz",
+    "training_policy": "full_network",
+    "allow_unsafe_training_data": false,
+    "optimization_targets": [
+      "motion_flow_18d",
+      "head_3dof",
+      "trajectory_style",
+      "native_duration"
+    ],
+    "steps": 300000,
+    "batch_size": 16,
+    "validation_batch_size": 16,
+    "lr": 1e-05,
+    "minimum_lr_ratio": 0.1,
+    "warmup_steps": 6000,
+    "weight_decay": 0.0001,
+    "adam_eps": 1e-06,
+    "max_grad_norm": 1.0,
+    "ema_decay": 0.9995,
+    "validation_interval": 250,
+    "checkpoint_interval": 250,
+    "log_interval": 25,
+    "early_stopping_patience": 40,
+    "early_stopping_min_delta": 0.0001,
+    "batching": {
+      "mode": "native_variable_length",
+      "length_buckets": [
+        48,
+        64,
+        96,
+        128,
+        192,
+        256,
+        384,
+        512
+      ],
+      "homogeneous_bucket_batches": true,
+      "max_motion_tokens_per_microbatch": 4096,
+      "max_attention_elements_per_microbatch": 8000000,
+      "target_effective_batch_size": 16,
+      "gradient_accumulation_mode": "dynamic_episode_weighted",
+      "oversize_sequence_policy": "single_full_episode_or_fail"
+    },
+    "loss": {
+      "flow": 1.0,
+      "position": 1.0,
+      "body": 0.0,
+      "velocity": 0.02,
+      "acceleration": 0.0015,
+      "jerk": 4e-05,
+      "head_flow": 1.0,
+      "head_position": 0.5,
+      "head_velocity": 0.01,
+      "head_acceleration": 0.0008,
+      "head_jerk": 4e-05,
+      "planner_duration": 0.1,
+      "planner_transition": 0.0
+    }
+  }
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=BEAT2 experimental metadata-conditioned generator B/C posttrain
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gez/shuaiwang/ula-motion-generate
+ExecStartPre=/usr/bin/mkdir -p /home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/logs
+ExecStart=/usr/bin/bash /home/gez/shuaiwang/ula-motion-generate/tools/run_beat2_experimental_metadata_posttrain_ab_nightly.sh
+Restart=on-failure
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+Environment=BEAT2_POSTTRAIN_RUN_MODE=parallel
+StandardOutput=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/logs/nightly.log
+StandardError=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/logs/nightly.log
+
+[Install]
+WantedBy=default.target

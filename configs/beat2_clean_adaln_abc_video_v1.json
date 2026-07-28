@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "beat2_clean_adaln_abc_video_config_v1",
+  "experimental_scope": "BEAT2-only held-out A/B/C generator evaluation; not formal semantic evidence",
+  "source_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+  "source_manifest_sha256": "2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd",
+  "style_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/conditioning/conditions.npz",
+  "frozen_qwen_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_frozen_base.npz",
+  "lora_qwen_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_lora_finetuned.npz",
+  "branches": {
+    "A": {
+      "role": "clean_style_only_motion_foundation",
+      "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/training/ula_fm_checkpoint.pt",
+      "completion_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/training/training_summary.json"
+    },
+    "B": {
+      "role": "same_foundation_plus_frozen_official_qwen_latent",
+      "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/frozen_base/generator_experimental.pt",
+      "completion_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/frozen_base/training_summary.json"
+    },
+    "C": {
+      "role": "same_foundation_plus_beat2_only_qwen_lora_latent",
+      "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/lora_finetuned/generator_experimental.pt",
+      "completion_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/lora_finetuned/training_summary.json"
+    }
+  },
+  "held_out_cases": [
+    {
+      "clip_id": "beat_english_v2.0.0__10_kieks_0_11_11_sem0004_f000209-000295",
+      "seed": 2026072701
+    },
+    {
+      "clip_id": "beat_english_v2.0.0__10_kieks_0_14_14_sem0008_f001639-001731",
+      "seed": 2026072702
+    },
+    {
+      "clip_id": "beat_english_v2.0.0__10_kieks_0_65_65_sem0006_f000819-000940",
+      "seed": 2026072703
+    }
+  ],
+  "sampling": {
+    "steps": 32,
+    "device": "cuda"
+  },
+  "playback": {
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 5
+  },
+  "render": {
+    "backend": "mujoco_egl",
+    "width": 640,
+    "height": 720,
+    "simplified": false
+  },
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_clean_adaln_abc_video_v1",
+  "disclosures": {
+    "qwen_semantics": "experimental official-metadata alignment only, not formal semantic supervision",
+    "expression": "18D includes upper body and 3-DoF head orientation; it contains no facial blendshape channels",
+    "kimodo": "forbidden and unused at initialization, training-data, condition-cache, and evaluation stages"
+  }
+}

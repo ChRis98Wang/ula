@@ -3,14 +3,17 @@ import json
 from argparse import Namespace
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from tools.gmr_v2 import batch_retarget_beat2_semantic_events_v2 as grouped
 from tools.gmr_v2 import batch_retarget_beat2_v2 as ordinary
 from tools.gmr_v2.retarget_beat2_grouped_v2 import (
     EVENT_REVIEW_PROVENANCE_FIELDS,
+    MOTION_FOUNDATION_RETARGET_SEGMENT_REPRESENTATION,
     RETARGET_SEGMENT_REPRESENTATION,
     build_retarget_segment_contract,
+    interiorize_neutral_qpos,
 )
 
 
@@ -137,6 +140,55 @@ def _semantic_record(
                 "mode": "official_sem_core_plus_motion_low_speed_context"
             },
         },
+    }
+
+
+def _motion_foundation_record(source_clip_id="source_a"):
+    clip_id = f"beat2_motion_foundation__{source_clip_id}_chunk0000_f000000-000300"
+    return {
+        "schema_version": "1.0.0",
+        "clip_id": clip_id,
+        "task_id": clip_id,
+        "dataset": "BEAT2",
+        "dataset_subset": "beat_english_v2.0.0",
+        "language": "english",
+        "language_code": "en",
+        "source_clip_id": source_clip_id,
+        "source_group_key": f"BEAT2/beat_english_v2.0.0/{source_clip_id}",
+        "speaker_key": "1_wayne",
+        "fixed_split_assignment": "train",
+        "fps": 30.0,
+        "motion_relpath": (
+            f"beat_english_v2.0.0/smplxflame_30/{source_clip_id}.npz"
+        ),
+        "annotation_kind": grouped.MOTION_FOUNDATION_ANNOTATION_KIND,
+        "semantic_label_status": "absent_motion_foundation",
+        "semantic_supervision_masks": dict(grouped.MOTION_FOUNDATION_MASKS),
+        "behavior_supervision_mask": False,
+        "emotion_supervision_mask": False,
+        "affect_observable_supervision_mask": False,
+        "official_category_conditioning_enabled": False,
+        "official_emotion_conditioning_enabled": False,
+        "window": {
+            "selection_status": ordinary.FULL_WINDOW_SELECTION_STATUS,
+            "start_frame": 0,
+            "end_frame_exclusive": 300,
+            "frame_count": 300,
+        },
+        "training_segment": {
+            "representation": grouped.MOTION_FOUNDATION_SEGMENT_REPRESENTATION,
+            "start_frame": 0,
+            "end_frame_exclusive": 300,
+            "frame_count": 300,
+            "fixed_window_sec": None,
+            "overlap_frames": 0,
+            "boundary_source": "source_container_frame_bounds",
+        },
+        "issues": [],
+        "accepted_for_training": False,
+        "training_admission_status": (
+            "pending_18d_retarget_and_unchanged_physical_qc"
+        ),
     }
 
 
@@ -526,3 +578,124 @@ def test_retarget_segment_contract_distinguishes_source_and_retimed_output():
         ),
         "sha256": expected_hash,
     }
+
+
+def test_optional_retry_parameters_are_bound_to_runtime_and_contract(tmp_path):
+    beat2_root = tmp_path / "beat2"
+    beat2_root.mkdir()
+    inventory = tmp_path / "inventory.jsonl"
+    inventory.write_text("", encoding="utf-8")
+    args = _args(tmp_path, inventory, beat2_root)
+    args.solver = "quadprog"
+    args.neutral_limit_margin_rad = 1e-6
+    args.smoothing_window = 1
+    args.posture_cost = 0.0
+
+    runtime = grouped.runtime_config(args)
+    contract, _contract_hash = grouped.build_run_contract(args)
+
+    assert runtime.solver == "quadprog"
+    assert runtime.neutral_limit_margin_rad == 1e-6
+    assert runtime.smoothing_window == 1
+    assert runtime.posture_cost == 0.0
+    assert contract["retarget_parameters"]["solver"] == "quadprog"
+    assert contract["retarget_parameters"]["neutral_limit_margin_rad"] == 1e-6
+    assert contract["retarget_parameters"]["smoothing_window"] == 1
+    assert contract["retarget_parameters"]["posture_cost"] == 0.0
+    assert contract["quality_policy"] == ordinary.QUALITY_POLICY
+
+
+def test_interiorize_neutral_qpos_only_moves_exact_limited_boundaries():
+    class FakeModel:
+        jnt_limited = np.asarray([True, True, True])
+        jnt_range = np.asarray([[-1.0, 1.0], [0.0, 1.0], [-2.0, 2.0]])
+        jnt_qposadr = np.asarray([0, 1, 2])
+
+    class FakeMujoco:
+        class mjtObj:
+            mjOBJ_JOINT = 1
+
+        @staticmethod
+        def mj_name2id(_model, _kind, name):
+            return {
+                "joint_pelvisYaw": 0,
+                "joint_pelvisPitch": 1,
+                "joint_pelvisRoll": 2,
+            }.get(name, -1)
+
+    result = interiorize_neutral_qpos(
+        FakeModel(),
+        FakeMujoco(),
+        np.asarray([0.25, 0.0, -0.5]),
+        1e-6,
+    )
+
+    assert result.tolist() == [0.25, 1e-6, -0.5]
+
+
+def test_motion_foundation_inventory_is_unlabeled_and_uses_distinct_contract(
+    tmp_path,
+):
+    beat2_root = tmp_path / "BEAT2"
+    motion_root = beat2_root / "beat_english_v2.0.0/smplxflame_30"
+    motion_root.mkdir(parents=True)
+    (motion_root / "source_a.npz").write_bytes(b"source")
+    record = _motion_foundation_record()
+    inventory = tmp_path / "foundation.jsonl"
+    _write_jsonl(inventory, [record])
+
+    eligible, excluded = grouped.read_semantic_inventory(inventory, beat2_root)
+
+    assert excluded == []
+    assert len(eligible) == 1
+    task = eligible[0]
+    assert task["semantic_supervision_masks"] == grouped.MOTION_FOUNDATION_MASKS
+    assert "canonical_prompt" not in task
+    assert "audio_relpath" not in task
+    assert "source_speech_context" not in task
+    contract = build_retarget_segment_contract(
+        task, source_frame_count=300, output_frame_count=300, fps=30.0
+    )
+    assert (
+        contract["representation"]
+        == MOTION_FOUNDATION_RETARGET_SEGMENT_REPRESENTATION
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("canonical_prompt", {"en": "leaked"}),
+        ("prompt", "leaked"),
+        ("source_text", "leaked"),
+        ("window_transcript_context", "leaked"),
+        ("audio_relpath", "beat_english_v2.0.0/wave16k/source_a.wav"),
+        ("semantic_event", {"category": "deictic"}),
+        ("behavior_id", "Behavior.InteractPresence"),
+        ("emotion_id", "happy"),
+    ],
+)
+def test_motion_foundation_inventory_rejects_conditioning_metadata(
+    tmp_path, field, value
+):
+    beat2_root = tmp_path / "BEAT2"
+    motion_root = beat2_root / "beat_english_v2.0.0/smplxflame_30"
+    motion_root.mkdir(parents=True)
+    (motion_root / "source_a.npz").write_bytes(b"source")
+    if field == "audio_relpath":
+        audio = beat2_root / str(value)
+        audio.parent.mkdir(parents=True)
+        audio.write_bytes(b"audio")
+    record = _motion_foundation_record()
+    record[field] = value
+    inventory = tmp_path / f"foundation_{field}.jsonl"
+    _write_jsonl(inventory, [record])
+
+    eligible, excluded = grouped.read_semantic_inventory(inventory, beat2_root)
+
+    assert eligible == []
+    assert len(excluded) == 1
+    assert (
+        "motion_foundation:conditioning_or_audio_metadata_forbidden"
+        in excluded[0]["reasons"]
+    )

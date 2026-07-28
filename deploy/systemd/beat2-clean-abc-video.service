@@ -1,0 +1,19 @@
+[Unit]
+Description=BEAT2 clean AdaLN A/B/C jerk and expressiveness video
+After=network.target beat2-experimental-metadata-posttrain-ab.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/gez/shuaiwang/ula-motion-generate
+ExecStart=/home/gez/shuaiwang/.venvs/gmr/bin/python -u tools/experimental/build_beat2_clean_abc_video.py --config configs/beat2_clean_adaln_abc_video_v1.json --wait-for-completion --poll-seconds 60 --timeout-hours 18
+Restart=on-failure
+RestartSec=60
+TimeoutStartSec=infinity
+RemainAfterExit=yes
+Environment=PYTHONPATH=.
+Environment=MUJOCO_GL=egl
+StandardOutput=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_clean_adaln_abc_video_v1/video_watcher.log
+StandardError=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_clean_adaln_abc_video_v1/video_watcher.log
+
+[Install]
+WantedBy=default.target

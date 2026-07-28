@@ -1,0 +1,432 @@
+{
+  "schema_version": "1.0.0",
+  "ontology_id": "robot_observable_interaction_intents_v1",
+  "network_contract": "ula_v2_18d_observable_intent_v9",
+  "condition_slot_count": 27,
+  "purpose": "Kimodo-like explicit interaction semantics that must be recognizable from the 18D robot motion unless a separate context mask is enabled.",
+  "label_layers": {
+    "primary": "observable_intent_id",
+    "context_only": "pragmatic_role",
+    "independent": [
+      "emotion_id",
+      "motion_realization",
+      "interaction_target"
+    ],
+    "metadata_only": [
+      "deictic_iconic_metaphoric",
+      "source_action_name",
+      "source_transcript",
+      "source_filename"
+    ]
+  },
+  "review_contract": {
+    "minimum_independent_reviewers": 2,
+    "minimum_confidence": 0.8,
+    "required_video_view": "anonymous_full_robot_video",
+    "source_label_visible": false,
+    "audio_visible_for_primary_intent": false,
+    "admission_rule": "exact_intent_consensus_or_independent_adjudication",
+    "filename_or_transcript_auto_admission": false,
+    "hard_negative_check_required": true
+  },
+  "pragmatic_roles": [
+    {
+      "id": "greeting",
+      "name_zh": "见面问候",
+      "requires_context_evidence": true
+    },
+    {
+      "id": "farewell",
+      "name_zh": "告别",
+      "requires_context_evidence": true
+    },
+    {
+      "id": "acknowledgement",
+      "name_zh": "回应或确认对方",
+      "requires_context_evidence": true
+    }
+  ],
+  "visual_equivalence_rules": [
+    {
+      "observable_intent_id": "wave_to_person",
+      "context_roles": [
+        "greeting",
+        "farewell",
+        "acknowledgement"
+      ],
+      "rule": "The motion label remains wave_to_person because greeting and farewell waves are not reliably distinguishable from robot motion alone."
+    }
+  ],
+  "intents": [
+    {
+      "slot": 0,
+      "id": "idle_attentive",
+      "name_en": "attentive idle",
+      "name_zh": "专注待机",
+      "family": "presence",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Hold an attentive upright posture toward the person.",
+      "canonical_prompt_zh": "面向对方保持专注、直立的待机姿态。",
+      "visual_signature": "Stable upright posture with deliberate orientation and only small settling motion.",
+      "hard_negatives": ["listen_attentively", "search_scan"],
+      "kimodo_references": ["Behavior.IdleAttentive", "Behavior.InteractPresence"]
+    },
+    {
+      "slot": 1,
+      "id": "listen_attentively",
+      "name_en": "active listening",
+      "name_zh": "积极倾听",
+      "family": "presence",
+      "evidence_mode": "visual_plus_dyadic_context",
+      "canonical_prompt_en": "Lean in slightly and give small listening acknowledgements toward the speaker.",
+      "canonical_prompt_zh": "略微前倾，并朝说话者做小幅倾听回应。",
+      "visual_signature": "Small intermittent nods or forward engagement while otherwise yielding the turn.",
+      "hard_negatives": ["agree_nod", "idle_attentive"],
+      "kimodo_references": ["Behavior.ActiveListening"]
+    },
+    {
+      "slot": 2,
+      "id": "wave_to_person",
+      "name_en": "wave to a person",
+      "name_zh": "向人挥手",
+      "family": "social_signal",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Raise one hand and wave it side to side toward the person.",
+      "canonical_prompt_zh": "抬起一只手，朝对方左右挥动。",
+      "visual_signature": "One raised forearm performs at least two lateral wave cycles toward a person, then lowers or settles.",
+      "hard_negatives": ["raise_hand_get_attention", "beckon_come_here", "offer_high_five"],
+      "allowed_pragmatic_roles": ["greeting", "farewell", "acknowledgement"],
+      "kimodo_references": ["Behavior.GreetingOwner01", "Behavior.GreetingGuest", "Behavior.Farewell"]
+    },
+    {
+      "slot": 3,
+      "id": "beckon_come_here",
+      "name_en": "beckon closer",
+      "name_zh": "招手示意过来",
+      "family": "request",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Extend one arm and repeatedly draw the hand inward to beckon the person closer.",
+      "canonical_prompt_zh": "伸出一只手并反复向内收，引导对方靠近。",
+      "visual_signature": "Repeated distal-to-proximal pulls directed from the other person toward the robot.",
+      "hard_negatives": ["wave_to_person", "raise_hand_get_attention", "comfort_reach"],
+      "kimodo_references": ["Behavior.SeekAttention"]
+    },
+    {
+      "slot": 4,
+      "id": "raise_hand_get_attention",
+      "name_en": "raise hand for attention",
+      "name_zh": "举手引起注意",
+      "family": "attention",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Raise one hand clearly and hold it to get the person's attention.",
+      "canonical_prompt_zh": "明确举起一只手并短暂停住，以引起对方注意。",
+      "visual_signature": "A clear single arm raise followed by a hold; no repeated lateral or inward wave cycles.",
+      "hard_negatives": ["wave_to_person", "beckon_come_here", "salute"],
+      "kimodo_references": ["Behavior.SeekAttention"]
+    },
+    {
+      "slot": 5,
+      "id": "salute",
+      "name_en": "salute",
+      "name_zh": "敬礼",
+      "family": "social_signal",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Bring one hand to the forehead in a clear salute, hold briefly, then lower it.",
+      "canonical_prompt_zh": "将一只手抬到额前做出清晰敬礼，短暂停住后放下。",
+      "visual_signature": "One hand travels directly to the forehead or temple, holds, and returns.",
+      "hard_negatives": ["raise_hand_get_attention", "wave_to_person"],
+      "kimodo_references": ["Behavior.GreetingOwner03"]
+    },
+    {
+      "slot": 6,
+      "id": "bow",
+      "name_en": "bow to a person",
+      "name_zh": "向人鞠躬",
+      "family": "social_signal",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Bend the head and upper body forward in a deliberate bow, then return upright.",
+      "canonical_prompt_zh": "头部和上身有意向前俯下鞠躬，然后恢复直立。",
+      "visual_signature": "Coordinated forward head and torso inclination with a hold or clear apex and upright recovery.",
+      "hard_negatives": ["disappointment_slump", "hesitate_retract"],
+      "kimodo_references": ["Behavior.GreetingOwner04"]
+    },
+    {
+      "slot": 7,
+      "id": "stop_warning",
+      "name_en": "stop or warning signal",
+      "name_zh": "停止或警告手势",
+      "family": "boundary",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Present an arm firmly toward the person to signal stop.",
+      "canonical_prompt_zh": "坚定地将手臂朝向对方，示意停止。",
+      "visual_signature": "A rapid assertive arm presentation followed by a firm held boundary pose.",
+      "hard_negatives": ["refuse_push_away", "offer_high_five", "point_forward"],
+      "kimodo_references": ["Behavior.Alert"]
+    },
+    {
+      "slot": 8,
+      "id": "point_left",
+      "name_en": "point left",
+      "name_zh": "指向左侧",
+      "family": "direction",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Extend one arm to point clearly toward the robot's left side.",
+      "canonical_prompt_zh": "伸出一只手臂，清楚指向机器人左侧。",
+      "visual_signature": "One arm establishes and holds an unambiguous leftward direction.",
+      "hard_negatives": ["point_right", "explain_present"],
+      "kimodo_references": []
+    },
+    {
+      "slot": 9,
+      "id": "point_right",
+      "name_en": "point right",
+      "name_zh": "指向右侧",
+      "family": "direction",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Extend one arm to point clearly toward the robot's right side.",
+      "canonical_prompt_zh": "伸出一只手臂，清楚指向机器人右侧。",
+      "visual_signature": "One arm establishes and holds an unambiguous rightward direction.",
+      "hard_negatives": ["point_left", "explain_present"],
+      "kimodo_references": []
+    },
+    {
+      "slot": 10,
+      "id": "point_forward",
+      "name_en": "point forward",
+      "name_zh": "指向前方或对方",
+      "family": "direction",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Extend one arm to point clearly forward toward the target.",
+      "canonical_prompt_zh": "伸出一只手臂，清楚指向前方目标。",
+      "visual_signature": "One arm establishes and holds a forward target direction.",
+      "hard_negatives": ["stop_warning", "comfort_reach", "explain_present"],
+      "kimodo_references": []
+    },
+    {
+      "slot": 11,
+      "id": "agree_nod",
+      "name_en": "nod in agreement",
+      "name_zh": "点头同意",
+      "family": "response",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Give a clear repeated vertical nod to show agreement.",
+      "canonical_prompt_zh": "做出清晰、重复的上下点头，表示同意。",
+      "visual_signature": "At least two deliberate pitch-down and recovery cycles without whole-body bowing.",
+      "hard_negatives": ["bow", "listen_attentively", "disagree_head_shake"],
+      "kimodo_references": ["Behavior.ActiveListening"]
+    },
+    {
+      "slot": 12,
+      "id": "disagree_head_shake",
+      "name_en": "shake head no",
+      "name_zh": "摇头否定",
+      "family": "response",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Turn the head side to side repeatedly to signal no.",
+      "canonical_prompt_zh": "反复左右摇头，表示否定。",
+      "visual_signature": "At least two deliberate yaw alternations centered on the listener.",
+      "hard_negatives": ["search_scan", "withdraw_turn_away", "agree_nod"],
+      "kimodo_references": ["Behavior.Aversion"]
+    },
+    {
+      "slot": 13,
+      "id": "applaud",
+      "name_en": "applaud",
+      "name_zh": "鼓掌",
+      "family": "positive_response",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Bring both hands together repeatedly in applause.",
+      "canonical_prompt_zh": "双手反复合拢，做出鼓掌动作。",
+      "visual_signature": "Both forearms repeatedly converge symmetrically at the front centerline.",
+      "hard_negatives": ["celebrate", "explain_present"],
+      "kimodo_references": ["Behavior.Joy"]
+    },
+    {
+      "slot": 14,
+      "id": "celebrate",
+      "name_en": "celebrate success",
+      "name_zh": "庆祝成功",
+      "family": "positive_response",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Lift both arms in a clear celebratory motion and hold the success pose briefly.",
+      "canonical_prompt_zh": "清楚地抬起双臂庆祝，并短暂保持成功姿态。",
+      "visual_signature": "Fast expansive bilateral arm lift with a distinct high apex and energetic recovery.",
+      "hard_negatives": ["applaud", "shrug_uncertain", "offer_hug"],
+      "kimodo_references": ["Behavior.Joy"]
+    },
+    {
+      "slot": 15,
+      "id": "comfort_reach",
+      "name_en": "reach out to comfort",
+      "name_zh": "伸手安慰",
+      "family": "support",
+      "evidence_mode": "visual_plus_dyadic_context",
+      "canonical_prompt_en": "Lean gently toward the person and extend an arm in a restrained comforting reach.",
+      "canonical_prompt_zh": "轻柔地靠向对方，并克制地伸出手臂表示安慰。",
+      "visual_signature": "Slow soft approach with one arm and an open, non-forceful upper-body posture.",
+      "hard_negatives": ["point_forward", "stop_warning", "beckon_come_here"],
+      "kimodo_references": ["Behavior.Comfort"]
+    },
+    {
+      "slot": 16,
+      "id": "offer_hug",
+      "name_en": "offer a hug",
+      "name_zh": "张臂拥抱",
+      "family": "support",
+      "evidence_mode": "visual_plus_dyadic_context",
+      "canonical_prompt_en": "Open both arms toward the person and hold an inviting hug posture.",
+      "canonical_prompt_zh": "朝对方张开双臂，并保持邀请拥抱的姿态。",
+      "visual_signature": "Bilateral arms open outward and forward into a sustained receiving pose.",
+      "hard_negatives": ["celebrate", "shrug_uncertain", "explain_present"],
+      "kimodo_references": ["Behavior.Comfort"]
+    },
+    {
+      "slot": 17,
+      "id": "offer_high_five",
+      "name_en": "offer a high five",
+      "name_zh": "举手击掌",
+      "family": "social_offer",
+      "evidence_mode": "visual_plus_dyadic_context",
+      "canonical_prompt_en": "Raise one arm toward the person and hold it ready for a high five.",
+      "canonical_prompt_zh": "朝对方抬起一只手臂并保持，准备击掌。",
+      "visual_signature": "Single forward-high arm presentation held for a partner response.",
+      "hard_negatives": ["stop_warning", "raise_hand_get_attention", "salute"],
+      "kimodo_references": ["Behavior.GreetingOwner02"]
+    },
+    {
+      "slot": 18,
+      "id": "refuse_push_away",
+      "name_en": "refuse or push away",
+      "name_zh": "拒绝或推开",
+      "family": "boundary",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Move both forearms outward toward the person in a clear rejecting push-away gesture.",
+      "canonical_prompt_zh": "双前臂明确朝外推开，向对方表示拒绝。",
+      "visual_signature": "One or two arms press outward from near the torso, often with upper-body withdrawal.",
+      "hard_negatives": ["stop_warning", "offer_hug", "explain_present"],
+      "kimodo_references": ["Behavior.Aversion"]
+    },
+    {
+      "slot": 19,
+      "id": "shrug_uncertain",
+      "name_en": "shrug with uncertainty",
+      "name_zh": "耸肩表示不确定",
+      "family": "uncertainty",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Lift both shoulders and forearms in a compact shrug, then release.",
+      "canonical_prompt_zh": "双肩和双前臂做出紧凑耸肩动作，然后放松。",
+      "visual_signature": "Brief symmetric shoulder and elbow lift with compact outward forearm opening.",
+      "hard_negatives": ["celebrate", "offer_hug", "hesitate_retract"],
+      "kimodo_references": ["Behavior.Hesitate", "Behavior.Error"]
+    },
+    {
+      "slot": 20,
+      "id": "search_scan",
+      "name_en": "search by scanning",
+      "name_zh": "转头搜寻",
+      "family": "attention",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Turn the head and upper body to scan deliberately across the surroundings.",
+      "canonical_prompt_zh": "有目的地转动头部和上身，扫描周围环境。",
+      "visual_signature": "Sequential oriented looks to distinct directions with pauses that imply inspection.",
+      "hard_negatives": ["disagree_head_shake", "curious_lean_look", "idle_attentive"],
+      "kimodo_references": ["Behavior.Search"]
+    },
+    {
+      "slot": 21,
+      "id": "curious_lean_look",
+      "name_en": "lean in for a curious look",
+      "name_zh": "好奇探看",
+      "family": "attention",
+      "evidence_mode": "visual_plus_target_context",
+      "canonical_prompt_en": "Tilt and lean the head toward the target for a closer curious look.",
+      "canonical_prompt_zh": "头部倾斜并靠近目标，做出好奇探看的动作。",
+      "visual_signature": "Asymmetric head tilt plus forward or lateral approach toward a stable target.",
+      "hard_negatives": ["search_scan", "listen_attentively", "idle_attentive"],
+      "kimodo_references": ["Behavior.CuriousLook"]
+    },
+    {
+      "slot": 22,
+      "id": "withdraw_turn_away",
+      "name_en": "withdraw and turn away",
+      "name_zh": "退缩转开",
+      "family": "avoidance",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Pull the arms inward and turn the head and upper body away from the person.",
+      "canonical_prompt_zh": "双臂向内收，同时将头部和上身从对方方向转开。",
+      "visual_signature": "Contracting arm motion combined with a sustained head or torso orientation away from the partner.",
+      "hard_negatives": ["refuse_push_away", "search_scan", "hesitate_retract"],
+      "kimodo_references": ["Behavior.Withdrawal"]
+    },
+    {
+      "slot": 23,
+      "id": "disappointment_slump",
+      "name_en": "slump in disappointment",
+      "name_zh": "失望低落",
+      "family": "negative_response",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Let the head and upper body sink into a sustained disappointed slump, then recover slowly.",
+      "canonical_prompt_zh": "头部和上身持续下沉，表现失望低落，然后缓慢恢复。",
+      "visual_signature": "Slow downward head and torso collapse with reduced arm energy and a delayed recovery.",
+      "hard_negatives": ["bow", "hesitate_retract", "idle_attentive"],
+      "kimodo_references": ["Behavior.Disappointment"]
+    },
+    {
+      "slot": 24,
+      "id": "hesitate_retract",
+      "name_en": "hesitate and retract",
+      "name_zh": "犹豫后收回",
+      "family": "uncertainty",
+      "evidence_mode": "visual_primary",
+      "canonical_prompt_en": "Start to reach, pause indecisively, then retract the arm toward the body.",
+      "canonical_prompt_zh": "先伸手、犹豫停顿，再将手臂收回身体。",
+      "visual_signature": "Incomplete reach with a distinct pause or reversal before the target is reached.",
+      "hard_negatives": ["comfort_reach", "withdraw_turn_away", "shrug_uncertain"],
+      "kimodo_references": ["Behavior.Hesitate"]
+    },
+    {
+      "slot": 25,
+      "id": "explain_present",
+      "name_en": "explain or present",
+      "name_zh": "解释或展示",
+      "family": "conversation",
+      "evidence_mode": "visual_plus_speech_context",
+      "canonical_prompt_en": "Use measured outward arm gestures to present information to the listener.",
+      "canonical_prompt_zh": "用有节制的向外手臂动作向听者展示信息。",
+      "visual_signature": "Turn-yielding open-arm presentation gestures aligned with a speaker segment.",
+      "hard_negatives": ["point_left", "point_right", "refuse_push_away"],
+      "kimodo_references": ["Behavior.InteractPresence"]
+    },
+    {
+      "slot": 26,
+      "id": "offer_fist_bump",
+      "name_en": "offer a fist bump",
+      "name_zh": "伸拳邀请碰拳",
+      "family": "social_offer",
+      "evidence_mode": "visual_plus_dyadic_context",
+      "canonical_prompt_en": "Extend one bent forearm toward the person and hold it ready for a fist bump.",
+      "canonical_prompt_zh": "朝对方伸出一只弯曲前臂并保持，邀请碰拳。",
+      "visual_signature": "A compact forward forearm presentation held at mid height for a partner response.",
+      "hard_negatives": ["point_forward", "offer_high_five", "comfort_reach"],
+      "kimodo_references": ["Behavior.GreetingOwner02"]
+    }
+  ],
+  "explicit_exclusions": [
+    {
+      "id": "finger_heart",
+      "reason": "The 18D robot representation has no finger articulation."
+    },
+    {
+      "id": "facial_expression_only",
+      "reason": "The current representation has no facial degrees of freedom."
+    },
+    {
+      "id": "greeting_wave_as_distinct_motion",
+      "reason": "Greeting versus farewell is a pragmatic role, not a reliably distinct wave trajectory."
+    },
+    {
+      "id": "dance_style_arm_wave",
+      "reason": "This ontology is interaction-first; dance-style waving is not evidence for wave_to_person."
+    }
+  ]
+}

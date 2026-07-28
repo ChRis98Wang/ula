@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "beat2_qwen_reference_comparison_60s_config_v1",
+  "sealed_interaction_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_text_interaction_60s_v1/summary.json",
+  "sealed_interaction_summary_sha256": "d742acb61c69a8412e7cb1a2461fb8e9722cf5ea2a56ecf6dbfc0bac4b9b2b52",
+  "selection_policy": "existing_sealed_summary_representative_clip_id_lexicographic_first_fixed_test_candidate",
+  "reference_slot_policy": "published_safe_csv_30hz_from_slot_start_then_endpoint_hold_no_additional_loop_timewarp_crop_or_smoothing",
+  "render": {
+    "pane_width": 640,
+    "pane_height": 680,
+    "title_height": 40,
+    "panel_width": 640,
+    "camera_view": "upper",
+    "simplified": false,
+    "backend": "mujoco_egl"
+  },
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_reference_comparison_60s_v1"
+}

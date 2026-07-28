@@ -1,0 +1,37 @@
+{
+  "allowed_dataset": "BEAT2",
+  "artifact_kind": "beat2_robot_observable_emotion_review_queue_config_v1",
+  "max_total": 1080,
+  "output_audit": "deliverables/beat2_emotion_human_review_queue_v1/audit.json",
+  "output_manifest": "deliverables/beat2_emotion_human_review_queue_v1/review_queue.jsonl",
+  "seed": 20260727,
+  "source_group_policy": "one_turn_per_source_group",
+  "source_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_expression_turn_18d_v8_full/passed_manifest.jsonl",
+  "source_manifest_sha256": "6fb07eddb498683e7e3b9339c163073701a3f38d334544b9c425a5abf8ce5d17",
+  "targets": {
+    "test": {
+      "angry": 50,
+      "fear": 50,
+      "happy": 50,
+      "neutral": 50,
+      "sad": 50,
+      "surprise": 50
+    },
+    "train": {
+      "angry": 100,
+      "fear": 100,
+      "happy": 100,
+      "neutral": 100,
+      "sad": 100,
+      "surprise": 100
+    },
+    "validation": {
+      "angry": 30,
+      "fear": 30,
+      "happy": 30,
+      "neutral": 30,
+      "sad": 30,
+      "surprise": 30
+    }
+  }
+}

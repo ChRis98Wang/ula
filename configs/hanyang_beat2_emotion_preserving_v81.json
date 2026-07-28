@@ -1,0 +1,139 @@
+{
+  "schema_version": "8.1",
+  "artifact_kind": "hanyang_beat2_emotion_preserving_generator_config_v8_1",
+  "training_policy": "beat2_v7_complete_emotion_hierarchy_plus_hanyang_source344_minus_unapproved_boundary21_safe323_domain_isolated_masked_partial_motion_response_anchor_v8_1",
+  "beat2_condition_policy": "zero_base_0_133_qwen_predicted_style_133_136_frozen_qwen_text_136_264_no_trajectory_oracle_v2",
+  "hanyang_condition_policy": "reserved_domain_marker_dim0_no_cfg_dropout_no_semantic_target_v1",
+  "deny_policy": "kimodo_permanent_hard_deny_raw_cache_normalizer_split_checkpoint_v1",
+  "foundation_role": "completed_frozen_a_candidate_only_not_selected_winner",
+  "formal_release_eligible": false,
+  "foundation_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/generator_emotion_hierarchy_v7.pt",
+  "expected_foundation_checkpoint_sha256": "b18f7cf1050144b9870d85047d39c50e123d495e5f0be65079bc3d0b50db2b3b",
+  "v7_reference_config": "/home/gez/shuaiwang/ula-motion-generate/configs/beat2_emotion_hierarchy_v7.json",
+  "expected_v7_reference_config_sha256": "56f6bb506541df93f6405e69e2e2026173f7fc601af6eedea1c207356892e275",
+  "hanyang_strict_manifest": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/hanyang_emotional_body_motion_zenodo_10052504_v1/retarget_v1/experimental_pool_v8/manifest.jsonl",
+  "expected_hanyang_strict_manifest_sha256": "69e6b28e3e309ced4434f7e70f94bc98b6fca69c777e82c171fb29e3b5f072f2",
+  "hanyang_pool_receipt": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/hanyang_emotional_body_motion_zenodo_10052504_v1/retarget_v1/experimental_pool_v8/admission_receipt.json",
+  "expected_hanyang_pool_receipt_sha256": "e1b6acc1e8bd4f89a6bf0a77e3cd4a82209ef5d4b32f430cfe36d9d3ca762c51",
+  "expected_hanyang_boundary_review_manifest_sha256": "aafee677a3394102dbea5d35fb3f6c8b6c86ac5dd4f6ac7faccac75b9bce7c3a",
+  "expected_hanyang_safe_clip_ids_sha256": "b4ed7a2235c06d0712eb6905c6c0b87a346a47a5238c976b0e121eb5c0354474",
+  "expected_hanyang_excluded_clip_ids_sha256": "43fa4b98941912548b84b11aefdf7602a53cfa3b1c45eb07df8c5fd2e6bc830c",
+  "expected_hanyang_upstream_passed_manifest_sha256": "be9dcf53f0aa2acc2695475e8625d1f05550a07fb8403e46d0e0c8e3f633daab",
+  "hanyang_rejected_manifest": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/hanyang_emotional_body_motion_zenodo_10052504_v1/retarget_v1/failed_manifest.jsonl",
+  "expected_hanyang_rejected_manifest_sha256": "dd826f2ca5ee3c1c4700c4e795770988e9f3fb0537670d35d0ffd10858b271ac",
+  "data_contract": {
+    "beat2_source": "v7_reference_config_exact_train_split",
+    "hanyang_source": "strict_qc_source344_minus_unapproved_boundary21_v1",
+    "hanyang_strict_count": 344,
+    "hanyang_source_manifest_sha256": "69e6b28e3e309ced4434f7e70f94bc98b6fca69c777e82c171fb29e3b5f072f2",
+    "hanyang_pool_receipt_sha256": "e1b6acc1e8bd4f89a6bf0a77e3cd4a82209ef5d4b32f430cfe36d9d3ca762c51",
+    "hanyang_source_split_counts": {
+      "train": 291,
+      "validation": 10,
+      "test": 43
+    },
+    "hanyang_boundary_candidate_count": 21,
+    "hanyang_boundary_manifest_sha256": "aafee677a3394102dbea5d35fb3f6c8b6c86ac5dd4f6ac7faccac75b9bce7c3a",
+    "hanyang_boundary_split_counts": {
+      "train": 10,
+      "validation": 5,
+      "test": 6
+    },
+    "hanyang_boundary_excluded_count": 21,
+    "hanyang_boundary_admitted_count": 0,
+    "hanyang_excluded_clip_ids_sha256": "43fa4b98941912548b84b11aefdf7602a53cfa3b1c45eb07df8c5fd2e6bc830c",
+    "hanyang_training_eligible_count": 323,
+    "hanyang_training_eligible_split_counts": {
+      "train": 281,
+      "validation": 5,
+      "test": 37
+    },
+    "hanyang_safe_clip_ids_sha256": "b4ed7a2235c06d0712eb6905c6c0b87a346a47a5238c976b0e121eb5c0354474",
+    "kimodo_admitted_count": 0,
+    "hanyang_supervision": "confidence_masked_partial_motion_only"
+  },
+  "diagnostics": {
+    "policy": "fixed_v7_54group_validation_same_negative_noise_ema_v1",
+    "validation_group_count": 54,
+    "run_at_step_one": true,
+    "interval_steps": 1000,
+    "run_at_every_checkpoint": true,
+    "minimum_response_retention": 0.9,
+    "minimum_cross_response_retention": 0.9,
+    "minimum_flow_gap_retention": 0.9,
+    "minimum_q2_recall_retention": 0.9,
+    "minimum_q6_recall_retention": 0.9,
+    "minimum_global54_recall_retention": 0.9,
+    "hanyang_validation_episode_count": 5,
+    "best_policy": "highest_min_emotion_retention_then_lowest_beat2_and_hanyang_loss"
+  },
+  "domain_isolation": {
+    "hanyang_domain_marker_index": 0,
+    "hanyang_domain_marker_value": 1.0,
+    "beat2_reserved_base_slice": [0, 133],
+    "beat2_style_slice": [133, 136],
+    "beat2_qwen_slice": [136, 264],
+    "hanyang_cfg_dropout_allowed": false,
+    "hanyang_semantic_loss_allowed": false,
+    "hanyang_style_loss_allowed": false,
+    "hanyang_emotion_loss_allowed": false,
+    "beat2_trainable_parameter_policy": "exact_v7_adaln_condition_path_plus_style_head_v1",
+    "hanyang_trainable_parameter_policy": "motion_backbone_only_no_condition_or_modulation_v1",
+    "gradient_overlap_allowed": false
+  },
+  "training": {
+    "steps": 60000,
+    "effective_batch_size": 16,
+    "beat2_fraction": 0.95,
+    "hanyang_fraction": 0.05,
+    "hanyang_period_steps": 5,
+    "hanyang_active_steps_per_period": 4,
+    "hanyang_examples_per_active_step": 1,
+    "condition_ranking_weight": 50.0,
+    "condition_response_floor": 0.04,
+    "condition_response_floor_weight": 10.0,
+    "semantic_perceptual_outer_weight": 0.2,
+    "emotion_response_anchor_weight": 1.0,
+    "seed": 20260727,
+    "noise_seed": 2026072701,
+    "split_contract": "v7_beat2_plus_fixed_hanyang_participant_v1",
+    "hanyang_motion_lr": 0.000002,
+    "checkpoint_interval": 500,
+    "log_interval": 25,
+    "ema_decay": 0.9995,
+    "max_grad_norm": 1.0
+  },
+  "qwen_ab_selection_gate": {
+    "required": true,
+    "status": "blocked_no_selected_receipt",
+    "selection_receipt": null,
+    "expected_selection_receipt_file_sha256": null
+  },
+  "winner_overlay_arms": {
+    "launch_policy": "same_winner_independent_initialization_supervisor_sequential_execution_no_cross_arm_warm_start_v1",
+    "shared_selected_foundation_sha256": null,
+    "shared_selected_qwen_variant": null,
+    "shared_selected_condition_cache_sha256": null,
+    "shared_seed": 20260727,
+    "shared_noise_seed": 2026072701,
+    "shared_split_contract": "v7_beat2_plus_fixed_hanyang_participant_v1",
+    "winner_control_0pct_hanyang": {
+      "beat2_fraction": 0.95,
+      "hanyang_fraction": 0.0,
+      "matched_noop_fraction": 0.05,
+      "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/winner_control_0pct_hanyang"
+    },
+    "winner_isolated_5pct_hanyang": {
+      "beat2_fraction": 0.95,
+      "hanyang_fraction": 0.05,
+      "matched_noop_fraction": 0.0,
+      "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/winner_isolated_5pct_hanyang"
+    }
+  },
+  "approval_gate": {
+    "required": true,
+    "status": "blocked",
+    "approval_receipt": null,
+    "expected_approval_receipt_sha256": null
+  }
+}

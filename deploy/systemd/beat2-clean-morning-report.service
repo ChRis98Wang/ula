@@ -1,0 +1,18 @@
+[Unit]
+Description=BEAT2 clean AdaLN A/B/C terminal morning report
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gez/shuaiwang/ula-motion-generate
+ExecStartPre=/usr/bin/mkdir -p /home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_clean_morning_report_v1
+ExecStart=/usr/bin/bash /home/gez/shuaiwang/ula-motion-generate/tools/run_clean_training_morning_report_once.sh
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=infinity
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_clean_morning_report_v1/report_watcher.log
+StandardError=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_clean_morning_report_v1/report_watcher.log
+
+[Install]
+WantedBy=default.target

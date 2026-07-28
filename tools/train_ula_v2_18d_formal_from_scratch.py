@@ -29,17 +29,32 @@ from tools.init_ula_v2_18d_random import (
     load_formal_sources,
 )
 from tools.train_ula_v2_18d_posttrain import resolve_bound_motion_sources
+from upper_body_skeleton.data_source_registry import (
+    EXPRESSION_GENERATOR_ROLE,
+    GENERATOR_FOUNDATION_ROLE,
+    SEMANTIC_GENERATOR_ROLE,
+    assert_no_forbidden_data_lineage,
+    registered_source,
+)
 from upper_body_skeleton.ula_v2_18d_head import (
     MOTION_ONLY_EPISODE_CONTRACT,
     build_condition_cache,
+    build_motion_only_condition_cache,
+    MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND,
+    MOTION_ONLY_NO_KIMODO_POLICY,
+    MOTION_ONLY_NO_QWEN_POLICY,
+    MOTION_ONLY_RANDOM_INIT_MODE,
+    MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
     sha256_file,
     validate_checkpoint_contract,
+    validate_condition_cache_for_generator,
     validate_qwen_checkpoint_for_generator,
 )
 from upper_body_skeleton.ula_v2_18d_posttrain import (
     load_attached_beat_episodes,
     train_18d_posttrain,
 )
+from upper_body_skeleton.ula_training import ULA_MMDIT_V2_ARCHITECTURE
 from upper_body_skeleton.ula_v2_18d_random_init import (
     DEFAULT_LENGTH_BUCKETS,
     DEFAULT_SPLIT_FRACTIONS,
@@ -52,6 +67,12 @@ from upper_body_skeleton.ula_v2_expression_turn_episode import (
     is_expression_turn_v8_episode,
     validate_expression_turn_v8_episode,
 )
+from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+    FORMAL_EPISODE_CONTRACT as CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+    build_conversational_realization_v9_condition_cache,
+    is_conversational_realization_v9_episode,
+    validate_conversational_realization_v9_episode,
+)
 
 
 SCHEMA_VERSION = 1
@@ -62,7 +83,20 @@ FORMAL_QWEN_POLICY = "frozen_bound_checkpoint_prompt_latent_masked_zero_v1"
 EXPRESSION_TURN_V8_QWEN_POLICY = (
     "frozen_bound_checkpoint_blind_qualification_masked_prompt_latent_v1"
 )
+CONVERSATIONAL_REALIZATION_V9_QWEN_POLICY = (
+    "frozen_bound_beat2_only_no_kimodo_lora_realization_prompt_latent_v1"
+)
+CONVERSATIONAL_REALIZATION_V9_NO_KIMODO_POLICY = (
+    "forbidden_dataset_checkpoint_replay_and_condition_channels_v1"
+)
+CONVERSATIONAL_REALIZATION_V9_SOURCE_POLICY = (
+    "hash_bound_beat2_verified_co_speech_realization_fixed_split_v1"
+)
+CONVERSATIONAL_REALIZATION_V9_CONDITION_POLICY = (
+    "style_133_136_plus_frozen_qwen_text_136_264_all_other_zero_v1"
+)
 MOTION_ONLY_CONDITIONING_SCOPE = "motion_head_style_duration_only_v1"
+MOTION_ONLY_SOURCE_POLICY = "hash_bound_beat2_only_fixed_manifest_split_v1"
 MOTION_ONLY_OPTIMIZATION_TARGETS = [
     "motion_flow_18d",
     "head_3dof",
@@ -106,12 +140,38 @@ EXPRESSION_TURN_V8_CONDITIONING_POLICY = {
     "trajectory_style": "enabled",
     "native_duration": "enabled_full_expression_arc",
 }
+CONVERSATIONAL_REALIZATION_V9_CONDITIONING_SCOPE = (
+    "verified_ordinary_speaking_realization_text_and_trajectory_style_v1"
+)
+CONVERSATIONAL_REALIZATION_V9_OPTIMIZATION_TARGETS = [
+    "motion_flow_18d",
+    "head_3dof",
+    "trajectory_style",
+    "ordinary_speaking_text_realization",
+    "native_duration",
+]
+CONVERSATIONAL_REALIZATION_V9_CONDITIONING_POLICY = {
+    "scope": CONVERSATIONAL_REALIZATION_V9_CONDITIONING_SCOPE,
+    "qwen_prompt_latent": "enabled_for_verified_conversational_realization",
+    "motion_realization": "conversational_gesturing",
+    "official_category": "forbidden",
+    "communicative_intent": "masked_zero",
+    "legacy_gesture": "masked_zero",
+    "kimodo_behavior": "masked_zero",
+    "kimodo_emotion": "masked_zero",
+    "legacy_affect": "masked_zero",
+    "trajectory_style": "enabled",
+    "native_duration": "enabled_full_event",
+}
 SOURCE_PROVENANCE_LOCK_KIND = "beat2_semantic_event_pilot_v7_provenance_lock"
 MOTION_ONLY_PROVENANCE_LOCK_KIND = (
     "ula_v2_18d_motion_only_pretrain_provenance_lock_v1"
 )
 EXPRESSION_TURN_V8_PROVENANCE_LOCK_KIND = (
     "ula_v2_expression_turn_v8_multisource_provenance_lock_v1"
+)
+CONVERSATIONAL_REALIZATION_V9_PROVENANCE_LOCK_KIND = (
+    "ula_v2_conversational_realization_v9_provenance_lock_v1"
 )
 ACQUISITION_RECEIPT_KIND = "beat2_motion_only_acquisition"
 USER_CONFIRMATION_RECEIPT_KIND = (
@@ -206,30 +266,79 @@ def resolve_formal_config(
             "formal from-scratch entry refuses warm-start, replay, resume, and unsafe keys: "
             f"{forbidden}"
         )
-    _require_exact(config, "initialization_mode", RANDOM_INIT_MODE)
-    _require_exact(config, "audio_policy", "disabled_not_loaded")
     formal_episode_contract = config.get("formal_episode_contract")
     expression_turn_v8 = formal_episode_contract == EXPRESSION_TURN_V8_EPISODE_CONTRACT
+    conversational_realization_v9 = (
+        formal_episode_contract == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    )
+    motion_only = formal_episode_contract == MOTION_ONLY_EPISODE_CONTRACT
+    _require_exact(
+        config,
+        "initialization_mode",
+        MOTION_ONLY_RANDOM_INIT_MODE if motion_only else RANDOM_INIT_MODE,
+    )
+    _require_exact(config, "audio_policy", "disabled_not_loaded")
     if formal_episode_contract not in (
         None,
         MOTION_ONLY_EPISODE_CONTRACT,
         EXPRESSION_TURN_V8_EPISODE_CONTRACT,
+        CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
     ):
         raise ValueError(f"unsupported formal_episode_contract: {formal_episode_contract!r}")
     expected_qwen_policy = (
-        EXPRESSION_TURN_V8_QWEN_POLICY if expression_turn_v8 else FORMAL_QWEN_POLICY
+        EXPRESSION_TURN_V8_QWEN_POLICY
+        if expression_turn_v8
+        else CONVERSATIONAL_REALIZATION_V9_QWEN_POLICY
+        if conversational_realization_v9
+        else (MOTION_ONLY_NO_QWEN_POLICY if motion_only else FORMAL_QWEN_POLICY)
     )
     expected_conditioning_policy = (
         EXPRESSION_TURN_V8_CONDITIONING_POLICY
         if expression_turn_v8
+        else CONVERSATIONAL_REALIZATION_V9_CONDITIONING_POLICY
+        if conversational_realization_v9
         else MOTION_ONLY_CONDITIONING_POLICY
     )
     expected_optimization_targets = (
         EXPRESSION_TURN_V8_OPTIMIZATION_TARGETS
         if expression_turn_v8
+        else CONVERSATIONAL_REALIZATION_V9_OPTIMIZATION_TARGETS
+        if conversational_realization_v9
         else MOTION_ONLY_OPTIMIZATION_TARGETS
     )
     _require_exact(config, "qwen_policy", expected_qwen_policy)
+    if motion_only:
+        _require_exact(config, "kimodo_policy", MOTION_ONLY_NO_KIMODO_POLICY)
+        _require_exact(config, "motion_source_policy", MOTION_ONLY_SOURCE_POLICY)
+        _require_exact(
+            config,
+            "condition_policy",
+            MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+        )
+        forbidden_learned_sources = sorted(
+            {"qwen_checkpoint", "qwen_checkpoint_sha256"}.intersection(config)
+        )
+        if forbidden_learned_sources:
+            raise ValueError(
+                "motion-only BEAT2 entry forbids Qwen checkpoint configuration: "
+                f"{forbidden_learned_sources}"
+            )
+    elif conversational_realization_v9:
+        _require_exact(
+            config,
+            "kimodo_policy",
+            CONVERSATIONAL_REALIZATION_V9_NO_KIMODO_POLICY,
+        )
+        _require_exact(
+            config,
+            "motion_source_policy",
+            CONVERSATIONAL_REALIZATION_V9_SOURCE_POLICY,
+        )
+        _require_exact(
+            config,
+            "condition_policy",
+            CONVERSATIONAL_REALIZATION_V9_CONDITION_POLICY,
+        )
     conditioning_policy = deepcopy(dict(config.get("conditioning_policy") or {}))
     for field, expected in expected_conditioning_policy.items():
         _require_exact(conditioning_policy, field, expected)
@@ -244,9 +353,20 @@ def resolve_formal_config(
     sources = config.get("motion_sources")
     if not isinstance(sources, list) or not sources:
         raise ValueError("motion_sources must be a non-empty list")
+    source_role = (
+        GENERATOR_FOUNDATION_ROLE
+        if motion_only
+        else (
+            EXPRESSION_GENERATOR_ROLE
+            if expression_turn_v8 or conversational_realization_v9
+            else SEMANTIC_GENERATOR_ROLE
+        )
+    )
+    assert_no_forbidden_data_lineage(config, context="formal_config")
     for index, source in enumerate(sources):
         if not isinstance(source, Mapping):
             raise ValueError(f"motion_sources[{index}] must be an object")
+        registered_source(source.get("dataset_source"), role=source_role)
         for field in (
             "dataset_source",
             "manifest",
@@ -264,6 +384,23 @@ def resolve_formal_config(
             )
         if not isinstance(source.get("license_gate"), Mapping):
             raise ValueError(f"motion_sources[{index}].license_gate is required")
+        if motion_only or conversational_realization_v9:
+            dataset_source = str(source.get("dataset_source") or "").lower()
+            dataset_family = str(
+                source["license_gate"].get("dataset_family") or ""
+            ).upper()
+            if (
+                not dataset_source.startswith(("beat2_", "beat2-"))
+                or dataset_family != "BEAT2"
+            ):
+                raise ValueError(
+                    f"motion_sources[{index}] is outside the BEAT2 source whitelist"
+                )
+            _require_exact(
+                source,
+                "use_manifest_fixed_split",
+                True,
+            )
     if manifests:
         requested = [str(Path(path).resolve()) for path in manifests]
         if len(requested) != len(sources):
@@ -273,6 +410,8 @@ def resolve_formal_config(
         for source, manifest in zip(sources, requested, strict=True):
             source["manifest"] = manifest
 
+    if motion_only and qwen_checkpoint is not None:
+        raise ValueError("motion-only BEAT2 entry forbids --qwen-checkpoint")
     if qwen_checkpoint is not None:
         config["qwen_checkpoint"] = str(Path(qwen_checkpoint).resolve())
     if condition_cache is not None:
@@ -407,6 +546,22 @@ def _validate_bound_qwen(config: Mapping) -> Path:
         raise ValueError(
             f"Qwen checkpoint hash mismatch: expected {expected}, observed {actual}"
         )
+    if (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    ):
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+        if (
+            not isinstance(payload, Mapping)
+            or payload.get("artifact_kind") != "beat2_qwen_lora_alignment_v1"
+            or payload.get("variant") != "lora_finetuned"
+            or payload.get("no_kimodo") is not True
+            or payload.get("data_policy")
+            != "beat2_only_no_external_motion_dataset_v1"
+        ):
+            raise ValueError(
+                "conversational v9 requires the BEAT2-only no-Kimodo Qwen LoRA checkpoint"
+            )
     return path
 
 
@@ -555,12 +710,47 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
     """Verify the pinned acquisition and source inventory before formal use."""
 
     blockers: list[str] = []
+    try:
+        assert_no_forbidden_data_lineage(
+            config, context="formal_source_provenance"
+        )
+    except ValueError as error:
+        blockers.append(f"forbidden_data_lineage:{error}")
     expression_turn_v8 = (
         config.get("formal_episode_contract") == EXPRESSION_TURN_V8_EPISODE_CONTRACT
+    )
+    conversational_realization_v9 = (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
     )
     motion_only = (
         config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
     )
+    conversational_realization_v9 = (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    )
+    source_role = (
+        GENERATOR_FOUNDATION_ROLE
+        if motion_only
+        else (
+            EXPRESSION_GENERATOR_ROLE
+            if expression_turn_v8 or conversational_realization_v9
+            else SEMANTIC_GENERATOR_ROLE
+        )
+    )
+    for index, source in enumerate(config.get("motion_sources") or ()):
+        try:
+            registered_source(
+                source.get("dataset_source")
+                if isinstance(source, Mapping)
+                else None,
+                role=source_role,
+            )
+        except ValueError as error:
+            blockers.append(
+                f"motion_sources[{index}].data_source_registration:{error}"
+            )
     lock_value = str(config.get("source_provenance_lock") or "").strip()
     if not lock_value:
         return ["source_provenance_lock_not_explicit"]
@@ -580,9 +770,17 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
     if not isinstance(lock, Mapping):
         blockers.append("source_provenance_lock_not_object")
         return blockers
+    try:
+        assert_no_forbidden_data_lineage(
+            lock, context="source_provenance_lock"
+        )
+    except ValueError as error:
+        blockers.append(f"forbidden_data_lineage:{error}")
     expected_lock_kind = (
         EXPRESSION_TURN_V8_PROVENANCE_LOCK_KIND
         if expression_turn_v8
+        else CONVERSATIONAL_REALIZATION_V9_PROVENANCE_LOCK_KIND
+        if conversational_realization_v9
         else (
             MOTION_ONLY_PROVENANCE_LOCK_KIND
             if motion_only
@@ -606,6 +804,34 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
             blockers.append("source_provenance_lock_dataset_scale_missing")
         if not isinstance(lock.get("minimum_training_scale"), Mapping):
             blockers.append("source_provenance_lock_minimum_training_scale_missing")
+    elif conversational_realization_v9:
+        if (
+            lock.get("formal_episode_contract")
+            != CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+        ):
+            blockers.append("source_provenance_lock_episode_contract_mismatch")
+        if lock.get("duration_policy") != (
+            "native_variable_length_conversational_event_no_fixed_duration_v1"
+        ):
+            blockers.append("source_provenance_lock_duration_policy_invalid")
+        if lock.get("source_count") != len(config.get("motion_sources") or ()):
+            blockers.append("source_provenance_lock_source_count_mismatch")
+        scale = lock.get("dataset_scale")
+        if not isinstance(scale, Mapping):
+            blockers.append("source_provenance_lock_dataset_scale_missing")
+        elif int(scale.get("episode_count", 0)) < 10000 or int(
+            scale.get("speaker_count", 0)
+        ) < 20:
+            blockers.append("source_provenance_lock_dataset_scale_failed")
+        if lock.get("scale_gate_passed") is not True:
+            blockers.append("source_provenance_lock_scale_gate_failed")
+        for field in (
+            "audio_conditioning_enabled",
+            "primary_intent_conditioning_enabled",
+            "emotion_conditioning_enabled",
+        ):
+            if lock.get(field) is not False:
+                blockers.append(f"source_provenance_lock_{field}_must_be_false")
     elif motion_only:
         if lock.get("formal_episode_contract") != MOTION_ONLY_EPISODE_CONTRACT:
             blockers.append("source_provenance_lock_episode_contract_mismatch")
@@ -614,7 +840,13 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
         ):
             blockers.append("source_provenance_lock_duration_policy_invalid")
         scale = lock.get("dataset_scale")
-        if not isinstance(scale, Mapping) or scale.get("episode_count") != 12345:
+        episode_count = scale.get("episode_count") if isinstance(scale, Mapping) else None
+        if (
+            not isinstance(scale, Mapping)
+            or isinstance(episode_count, bool)
+            or not isinstance(episode_count, int)
+            or episode_count < 1
+        ):
             blockers.append("source_provenance_lock_dataset_scale_missing")
     if lock.get("accepted_for_training") is not True:
         blockers.append("source_provenance_lock_training_not_accepted")
@@ -640,7 +872,7 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
     if not isinstance(locked_artifacts, Mapping):
         blockers.append("source_provenance_lock_artifacts_missing")
         return blockers
-    if expression_turn_v8 or motion_only:
+    if expression_turn_v8 or motion_only or conversational_realization_v9:
         for key, artifact in locked_artifacts.items():
             if not isinstance(artifact, Mapping):
                 blockers.append(f"source_provenance_lock_artifact_invalid:{key}")
@@ -703,6 +935,32 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
                             ):
                                 blockers.append("acquisition_receipt_forbidden_audio_selected")
 
+    if conversational_realization_v9:
+        required_artifacts = {
+            "acquisition_receipt",
+            "source_motion_manifest",
+            "motion_realization_manifest",
+            "train_ready_manifest",
+            "user_confirmation_receipt",
+        }
+        blockers.extend(
+            f"source_provenance_lock_required_artifact_missing:{key}"
+            for key in sorted(required_artifacts.difference(locked_artifacts))
+        )
+        for index, source in enumerate(config.get("motion_sources") or ()):
+            if not isinstance(source, Mapping):
+                continue
+            manifest = Path(str(source.get("manifest") or "")).resolve()
+            locked = locked_artifacts.get(
+                str(source.get("manifest_lock_artifact_key") or "train_ready_manifest")
+            )
+            if not isinstance(locked, Mapping):
+                blockers.append(f"motion_sources[{index}].manifest_lock_artifact_missing")
+            elif Path(str(locked.get("path") or "")).resolve() != manifest:
+                blockers.append(f"motion_sources[{index}].manifest_path_not_bound_to_lock")
+            elif not manifest.is_file() or locked.get("sha256") != sha256_file(manifest):
+                blockers.append(f"motion_sources[{index}].manifest_sha256_not_bound_to_lock")
+
     if motion_only:
         required_artifacts = {
             "acquisition_receipt",
@@ -716,6 +974,73 @@ def _source_provenance_blockers(config: Mapping) -> list[str]:
             f"source_provenance_lock_required_artifact_missing:{key}"
             for key in sorted(required_artifacts.difference(locked_artifacts))
         )
+        configured_sources = list(config.get("motion_sources") or ())
+        for index, source in enumerate(configured_sources):
+            if not isinstance(source, Mapping):
+                continue
+            manifest_key = str(
+                source.get("manifest_lock_artifact_key")
+                or ("train_ready_manifest" if len(configured_sources) == 1 else "")
+            ).strip()
+            locked_manifest = (
+                locked_artifacts.get(manifest_key) if manifest_key else None
+            )
+            manifest_value = str(source.get("manifest") or "").strip()
+            manifest_path = (
+                Path(manifest_value).resolve() if manifest_value else None
+            )
+            if not manifest_key or not isinstance(locked_manifest, Mapping):
+                blockers.append(
+                    f"motion_sources[{index}].manifest_lock_artifact_missing"
+                )
+                continue
+            locked_path_value = str(
+                locked_manifest.get("path") or ""
+            ).strip()
+            locked_path = (
+                Path(locked_path_value).resolve() if locked_path_value else None
+            )
+            if manifest_path is None or locked_path != manifest_path:
+                blockers.append(
+                    f"motion_sources[{index}].manifest_path_not_bound_to_lock"
+                )
+            elif (
+                not manifest_path.is_file()
+                or locked_manifest.get("sha256") != sha256_file(manifest_path)
+            ):
+                blockers.append(
+                    f"motion_sources[{index}].manifest_sha256_not_bound_to_lock"
+                )
+        # The declared dataset scale must agree with the hash-verified release
+        # report, so the lock cannot silently claim a different training scale
+        # than the release it pins.
+        release_artifact = locked_artifacts.get("motion_only_release_report")
+        if isinstance(release_artifact, Mapping):
+            release_path_value = str(release_artifact.get("path") or "").strip()
+            try:
+                release_report = (
+                    json.loads(Path(release_path_value).read_text(encoding="utf-8"))
+                    if release_path_value
+                    else None
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                release_report = None
+            if not isinstance(release_report, Mapping):
+                blockers.append("motion_only_release_report_invalid")
+            else:
+                release_scale = release_report.get("scale")
+                declared = (
+                    lock.get("dataset_scale", {}).get("episode_count")
+                    if isinstance(lock.get("dataset_scale"), Mapping)
+                    else None
+                )
+                if (
+                    not isinstance(release_scale, Mapping)
+                    or release_scale.get("train_ready_clips") != declared
+                ):
+                    blockers.append(
+                        "source_provenance_lock_dataset_scale_release_mismatch"
+                    )
         confirmation_artifact = locked_artifacts.get("user_confirmation_receipt")
         if isinstance(confirmation_artifact, Mapping):
             confirmation_path_value = str(
@@ -814,8 +1139,87 @@ def audit_formal_readiness(config: Mapping, *, stage: str) -> dict:
         manifest = Path(str(source["manifest"])).resolve()
         if not manifest.is_file():
             blockers.append(f"motion_sources[{index}].manifest_missing:{manifest}")
+        if (
+            config.get("formal_episode_contract")
+            in {
+                MOTION_ONLY_EPISODE_CONTRACT,
+                CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+            }
+        ):
+            gate = source.get("license_gate")
+            dataset_source = str(source.get("dataset_source") or "").lower()
+            if (
+                not dataset_source.startswith(("beat2_", "beat2-"))
+                or not isinstance(gate, Mapping)
+                or str(gate.get("dataset_family") or "").upper() != "BEAT2"
+            ):
+                blockers.append(
+                    f"motion_sources[{index}].outside_beat2_source_whitelist"
+                )
+            if source.get("use_manifest_fixed_split") is not True:
+                blockers.append(
+                    f"motion_sources[{index}].manifest_fixed_split_not_enabled"
+                )
+    motion_only = (
+        config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+    )
+    conversational_realization_v9 = (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    )
     qwen = str(config.get("qwen_checkpoint") or "").strip()
-    if not qwen:
+    if motion_only:
+        if config.get("qwen_policy") != MOTION_ONLY_NO_QWEN_POLICY:
+            blockers.append("motion_only_qwen_policy_invalid")
+        if config.get("kimodo_policy") != MOTION_ONLY_NO_KIMODO_POLICY:
+            blockers.append("motion_only_kimodo_policy_invalid")
+        if config.get("motion_source_policy") != MOTION_ONLY_SOURCE_POLICY:
+            blockers.append("motion_only_source_policy_invalid")
+        if config.get("initialization_mode") != MOTION_ONLY_RANDOM_INIT_MODE:
+            blockers.append("motion_only_initialization_mode_invalid")
+        if (
+            config.get("condition_policy")
+            != MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY
+        ):
+            blockers.append("motion_only_condition_policy_invalid")
+        if qwen or "qwen_checkpoint_sha256" in config:
+            blockers.append("motion_only_qwen_checkpoint_forbidden")
+    elif conversational_realization_v9:
+        if config.get("qwen_policy") != CONVERSATIONAL_REALIZATION_V9_QWEN_POLICY:
+            blockers.append("conversational_v9_qwen_policy_invalid")
+        if (
+            config.get("kimodo_policy")
+            != CONVERSATIONAL_REALIZATION_V9_NO_KIMODO_POLICY
+        ):
+            blockers.append("conversational_v9_kimodo_policy_invalid")
+        if (
+            config.get("motion_source_policy")
+            != CONVERSATIONAL_REALIZATION_V9_SOURCE_POLICY
+        ):
+            blockers.append("conversational_v9_source_policy_invalid")
+        if (
+            config.get("condition_policy")
+            != CONVERSATIONAL_REALIZATION_V9_CONDITION_POLICY
+        ):
+            blockers.append("conversational_v9_condition_policy_invalid")
+        if not qwen:
+            blockers.append("qwen_checkpoint_not_explicit")
+        elif not Path(qwen).resolve().is_file():
+            blockers.append(f"qwen_checkpoint_missing:{Path(qwen).resolve()}")
+        else:
+            expected_qwen_hash = str(
+                config.get("qwen_checkpoint_sha256") or ""
+            ).strip()
+            if len(expected_qwen_hash) != 64:
+                blockers.append("qwen_checkpoint_sha256_not_explicit")
+            elif sha256_file(Path(qwen).resolve()) != expected_qwen_hash:
+                blockers.append("qwen_checkpoint_sha256_mismatch")
+            else:
+                try:
+                    _validate_bound_qwen(config)
+                except (OSError, ValueError) as error:
+                    blockers.append(f"conversational_v9_qwen_invalid:{error}")
+    elif not qwen:
         blockers.append("qwen_checkpoint_not_explicit")
     elif not Path(qwen).resolve().is_file():
         blockers.append(f"qwen_checkpoint_missing:{Path(qwen).resolve()}")
@@ -837,12 +1241,18 @@ def audit_formal_readiness(config: Mapping, *, stage: str) -> dict:
     expression_turn_v8 = (
         config.get("formal_episode_contract") == EXPRESSION_TURN_V8_EPISODE_CONTRACT
     )
+    conversational_realization_v9 = (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    )
     return {
         "artifact_kind": ARTIFACT_KIND,
         "stage": stage,
         "ready": not blockers,
         "blockers": blockers,
-        "initialization_mode": RANDOM_INIT_MODE,
+        "initialization_mode": (
+            MOTION_ONLY_RANDOM_INIT_MODE if motion_only else RANDOM_INIT_MODE
+        ),
         "training_scope": FORMAL_SCOPE,
         "temporal_unit_policy": FORMAL_TEMPORAL_POLICY,
         "batching_mode": "native_variable_length",
@@ -850,16 +1260,33 @@ def audit_formal_readiness(config: Mapping, *, stage: str) -> dict:
         "allow_unreviewed": False,
         "formal_episode_contract": config.get("formal_episode_contract"),
         "qwen_policy": (
-            EXPRESSION_TURN_V8_QWEN_POLICY if expression_turn_v8 else FORMAL_QWEN_POLICY
+            EXPRESSION_TURN_V8_QWEN_POLICY
+            if expression_turn_v8
+            else CONVERSATIONAL_REALIZATION_V9_QWEN_POLICY
+            if conversational_realization_v9
+            else (
+                MOTION_ONLY_NO_QWEN_POLICY if motion_only else FORMAL_QWEN_POLICY
+            )
+        ),
+        "kimodo_policy": (
+            MOTION_ONLY_NO_KIMODO_POLICY
+            if motion_only
+            else "forbidden_no_kimodo"
+            if conversational_realization_v9
+            else "contract_specific"
         ),
         "conditioning_scope": (
             EXPRESSION_TURN_V8_CONDITIONING_SCOPE
             if expression_turn_v8
+            else CONVERSATIONAL_REALIZATION_V9_CONDITIONING_SCOPE
+            if conversational_realization_v9
             else MOTION_ONLY_CONDITIONING_SCOPE
         ),
         "optimization_targets": list(
             EXPRESSION_TURN_V8_OPTIMIZATION_TARGETS
             if expression_turn_v8
+            else CONVERSATIONAL_REALIZATION_V9_OPTIMIZATION_TARGETS
+            if conversational_realization_v9
             else MOTION_ONLY_OPTIMIZATION_TARGETS
         ),
         "license_audit": license_audit,
@@ -874,7 +1301,10 @@ def initialize_formal(config: Mapping) -> dict:
     readiness = audit_formal_readiness(config, stage="initialize")
     if not readiness["ready"]:
         raise ValueError("formal initialization is blocked: " + ", ".join(readiness["blockers"]))
-    qwen_checkpoint = _validate_bound_qwen(config)
+    motion_only = (
+        config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+    )
+    qwen_checkpoint = None if motion_only else _validate_bound_qwen(config)
     paths = formal_paths(config)
     existing = [
         str(paths[name])
@@ -899,6 +1329,7 @@ def initialize_formal(config: Mapping) -> dict:
         hidden_dim=int(model.get("hidden_dim", 384)),
         layers=int(model.get("layers", 6)),
         semantic_tokens=int(model.get("semantic_tokens", 7)),
+        architecture=str(model.get("architecture", ULA_MMDIT_V2_ARCHITECTURE)),
         style_clip=float(config.get("style_clip", 5.0)),
         length_buckets=tuple(config["training"]["batching"]["length_buckets"]),
     )
@@ -958,10 +1389,17 @@ def _validate_formal_episode_mode(
     expression_turn_v8 = (
         config.get("formal_episode_contract") == EXPRESSION_TURN_V8_EPISODE_CONTRACT
     )
+    conversational_realization_v9 = (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    )
     motion_only_physical_qc = (
         config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
     )
     flags = [is_expression_turn_v8_episode(episode) for episode in episodes]
+    conversational_flags = [
+        is_conversational_realization_v9_episode(episode) for episode in episodes
+    ]
     if expression_turn_v8:
         if not flags or not all(flags):
             raise ValueError("v8 formal entry requires only expression-turn v8 episodes")
@@ -970,10 +1408,22 @@ def _validate_formal_episode_mode(
                 episode,
                 require_attached_condition=require_attached_condition,
             )
-    else:
-        if any(flags):
+    elif conversational_realization_v9:
+        if not conversational_flags or not all(conversational_flags):
             raise ValueError(
-                "expression-turn v8 episodes require the explicit formal_episode_contract"
+                "conversational v9 entry requires only conversational realization episodes"
+            )
+        if any(flags):
+            raise ValueError("conversational v9 may not mix expression-turn v8 episodes")
+        for episode in episodes:
+            validate_conversational_realization_v9_episode(
+                episode,
+                require_attached_condition=require_attached_condition,
+            )
+    else:
+        if any(flags) or any(conversational_flags):
+            raise ValueError(
+                "specialized realization episodes require their explicit formal_episode_contract"
             )
         contracts = {row.get("formal_episode_contract") for row in episodes}
         if motion_only_physical_qc:
@@ -994,7 +1444,10 @@ def build_formal_condition_cache(config: Mapping) -> dict:
         raise ValueError(
             "formal condition caching is blocked: " + ", ".join(readiness["blockers"])
         )
-    qwen_checkpoint = _validate_bound_qwen(config)
+    motion_only = (
+        config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+    )
+    qwen_checkpoint = None if motion_only else _validate_bound_qwen(config)
     paths = formal_paths(config)
     output = paths["condition_cache"]
     metadata = output.with_suffix(output.suffix + ".json")
@@ -1005,7 +1458,8 @@ def build_formal_condition_cache(config: Mapping) -> dict:
     checkpoint = torch.load(paths["checkpoint"], map_location="cpu", weights_only=True)
     validate_checkpoint_contract(checkpoint, expected_action_dim=18)
     _validate_checkpoint_license_binding(checkpoint, config)
-    validate_qwen_checkpoint_for_generator(checkpoint, qwen_checkpoint)
+    if qwen_checkpoint is not None:
+        validate_qwen_checkpoint_for_generator(checkpoint, qwen_checkpoint)
     requested = [
         Path(str(source["manifest"])).resolve() for source in config["motion_sources"]
     ]
@@ -1021,8 +1475,27 @@ def build_formal_condition_cache(config: Mapping) -> dict:
         episodes,
         requested_fractions=dict(config.get("split_fractions") or DEFAULT_SPLIT_FRACTIONS),
     )
-    if config.get("formal_episode_contract") == EXPRESSION_TURN_V8_EPISODE_CONTRACT:
+    if motion_only:
+        result = build_motion_only_condition_cache(
+            episodes,
+            output,
+            base_checkpoint=paths["checkpoint"],
+        )
+    elif config.get("formal_episode_contract") == EXPRESSION_TURN_V8_EPISODE_CONTRACT:
         result = build_expression_turn_v8_condition_cache(
+            episodes,
+            qwen_checkpoint,
+            output,
+            base_checkpoint=paths["checkpoint"],
+            device=str(config.get("condition_cache_device") or "auto"),
+            local_files_only=True,
+            batch_size=int(config.get("condition_cache_batch_size") or 16),
+        )
+    elif (
+        config.get("formal_episode_contract")
+        == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    ):
+        result = build_conversational_realization_v9_condition_cache(
             episodes,
             qwen_checkpoint,
             output,
@@ -1086,11 +1559,39 @@ def train_formal(config: Mapping) -> dict:
     paths = formal_paths(config)
     checkpoint = torch.load(paths["checkpoint"], map_location="cpu", weights_only=True)
     validate_checkpoint_contract(checkpoint, expected_action_dim=18)
-    if (checkpoint.get("random_initialization") or {}).get("mode") != RANDOM_INIT_MODE:
+    expected_random_mode = (
+        MOTION_ONLY_RANDOM_INIT_MODE
+        if config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+        else RANDOM_INIT_MODE
+    )
+    if (checkpoint.get("random_initialization") or {}).get(
+        "mode"
+    ) != expected_random_mode:
         raise ValueError("formal entry accepts only its full-random 18D initialization")
     _validate_checkpoint_license_binding(checkpoint, config)
-    qwen_checkpoint = _validate_bound_qwen(config)
-    validate_qwen_checkpoint_for_generator(checkpoint, qwen_checkpoint)
+    motion_only = (
+        config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+    )
+    if motion_only:
+        cache = _required_file(config, "condition_cache")
+        from upper_body_skeleton.ula_v2_18d_head import load_condition_cache
+
+        _, _, _, cache_provenance = load_condition_cache(cache)
+        if (
+            cache_provenance.get("artifact_kind")
+            != MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND
+        ):
+            raise ValueError(
+                "motion-only training requires the no-Qwen style-only condition cache"
+            )
+        validate_condition_cache_for_generator(
+            checkpoint,
+            cache_provenance,
+            generator_checkpoint_path=paths["checkpoint"],
+        )
+    else:
+        qwen_checkpoint = _validate_bound_qwen(config)
+        validate_qwen_checkpoint_for_generator(checkpoint, qwen_checkpoint)
     episodes = _load_attached_sources(config, checkpoint)
     training_config = dict(config["training"])
     training_config["split_fractions"] = dict(config["split_fractions"])

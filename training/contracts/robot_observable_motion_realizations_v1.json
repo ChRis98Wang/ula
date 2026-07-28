@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "ontology_id": "robot_observable_motion_realizations_v1",
+  "purpose": "Secondary motion-realization labels that describe how an interaction is performed without claiming a primary communicative intent.",
+  "labels": [
+    {
+      "id": "conversational_gesturing",
+      "name_en": "natural conversational gesturing",
+      "name_zh": "普通对话伴随手势",
+      "canonical_prompt_en": "Speak naturally while making conversational upper-body gestures.",
+      "canonical_prompt_zh": "自然说话，同时配合普通的上身对话手势。",
+      "evidence_mode": "verified_co_speech_event_plus_robot_trajectory",
+      "does_not_imply_primary_intent": true,
+      "hard_exclusions": [
+        "does_not_prove_explain_present",
+        "does_not_prove_greeting_or_farewell",
+        "does_not_prove_emotion"
+      ]
+    }
+  ],
+  "admission_contract": {
+    "supported_dataset": "BEAT2",
+    "required_annotation_kind": "official_gesture_semantic_event",
+    "required_interaction_scope": "human_co_speech_interaction",
+    "required_physical_qc": true,
+    "source_transcript_semantics_used": false,
+    "source_filename_semantics_used": false,
+    "audio_required": false,
+    "primary_intent_supervision_independent": true,
+    "style_source": "verified_18d_robot_trajectory"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "beat2_qwen_text_interaction_60s_config_v1",
+  "source_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+  "source_manifest_sha256": "2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd",
+  "style_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/conditioning/conditions.npz",
+  "qwen_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_frozen_base.npz",
+  "qwen_resolved_config": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/resolved_config.json",
+  "qwen_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/qwen_frozen_base_best.pt",
+  "foundation_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/training/ula_fm_checkpoint.pt",
+  "foundation_completion_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/training/training_summary.json",
+  "text_generator_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/frozen_base/generator_experimental.pt",
+  "text_generator_completion_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_experimental_metadata_posttrain_ab_v1/frozen_base/training_summary.json",
+  "target_duration_sec": 60.0,
+  "segments": {
+    "duration_sec": 6.0,
+    "prompts": [
+      "Perform a low-intensity deictic pointing gesture with neutral affect.",
+      "Perform a medium-intensity deictic pointing gesture with a happy affect.",
+      "Perform a high-intensity deictic pointing gesture with an angry affect.",
+      "Perform a low-intensity iconic upper-body gesture with a sad affect.",
+      "Perform a medium-intensity iconic upper-body gesture with neutral affect.",
+      "Perform a high-intensity iconic upper-body gesture with a surprised affect.",
+      "Perform a low-intensity metaphoric upper-body gesture with a fearful affect.",
+      "Perform a medium-intensity metaphoric upper-body gesture with a happy affect.",
+      "Perform a high-intensity metaphoric upper-body gesture with neutral affect.",
+      "Perform a high-intensity deictic pointing gesture with a happy affect."
+    ],
+    "seeds": [
+      2026072711,
+      2026072712,
+      2026072713,
+      2026072714,
+      2026072715,
+      2026072716,
+      2026072717,
+      2026072718,
+      2026072719,
+      2026072720
+    ]
+  },
+  "sampling": {
+    "steps": 32,
+    "device": "cuda"
+  },
+  "playback": {
+    "transition_sec": 0.5,
+    "max_velocity_rad_s": 3.0,
+    "smooth_window": 11,
+    "smooth_passes": 2
+  },
+  "render": {
+    "pane_width": 640,
+    "panel_width": 640,
+    "height": 720,
+    "simplified": false,
+    "backend": "mujoco_egl"
+  },
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_text_interaction_60s_v1",
+  "disclosures": {
+    "semantic_scope": "experimental 54-group BEAT2 metadata alignment, not validated open-text semantics",
+    "style": "fixed non-oracle training-mean default [0,0,0]",
+    "long_form": "ten independently sampled six-second network segments with boundary blend and disclosed pose-bound zero-phase display filtering",
+    "expression": "18D upper-body and 3-DoF head orientation; no facial blendshape channels",
+    "kimodo": "forbidden and unused"
+  }
+}

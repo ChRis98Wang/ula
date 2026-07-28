@@ -1,0 +1,11 @@
+# Hanyang retargeting uses an isolated Python 3.11 virtual environment layered
+# over env_isaaclab.  Keep the one missing GMR dependency exact and hashed;
+# do not install this into the v7 training environment.
+mink==1.1.0 \
+    --hash=sha256:1014bb5aef2a1cb4ea55eb878297e0c2de04e0a072fbd296ea00037887114240
+
+# env_isaaclab carries daqp 0.7.2 for IsaacLab, while its qpsolvers 4.12.0
+# explicitly requires daqp>=0.8.2 and passes ``primal_start``.  Override it only
+# inside this virtual environment; the v7 process keeps its original package.
+daqp==0.8.2 \
+    --hash=sha256:93cc09ce64baa7b4991a0f7c81ddf492664d3065355ca78afc6c0abf08dcefa2

@@ -89,10 +89,19 @@ conda run --no-capture-output -n env_isaaclab \
   --kimodo-qwen \
   --no-viewer \
   --text "开心地跟主人点头并在胸前挥手打招呼" \
+  --frames 150 \
   --device cuda \
   --semantic-device cuda \
   --semantic-local-files-only
 ```
+
+`--frames` is required here: the 5,000-step Kimodo checkpoint's `condition_dim` (136) is below the
+264-dimensional V2 contract that triggers automatic duration prediction, so `infer_motion` raises
+`frames must be explicit for checkpoints without a trained duration head` if it is omitted. 150 frames
+at the default 30 fps matches the five-second motion described above. Verified working 2026-07-26 against
+`training/runs/kimodo_mmdit_lite_qwen_compatible_5k_math_sdp/ula_fm_checkpoint.pt` under `env_isaaclab`
+with no other environment variables required (no `MUJOCO_GL` needed since `--no-viewer` never opens a
+renderer).
 
 ## Dataset-Label MuJoCo Comparison
 

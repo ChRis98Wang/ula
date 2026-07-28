@@ -1,0 +1,16 @@
+[Unit]
+Description=Supervise and exact-resume clean BEAT2 v7 AdaLN foundation
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gez/shuaiwang/ula-motion-generate
+Environment=PYTHONPATH=.
+ExecStart=/home/gez/shuaiwang/.venvs/gmr/bin/python -u tools/supervise_beat2_v7_clean_adaln.py --config configs/beat2_18d_from_scratch_formal_v7_clean_adaln.json --service ula-v7-clean-adaln-main.service --poll-seconds 30
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/supervisor.log
+StandardError=append:/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v7_clean_adaln/supervisor.log
+
+[Install]
+WantedBy=default.target

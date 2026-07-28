@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -60,6 +61,38 @@ GROUPED_EXECUTION_POLICY = {
     "failure_scope": "event_local_continue_source_group",
     "fixed_duration_windows_allowed": False,
 }
+MOTION_FOUNDATION_ANNOTATION_KIND = "motion_foundation_unlabeled_contiguous_chunk"
+MOTION_FOUNDATION_SEGMENT_REPRESENTATION = (
+    "motion_foundation_contiguous_nonoverlap_chunk_v1"
+)
+MOTION_FOUNDATION_MASKS = {
+    "official_category": False,
+    "robot_observable_motion_form": False,
+    "communicative_intent": False,
+    "prompt_text": False,
+    "legacy_gesture": False,
+}
+MOTION_FOUNDATION_FALSE_FLAGS = (
+    "behavior_supervision_mask",
+    "emotion_supervision_mask",
+    "affect_observable_supervision_mask",
+    "official_category_conditioning_enabled",
+    "official_emotion_conditioning_enabled",
+)
+MOTION_FOUNDATION_FORBIDDEN_METADATA_FIELDS = (
+    "canonical_action",
+    "canonical_prompt",
+    "prompt",
+    "source_text",
+    "window_transcript_context",
+    "semantic_event",
+    "official_semantic_event",
+    "official_gesture_semantic_spans",
+    "behavior_id",
+    "emotion_id",
+    "source_emotion_id",
+    "source_emotion_label",
+)
 
 _WORKER_RUNTIME: GroupedBeat2RetargetRuntime | None = None
 _WORKER_RUNTIME_KEY: tuple[str, ...] | None = None
@@ -77,6 +110,34 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--limit-sources", type=int)
     parser.add_argument("--limit-events", type=int)
+    parser.add_argument(
+        "--solver",
+        choices=("daqp", "quadprog"),
+        default=str(ordinary.RETARGET_PARAMETERS["solver"]),
+    )
+    parser.add_argument(
+        "--neutral-limit-margin-rad",
+        type=float,
+        default=0.0,
+        help=(
+            "Opt-in event-local IK initializer margin; physical QC thresholds "
+            "remain unchanged."
+        ),
+    )
+    parser.add_argument(
+        "--smoothing-window",
+        type=int,
+        default=int(ordinary.RETARGET_PARAMETERS["smoothing_window"]),
+        help=(
+            "Event-local smoothing window. Values below five disable Savitzky-"
+            "Golay filtering; all physical QC gates remain required."
+        ),
+    )
+    parser.add_argument(
+        "--posture-cost",
+        type=float,
+        default=float(ordinary.RETARGET_PARAMETERS["posture_cost"]),
+    )
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
     return parser.parse_args(argv)
@@ -92,9 +153,20 @@ def runtime_config(args: argparse.Namespace) -> GroupedRuntimeConfig:
         max_velocity_rad_s=float(
             ordinary.RETARGET_PARAMETERS["max_velocity_rad_s"]
         ),
-        smoothing_window=int(ordinary.RETARGET_PARAMETERS["smoothing_window"]),
-        posture_cost=float(ordinary.RETARGET_PARAMETERS["posture_cost"]),
-        solver=str(ordinary.RETARGET_PARAMETERS["solver"]),
+        smoothing_window=int(
+            getattr(
+                args,
+                "smoothing_window",
+                ordinary.RETARGET_PARAMETERS["smoothing_window"],
+            )
+        ),
+        posture_cost=float(
+            getattr(args, "posture_cost", ordinary.RETARGET_PARAMETERS["posture_cost"])
+        ),
+        solver=str(getattr(args, "solver", ordinary.RETARGET_PARAMETERS["solver"])),
+        neutral_limit_margin_rad=float(
+            getattr(args, "neutral_limit_margin_rad", 0.0)
+        ),
     )
 
 
@@ -109,6 +181,7 @@ def _runtime_key(config: GroupedRuntimeConfig) -> tuple[str, ...]:
         str(config.smoothing_window),
         str(config.posture_cost),
         config.solver,
+        str(config.neutral_limit_margin_rad),
     )
 
 
@@ -127,12 +200,71 @@ def worker_runtime(config: GroupedRuntimeConfig) -> GroupedBeat2RetargetRuntime:
 def read_semantic_inventory(
     inventory: Path, beat2_root: Path
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Admit only native variable-length semantic events."""
+    """Admit native semantic events or explicitly unlabeled foundation chunks."""
     eligible, excluded = ordinary.read_inventory(inventory, beat2_root)
     semantic: list[dict[str, Any]] = []
     for task in eligible:
         segment = task.get("training_segment")
         reasons = []
+        is_motion_foundation = (
+            task.get("annotation_kind") == MOTION_FOUNDATION_ANNOTATION_KIND
+        )
+        if is_motion_foundation:
+            if not isinstance(segment, dict):
+                reasons.append("motion_foundation:missing_training_segment")
+            else:
+                if (
+                    segment.get("representation")
+                    != MOTION_FOUNDATION_SEGMENT_REPRESENTATION
+                ):
+                    reasons.append("motion_foundation:invalid_segment_representation")
+                if segment.get("fixed_window_sec") is not None:
+                    reasons.append("motion_foundation:fixed_window_forbidden")
+                if segment.get("overlap_frames") != 0:
+                    reasons.append("motion_foundation:overlap_forbidden")
+                if (
+                    segment.get("boundary_source")
+                    != "source_container_frame_bounds"
+                ):
+                    reasons.append("motion_foundation:invalid_boundary_source")
+            if task.get("semantic_supervision_masks") != MOTION_FOUNDATION_MASKS:
+                reasons.append("motion_foundation:semantic_masks_not_all_false")
+            if any(task.get(field) is not False for field in MOTION_FOUNDATION_FALSE_FLAGS):
+                reasons.append("motion_foundation:supervision_or_conditioning_enabled")
+            if task.get("fixed_split_assignment") not in {
+                "train",
+                "validation",
+                "test",
+            }:
+                reasons.append("motion_foundation:fixed_split_missing")
+            if task.get("audio_relpath") not in (None, "") or any(
+                field in task for field in MOTION_FOUNDATION_FORBIDDEN_METADATA_FIELDS
+            ):
+                reasons.append("motion_foundation:conditioning_or_audio_metadata_forbidden")
+            if reasons:
+                excluded.append(
+                    {
+                        **task,
+                        "status": "excluded",
+                        "accepted_for_training": False,
+                        "reasons": reasons,
+                    }
+                )
+            else:
+                # The ordinary reader supplies empty audio/speech compatibility
+                # fields.  Remove them before retargeting so a motion-foundation
+                # result cannot be mistaken for a text/audio-bearing sample.
+                for field in (
+                    "audio_relpath",
+                    "audio_source",
+                    "source_speech_context",
+                    "source_speech_context_role",
+                    "conditioning_text_status",
+                    "interaction_label",
+                ):
+                    task.pop(field, None)
+                semantic.append(task)
+            continue
         if not isinstance(segment, dict):
             reasons.append("grouped_semantic_event:missing_training_segment")
         else:
@@ -235,7 +367,29 @@ def build_run_contract(args: argparse.Namespace) -> tuple[dict[str, Any], str]:
             "retarget_config": ordinary.file_binding(args.config),
             "python_interpreter": ordinary.file_binding(Path(sys.executable)),
         },
-        "retarget_parameters": dict(ordinary.RETARGET_PARAMETERS),
+        "retarget_parameters": {
+            **ordinary.RETARGET_PARAMETERS,
+            "solver": str(
+                getattr(args, "solver", ordinary.RETARGET_PARAMETERS["solver"])
+            ),
+            "neutral_limit_margin_rad": float(
+                getattr(args, "neutral_limit_margin_rad", 0.0)
+            ),
+            "smoothing_window": int(
+                getattr(
+                    args,
+                    "smoothing_window",
+                    ordinary.RETARGET_PARAMETERS["smoothing_window"],
+                )
+            ),
+            "posture_cost": float(
+                getattr(
+                    args,
+                    "posture_cost",
+                    ordinary.RETARGET_PARAMETERS["posture_cost"],
+                )
+            ),
+        },
         "output_contract": ordinary.ULA_V2_18D_CONTRACT,
         "axis_policy": ordinary.BEAT2_AXIS_POLICY,
         "joint_order": list(ordinary.JOINT_ORDER_18D),
@@ -272,7 +426,7 @@ def _event_common(
     source_hash: str | None,
     log_path: Path,
 ) -> dict[str, Any]:
-    return {
+    result = {
         **ordinary._base_result(
             task,
             args.inventory,
@@ -288,6 +442,9 @@ def _event_common(
         "source_sha256": source_hash,
         "execution_mode": "source_grouped_in_process_event_isolated",
     }
+    if task.get("annotation_kind") == MOTION_FOUNDATION_ANNOTATION_KIND:
+        result["semantic_admission"] = "not_applicable_unlabeled_motion_foundation"
+    return result
 
 
 def _publish_event_result(
@@ -577,6 +734,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.workers < 1:
         raise ValueError("workers must be positive")
+    if (
+        not math.isfinite(args.neutral_limit_margin_rad)
+        or args.neutral_limit_margin_rad < 0.0
+    ):
+        raise ValueError("--neutral-limit-margin-rad must be finite and non-negative")
+    if args.smoothing_window < 1:
+        raise ValueError("--smoothing-window must be positive")
+    if not math.isfinite(args.posture_cost) or args.posture_cost < 0.0:
+        raise ValueError("--posture-cost must be finite and non-negative")
     for name in ("limit_sources", "limit_events"):
         value = getattr(args, name)
         if value is not None and value < 1:

@@ -1,0 +1,31 @@
+{
+  "schema_version": "8.1",
+  "artifact_kind": "hanyang_beat2_emotion_preserving_night_supervisor_config_v8_1",
+  "base_blocked_config": "/home/gez/shuaiwang/ula-motion-generate/configs/hanyang_beat2_emotion_preserving_v81.json",
+  "selected_winner_receipt": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_qwen_ab_selection/qwen_ab_winner_selection_receipt_v1.json",
+  "qwen_b_training_service_unit": "beat2-emotion-hierarchy-v7-lora-qwen.service",
+  "video_waiter_service_unit": "beat2-qwen-ab-gt-60s-after-train.service",
+  "video_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/summary.json",
+  "video_mp4": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4",
+  "promoted_config": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/supervisor/hanyang_beat2_emotion_preserving_v81_approved_retry3.json",
+  "approval_receipt": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/supervisor/approval_receipt_v8_1_retry3.json",
+  "control_smoke_output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/supervisor/smoke_control_cuda_retry3",
+  "treatment_smoke_output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/supervisor/smoke_treatment_cuda_retry3",
+  "state": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/supervisor/night_supervisor_state_v8_1_retry3.json",
+  "receipt": "/home/gez/shuaiwang/ula-motion-generate/training/runs/hanyang_beat2_emotion_preserving_v81/supervisor/night_supervisor_receipt_v8_1_retry3.json",
+  "python_executable": "/home/gez/miniconda3/envs/env_isaaclab/bin/python",
+  "trainer": "/home/gez/shuaiwang/ula-motion-generate/tools/train_hanyang_beat2_emotion_preserving_v81.py",
+  "promoter": "/home/gez/shuaiwang/ula-motion-generate/tools/promote_hanyang_beat2_emotion_preserving_v81.py",
+  "gpu": {
+    "index": 0,
+    "minimum_free_memory_mib": 24576,
+    "unknown_compute_policy": "record_never_kill"
+  },
+  "data_contract": {
+    "hanyang_strict_count": 344,
+    "hanyang_boundary_admitted_count": 0,
+    "kimodo_admitted_count": 0,
+    "formal_arms_sequential": true,
+    "arm_initialization": "same_selected_winner_independent_no_cross_arm_warm_start"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "artifact_kind": "beat2_style_emotion_qualitative_60s_config_v2",
+  "data_policy": "beat2_only_no_external_motion_dataset_v1",
+  "no_external_data": true,
+  "no_kimodo": true,
+  "source_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+  "source_manifest_sha256": "2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd",
+  "qwen_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_frozen_base.npz",
+  "generator_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_text_style_emotion_v2_global54_semantic_v6/generator_text_style_emotion_v2.pt",
+  "generator_training_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_text_style_emotion_v2_global54_semantic_v6/training_summary_v2.json",
+  "minimum_training_steps": 80000,
+  "target_duration_sec": 60.0,
+  "slot_duration_sec": 10.0,
+  "comparison_pairs": [
+    {
+      "label": "low deictic · neutral vs happy",
+      "neutral_prompt": "Perform a low-intensity deictic pointing gesture with neutral affect.",
+      "emotion_prompt": "Perform a low-intensity deictic pointing gesture with a happy affect.",
+      "seed": 2026072801
+    },
+    {
+      "label": "medium deictic · neutral vs angry",
+      "neutral_prompt": "Perform a medium-intensity deictic pointing gesture with neutral affect.",
+      "emotion_prompt": "Perform a medium-intensity deictic pointing gesture with an angry affect.",
+      "seed": 2026072802
+    },
+    {
+      "label": "high iconic · neutral vs surprised",
+      "neutral_prompt": "Perform a high-intensity iconic upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a high-intensity iconic upper-body gesture with a surprised affect.",
+      "seed": 2026072803
+    },
+    {
+      "label": "low iconic · neutral vs sad",
+      "neutral_prompt": "Perform a low-intensity iconic upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a low-intensity iconic upper-body gesture with a sad affect.",
+      "seed": 2026072804
+    },
+    {
+      "label": "medium metaphoric · neutral vs fearful",
+      "neutral_prompt": "Perform a medium-intensity metaphoric upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a medium-intensity metaphoric upper-body gesture with a fearful affect.",
+      "seed": 2026072805
+    },
+    {
+      "label": "high metaphoric · neutral vs happy",
+      "neutral_prompt": "Perform a high-intensity metaphoric upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a high-intensity metaphoric upper-body gesture with a happy affect.",
+      "seed": 2026072806
+    }
+  ],
+  "sampling": {
+    "steps": 32,
+    "guidance_scale": 1.5,
+    "device": "cuda"
+  },
+  "render": {
+    "pane_width": 600,
+    "panel_width": 720,
+    "height": 720,
+    "simplified": false,
+    "backend": "mujoco_egl"
+  },
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_style_emotion_v2_global54_semantic_v6_qualitative_60s"
+}

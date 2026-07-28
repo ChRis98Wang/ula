@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "beat2_emotion_hierarchy_v7_qwen_ab_gt_60s_config_v1",
+  "data_policy": "beat2_only_no_external_motion_dataset_v1",
+  "no_external_data": true,
+  "no_kimodo": true,
+  "no_hanyang": true,
+  "base_frozen_video_config": "/home/gez/shuaiwang/ula-motion-generate/configs/beat2_emotion_hierarchy_v7_60s.json",
+  "base_frozen_video_config_sha256": "fb560b42e791eef68297cbc8c545024ed8f185c41767e4a13388e889d0210eb1",
+  "lora_training_overlay": "/home/gez/shuaiwang/ula-motion-generate/configs/beat2_emotion_hierarchy_v7_lora_qwen.json",
+  "lora_training_overlay_sha256": "eab63d69e10975bdf7651565b1ab98bc7bdc697a058c16b166c367d36eccc45a",
+  "lora_training_service_unit": "beat2-emotion-hierarchy-v7-lora-qwen.service",
+  "target_duration_sec": 60.0,
+  "event_count": 24,
+  "minimum_event_frames": 45,
+  "maximum_event_frames": 120,
+  "selection_seed": 20260728,
+  "generation_seed_base": 202607280000,
+  "gt_selection_policy": "six_emotion_coverage_then_seeded_round_robin_exact_1800_frames_24_fixed_test_events_v1",
+  "comparison_contract": {
+    "same_prompt": true,
+    "same_seed": true,
+    "same_initial_noise": true,
+    "gt_loaded_before_generation": false,
+    "gt_used_as_generation_input": false,
+    "generation_frames_equal_gt_event_frames": true,
+    "planner_duration_diagnostic_only": true,
+    "static_padding_frames": 0,
+    "endpoint_hold": false,
+    "additional_smoothing": false,
+    "time_warp": false,
+    "network_frame_crop": false,
+    "boundary_blend": false,
+    "forced_last_frame_blend": false,
+    "forced_return_to_zero": false
+  },
+  "metric_contract": {
+    "jerk": "raw_segment_rms_rad_s3_excluding_endpoint_hold_and_slot_boundaries",
+    "expression": "raw_segment_joint_range_rms_rad_proxy_not_emotion_accuracy",
+    "head_activity": "raw_segment_head_velocity_rms_rad_s"
+  },
+  "render": {
+    "pane_width": 480,
+    "pane_height": 680,
+    "panel_width": 720,
+    "simplified": false,
+    "backend": "mujoco_egl",
+    "fps": 30
+  },
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s"
+}

@@ -8,6 +8,7 @@ window manifests and never accepts a pretrained generator checkpoint.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -22,7 +23,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from upper_body_skeleton.ula_v2_18d_head import load_18d_episodes, sha256_file
+from upper_body_skeleton.ula_v2_18d_head import (
+    MOTION_ONLY_EPISODE_CONTRACT,
+    load_18d_episodes,
+    sha256_file,
+)
+from upper_body_skeleton.data_source_registry import (
+    EXPRESSION_GENERATOR_ROLE,
+    GENERATOR_FOUNDATION_ROLE,
+    SEMANTIC_GENERATOR_ROLE,
+    assert_no_forbidden_data_lineage,
+    assert_no_forbidden_source_reference,
+    registered_source,
+)
 from upper_body_skeleton.ula_v2_18d_random_init import (
     DEFAULT_LENGTH_BUCKETS,
     DEFAULT_SPLIT_FRACTIONS,
@@ -32,6 +45,12 @@ from upper_body_skeleton.ula_v2_expression_turn_episode import (
     is_expression_turn_v8_episode,
     load_expression_turn_v8_episodes,
     validate_expression_turn_v8_episode,
+)
+from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+    FORMAL_EPISODE_CONTRACT as CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+    is_conversational_realization_v9_episode,
+    load_conversational_realization_v9_episodes,
+    validate_conversational_realization_v9_episode,
 )
 
 
@@ -107,9 +126,47 @@ def read_config(path: Path) -> dict:
         raise ValueError("full-random formal initialization cannot allow unreviewed data")
     if not isinstance(config.get("motion_sources"), list) or not config["motion_sources"]:
         raise ValueError("motion_sources must be a non-empty list")
-    for field in ("qwen_checkpoint", "output_dir"):
-        if not str(config.get(field) or "").strip():
-            raise ValueError(f"{field} is required")
+    if not str(config.get("output_dir") or "").strip():
+        raise ValueError("output_dir is required")
+    motion_only = (
+        config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+    )
+    expression_conditioned = config.get("formal_episode_contract") in {
+        CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+        "beat2_expression_turn_v8_train_episode_v1",
+    }
+    source_role = (
+        GENERATOR_FOUNDATION_ROLE
+        if motion_only
+        else EXPRESSION_GENERATOR_ROLE
+        if expression_conditioned
+        else SEMANTIC_GENERATOR_ROLE
+    )
+    assert_no_forbidden_data_lineage(config, context="random_init_config")
+    for index, source in enumerate(config["motion_sources"]):
+        if not isinstance(source, Mapping):
+            raise ValueError(f"motion_sources[{index}] must be an object")
+        registered_source(source.get("dataset_source"), role=source_role)
+    if motion_only:
+        for field in ("qwen_checkpoint", "qwen_checkpoint_sha256"):
+            if field in config:
+                raise ValueError(
+                    f"motion-only BEAT2 initialization forbids {field}"
+                )
+        for index, source in enumerate(config["motion_sources"]):
+            if not isinstance(source, Mapping) or source.get(
+                "use_manifest_fixed_split"
+            ) is not True:
+                raise ValueError(
+                    f"motion_sources[{index}] must enable use_manifest_fixed_split"
+                )
+            dataset_source = str(source.get("dataset_source") or "").lower()
+            if not dataset_source.startswith(("beat2_", "beat2-")):
+                raise ValueError(
+                    f"motion_sources[{index}] is outside the BEAT2 source whitelist"
+                )
+    elif not str(config.get("qwen_checkpoint") or "").strip():
+        raise ValueError("qwen_checkpoint is required")
     return config
 
 
@@ -117,18 +174,51 @@ def load_formal_sources(config: Mapping) -> tuple[list[dict], list[dict]]:
     episodes = []
     provenance = []
     known_clip_ids = set()
+    motion_only = (
+        config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+    )
+    expression_conditioned = config.get("formal_episode_contract") in {
+        CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+        "beat2_expression_turn_v8_train_episode_v1",
+    }
+    source_role = (
+        GENERATOR_FOUNDATION_ROLE
+        if motion_only
+        else EXPRESSION_GENERATOR_ROLE
+        if expression_conditioned
+        else SEMANTIC_GENERATOR_ROLE
+    )
     for source in config["motion_sources"]:
         if not isinstance(source, Mapping):
             raise ValueError("every motion source must be an object")
         dataset_source = str(source.get("dataset_source") or "").strip()
         manifest = Path(str(source.get("manifest") or "")).resolve()
+        registration = registered_source(dataset_source, role=source_role)
+        assert_no_forbidden_data_lineage(
+            source, context=f"motion_source[{dataset_source or '<empty>'}]"
+        )
+        assert_no_forbidden_source_reference(
+            manifest, context=f"{dataset_source}.manifest"
+        )
         if not dataset_source or not manifest.is_file():
             raise ValueError("every motion source needs dataset_source and an existing manifest")
+        if motion_only and (
+            not dataset_source.lower().startswith(("beat2_", "beat2-"))
+            or source.get("use_manifest_fixed_split") is not True
+        ):
+            raise ValueError(
+                "motion-only sources must be BEAT2 and enable the manifest fixed split"
+            )
         speaker_namespace = str(source.get("speaker_namespace") or dataset_source).strip()
         group_namespace = str(source.get("source_group_namespace") or dataset_source).strip()
         if not speaker_namespace or not group_namespace:
             raise ValueError("speaker/source-group namespaces cannot be empty")
         raw_records = _read_jsonl(manifest)
+        for row_index, record in enumerate(raw_records):
+            assert_no_forbidden_data_lineage(
+                record,
+                context=f"{dataset_source}.manifest[{row_index}]",
+            )
         raw_by_clip = {
             str(record.get("clip_id") or record.get("sample_id") or "").strip(): record
             for record in raw_records
@@ -136,12 +226,23 @@ def load_formal_sources(config: Mapping) -> tuple[list[dict], list[dict]]:
         if "" in raw_by_clip or len(raw_by_clip) != len(raw_records):
             raise ValueError(f"manifest has missing or duplicate clip ids: {manifest}")
         v8_flags = [is_expression_turn_v8_episode(record) for record in raw_records]
-        if any(v8_flags) and not all(v8_flags):
-            raise ValueError(f"manifest mixes v8 and legacy episode contracts: {manifest}")
+        conversational_flags = [
+            is_conversational_realization_v9_episode(record) for record in raw_records
+        ]
+        marked_contracts = sum((any(v8_flags), any(conversational_flags)))
+        if marked_contracts > 1 or (
+            any(v8_flags) and not all(v8_flags)
+        ) or (any(conversational_flags) and not all(conversational_flags)):
+            raise ValueError(f"manifest mixes incompatible episode contracts: {manifest}")
         expression_turn_v8 = bool(v8_flags and all(v8_flags))
+        conversational_realization_v9 = bool(
+            conversational_flags and all(conversational_flags)
+        )
         loaded = (
             load_expression_turn_v8_episodes(manifest)
             if expression_turn_v8
+            else load_conversational_realization_v9_episodes(manifest)
+            if conversational_realization_v9
             else load_18d_episodes(manifest=manifest, allow_unreviewed=False)
         )
         for episode in loaded:
@@ -189,6 +290,8 @@ def load_formal_sources(config: Mapping) -> tuple[list[dict], list[dict]]:
             )
             if expression_turn_v8:
                 validate_expression_turn_v8_episode(item)
+            elif conversational_realization_v9:
+                validate_conversational_realization_v9_episode(item)
             else:
                 item.update(
                     {
@@ -219,17 +322,52 @@ def load_formal_sources(config: Mapping) -> tuple[list[dict], list[dict]]:
                     ("fixed_split_assignment",),
                     ("split", "assignment"),
                 )
+                if assignment not in {"train", "validation", "test"}:
+                    raise ValueError(
+                        f"{clip_id}: manifest fixed split assignment is missing or invalid"
+                    )
                 item["fixed_split_assignment"] = assignment
             episodes.append(item)
             known_clip_ids.add(clip_id)
+        fixed_assignments = [
+            {
+                "clip_id": str(item["clip_id"]),
+                "split": str(item.get("fixed_split_assignment")),
+            }
+            for item in episodes[-len(loaded) :]
+        ]
+        fixed_assignment_sha256 = hashlib.sha256(
+            json.dumps(
+                sorted(fixed_assignments, key=lambda item: item["clip_id"]),
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("ascii")
+        ).hexdigest()
         provenance.append(
             {
                 "dataset_source": dataset_source,
+                "data_source_registration": registration,
                 "manifest": str(manifest),
                 "manifest_sha256": sha256_file(manifest),
+                "manifest_fixed_split": source.get("use_manifest_fixed_split") is True,
+                "fixed_split_assignment_sha256": fixed_assignment_sha256,
+                "fixed_split_counts": {
+                    split_name: sum(
+                        item["split"] == split_name for item in fixed_assignments
+                    )
+                    for split_name in ("train", "validation", "test")
+                },
+                **(
+                    {"license_gate": dict(source["license_gate"])}
+                    if isinstance(source.get("license_gate"), Mapping)
+                    else {}
+                ),
                 "formal_loader_policy": (
                     "expression_turn_v8_three_tier_adjudicated_train_ready_only"
                     if expression_turn_v8
+                    else "conversational_realization_v9_hash_bound_train_ready_only"
+                    if conversational_realization_v9
                     else "adjudicated_train_ready_only"
                 ),
                 "speaker_namespace": speaker_namespace,
@@ -263,7 +401,11 @@ def main() -> None:
     model_config = dict(config.get("model") or {})
     checkpoint, split_contract, report = build_random_18d_checkpoint(
         episodes,
-        qwen_checkpoint=Path(config["qwen_checkpoint"]).resolve(),
+        qwen_checkpoint=(
+            None
+            if config.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+            else Path(config["qwen_checkpoint"]).resolve()
+        ),
         source_provenance=source_provenance,
         seed=int(config.get("seed", 7)),
         fractions=dict(config.get("split_fractions") or DEFAULT_SPLIT_FRACTIONS),

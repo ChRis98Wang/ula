@@ -1,0 +1,75 @@
+# Controlled B/C experiment. Inputs are restricted to the adjudicated BEAT2
+# min-30-frame release plus the official pinned Qwen base model.
+manifest_path: /home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl
+provenance_lock_path: /home/gez/nas/cloud/gez/human_motion/catalog/beat2_semantic_event_pilot_v7_full/motion_only_pretrain_provenance_lock_min30f.json
+allowed_csv_root: /home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full
+expected_manifest_sha256: 2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd
+output_dir: training/runs/beat2_qwen_motion_alignment_ab_v1
+
+semantic_scope_acknowledgement: experimental_official_metadata_alignment_only_not_formal_generator_supervision
+min_frames: 30
+verify_csv_hashes: true
+phase_samples: 24
+seed: 20260726
+device: auto
+
+model_name: Qwen/Qwen3-Embedding-0.6B
+revision: 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3
+local_files_only: true
+attention_backend: eager
+max_length: 96
+qwen_component_dim: 512
+instruction: >-
+  Represent the requested upper-body gesture category, motion intensity, and
+  explicitly stated affect for matching to a BEAT2 robot-retargeted motion.
+
+motion:
+  hidden_dim: 256
+  latent_dim: 128
+  dropout: 0.05
+  steps: 4000
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  max_grad_norm: 5.0
+  eval_interval: 250
+  log_interval: 50
+  reconstruction_weight: 1.0
+  category_weight: 0.5
+  intensity_weight: 0.5
+  emotion_weight: 0.5
+  group_weight: 1.0
+
+alignment:
+  hidden_dim: 256
+  dropout: 0.0
+  frozen_steps: 1500
+  lora_steps: 1500
+  projector_lr: 0.0003
+  lora_lr: 0.000005
+  weight_decay: 0.0001
+  max_grad_norm: 1.0
+  warmup_steps: 100
+  minimum_lr_ratio: 0.1
+  temperature: 0.07
+  retrieval_weight: 1.0
+  cosine_weight: 0.5
+  category_weight: 0.25
+  intensity_weight: 0.25
+  emotion_weight: 0.25
+  eval_interval: 100
+  log_interval: 25
+  lora_rank: 8
+  lora_alpha: 16
+  lora_dropout: 0.0
+  lora_top_layers: 2
+  lora_target_projections: [q_proj, k_proj, v_proj, o_proj]
+
+# Set foundation_checkpoint only after the separate clean BEAT2 generator
+# foundation exists. Both condition caches must then use exactly this same
+# checkpoint, seed, and step budget for the downstream generator A/B.
+generator_pairing:
+  foundation_checkpoint:
+  posttrain_seed: 20260726
+  posttrain_steps: 50000
+  condition_dim: 128

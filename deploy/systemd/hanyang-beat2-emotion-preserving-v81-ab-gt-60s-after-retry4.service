@@ -1,0 +1,18 @@
+[Unit]
+Description=Build formal Hanyang V8.1 control/treatment/BEAT2-GT 60s video after retry4
+After=hanyang-beat2-emotion-preserving-v81-retry4.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/gez/shuaiwang/ula-motion-generate
+Environment=PYTHONUNBUFFERED=1
+Environment=MUJOCO_GL=egl
+Environment=CUDA_VISIBLE_DEVICES=0
+ExecStart=/home/gez/miniconda3/envs/env_isaaclab/bin/python -u /home/gez/shuaiwang/ula-motion-generate/tools/wait_and_build_hanyang_beat2_emotion_preserving_v81_ab_gt_60s.py --config /home/gez/shuaiwang/ula-motion-generate/configs/hanyang_beat2_emotion_preserving_v81_ab_gt_60s.json --poll-seconds 30 --timeout-seconds 0 --overwrite
+Restart=on-failure
+RestartSec=60
+Nice=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

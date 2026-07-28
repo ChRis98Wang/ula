@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ula_v2_18d_formal_from_scratch_entry_v1",
+  "formal_episode_contract": "ula_v2_18d_motion_only_physical_qc_v1",
+  "initialization_mode": "full_generator_random_no_qwen_no_kimodo_v1",
+  "audio_policy": "disabled_not_loaded",
+  "qwen_policy": "disabled_not_configured_not_loaded_v1",
+  "kimodo_policy": "forbidden_dataset_checkpoint_replay_and_condition_channels_v1",
+  "motion_source_policy": "hash_bound_beat2_only_fixed_manifest_split_v1",
+  "condition_policy": "trajectory_style_indices_133_136_only_all_other_dimensions_exact_zero_v1",
+  "conditioning_policy": {
+    "scope": "motion_head_style_duration_only_v1",
+    "qwen_prompt_latent": "masked_zero",
+    "official_category": "metadata_split_evaluation_only",
+    "communicative_intent": "masked_zero",
+    "legacy_gesture": "masked_zero",
+    "kimodo_behavior": "masked_zero",
+    "kimodo_emotion": "masked_zero",
+    "legacy_affect": "masked_zero",
+    "trajectory_style": "enabled",
+    "native_duration": "enabled"
+  },
+  "source_provenance_lock": "/home/gez/shuaiwang/ula-motion-generate/training/contracts/beat2_v8_expanded_motion_only_provenance_lock.json",
+  "source_provenance_lock_sha256": "50c37a7b55fff46a1090502d743fa155c3803c06dd5b9758478cfdf6c1af3ff9",
+  "condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v8_expanded_clean_adaln/conditioning/conditions.npz",
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_18d_from_scratch_formal_v8_expanded_clean_adaln",
+  "motion_sources": [
+    {
+      "dataset_source": "beat2_official_semantic_event_training_pool_v8_expanded",
+      "manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v8/expansion/release/adjudication_min30f/train_ready.jsonl",
+      "manifest_lock_artifact_key": "train_ready_manifest",
+      "source_inventory": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v8/expansion/release/passed_manifest_min30f_expanded.jsonl",
+      "source_inventory_sha256": "cd57b3315a79d2bf8ce080e846e330e1a667b098209e594928027f7e3d690e3e",
+      "provenance_lock_artifact_key": "physical_qc_passed_manifest",
+      "speaker_namespace": "beat2",
+      "source_group_namespace": "beat2-official-semantic-event-v8-expanded",
+      "use_manifest_fixed_split": true,
+      "license_gate": {
+        "policy": "noncommercial_research_user_confirmation_required_v1",
+        "dataset_family": "BEAT2",
+        "terms_status": "conflicting_upstream_statements",
+        "metadata_statement": "apache-2.0",
+        "official_project_statement": "Non-commercial",
+        "allowed_scope": "non-commercial_research_only",
+        "user_confirmation": {
+          "confirmed": true,
+          "acknowledges_upstream_terms": true,
+          "authorized_scope": "non-commercial_research_only",
+          "confirmed_by": "evalyn_quidemhr@acdcfan.com",
+          "confirmed_at": "2026-07-25T12:26:39Z"
+        }
+      }
+    }
+  ],
+  "seed": 7,
+  "split_fractions": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "model": {
+    "hidden_dim": 384,
+    "layers": 6,
+    "semantic_tokens": 7,
+    "architecture": "ula_mmdit_v3_adaln"
+  },
+  "training": {
+    "training_scope": "formal_variable_length_semantic_units",
+    "formal_training_enabled": true,
+    "temporal_unit_policy": "full_semantic_unit_variable_length_30hz",
+    "training_policy": "full_network",
+    "allow_unsafe_training_data": false,
+    "optimization_targets": [
+      "motion_flow_18d",
+      "head_3dof",
+      "trajectory_style",
+      "native_duration"
+    ],
+    "steps": 300000,
+    "batch_size": 16,
+    "validation_batch_size": 16,
+    "lr": 0.00001,
+    "minimum_lr_ratio": 0.1,
+    "warmup_steps": 6000,
+    "weight_decay": 0.0001,
+    "adam_eps": 0.000001,
+    "max_grad_norm": 1.0,
+    "ema_decay": 0.9995,
+    "validation_interval": 1000,
+    "checkpoint_interval": 1000,
+    "log_interval": 25,
+    "early_stopping_patience": 40,
+    "early_stopping_min_delta": 0.0001,
+    "batching": {
+      "mode": "native_variable_length",
+      "length_buckets": [
+        48,
+        64,
+        96,
+        128,
+        192,
+        256,
+        384,
+        512
+      ],
+      "homogeneous_bucket_batches": true,
+      "max_motion_tokens_per_microbatch": 4096,
+      "max_attention_elements_per_microbatch": 8000000,
+      "target_effective_batch_size": 16,
+      "gradient_accumulation_mode": "dynamic_episode_weighted",
+      "oversize_sequence_policy": "single_full_episode_or_fail"
+    },
+    "loss": {
+      "flow": 1.0,
+      "position": 1.0,
+      "body": 0.0,
+      "velocity": 0.02,
+      "acceleration": 0.0015,
+      "jerk": 0.00004,
+      "head_flow": 1.0,
+      "head_position": 0.5,
+      "head_velocity": 0.01,
+      "head_acceleration": 0.0008,
+      "head_jerk": 0.00004,
+      "planner_duration": 0.1,
+      "planner_transition": 0.0
+    }
+  }
+}

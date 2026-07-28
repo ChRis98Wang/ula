@@ -446,6 +446,7 @@ def render_motion(
     camera_distance=None,
     camera_margin=DEFAULT_FULL_BODY_CAMERA_MARGIN,
     camera_lookat_z_offset=0.0,
+    camera_override=None,
 ):
     trajectory = _validated_trajectory(read_joint_csv(joint_csv), name="joint CSV")
     joint_order = joint_order_for_action_dim(trajectory.shape[1])
@@ -478,6 +479,39 @@ def render_motion(
         camera.distance = camera_distance
         camera_framing["mode"] = "manual_distance"
         camera_framing["distance_override"] = camera_distance
+    if camera_override is not None:
+        if (
+            not isinstance(camera_override, dict)
+            or set(camera_override)
+            != {
+                "distance",
+                "lookat",
+                "azimuth_deg",
+                "elevation_deg",
+                "framing",
+            }
+        ):
+            raise ValueError("camera_override contract changed")
+        distance = float(camera_override["distance"])
+        lookat = np.asarray(camera_override["lookat"], dtype=np.float64)
+        azimuth = float(camera_override["azimuth_deg"])
+        elevation = float(camera_override["elevation_deg"])
+        if (
+            not np.isfinite(distance)
+            or distance <= 0.0
+            or lookat.shape != (3,)
+            or not np.isfinite(lookat).all()
+            or not np.isfinite(azimuth)
+            or not np.isfinite(elevation)
+            or not isinstance(camera_override["framing"], dict)
+        ):
+            raise ValueError("camera_override values are invalid")
+        camera.distance = distance
+        camera.lookat[:] = lookat
+        camera.azimuth = azimuth
+        camera.elevation = elevation
+        camera_framing = dict(camera_override["framing"])
+        camera_framing["mode"] = "shared_union_override"
     renderer = mujoco.Renderer(model, height=height, width=width)
 
     frames = []

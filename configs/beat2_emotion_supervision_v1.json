@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_kind": "beat2_emotion_supervision_ingest_config_v1",
+  "allowed_dataset": "BEAT2",
+  "weights": {
+    "human_confirmed_observable": 1.0,
+    "intended_metadata_weak": 0.1
+  },
+  "weak_source_manifests": [
+    {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+      "sha256": "2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd"
+    },
+    {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_expression_turn_18d_v8_full/passed_manifest.jsonl",
+      "sha256": "6fb07eddb498683e7e3b9339c163073701a3f38d334544b9c425a5abf8ce5d17"
+    }
+  ],
+  "controller_queue": {
+    "path": "../deliverables/beat2_emotion_human_review_queue_v1/review_queue.jsonl",
+    "sha256": "c425c71620da0bf3b0c2ae0e53258512bcdf119c6b1918489d5b70e05e16f226"
+  },
+  "hidden_mapping": {
+    "path": "../deliverables/beat2_emotion_human_review_queue_v1/blind_visual_review_v1/controller_only/sample_mapping.jsonl",
+    "sha256": "94b4ec36ddac487f86e8f15ca0958998bb1c51dd0943698ff4772e3d4517ceba"
+  },
+  "primary_submissions": {
+    "primary_1": [],
+    "primary_2": []
+  },
+  "adjudication_submissions": [],
+  "output_manifest": "../deliverables/beat2_emotion_supervision_v1/emotion_supervision.jsonl",
+  "output_audit": "../deliverables/beat2_emotion_supervision_v1/audit.json",
+  "output_adjudication_queue": "../deliverables/beat2_emotion_supervision_v1/pending_adjudication.jsonl"
+}

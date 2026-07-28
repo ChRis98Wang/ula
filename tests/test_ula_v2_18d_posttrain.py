@@ -12,7 +12,11 @@ from upper_body_skeleton.ula_training import (
     ULA_MMDIT_V2_ARCHITECTURE,
     create_ula_model,
 )
-from upper_body_skeleton.ula_v2_18d_head import ARTIFACT_KIND, load_contract_checkpoint
+from upper_body_skeleton.ula_v2_18d_head import (
+    ARTIFACT_KIND,
+    MOTION_ONLY_RANDOM_INIT_MODE,
+    load_contract_checkpoint,
+)
 from upper_body_skeleton.ula_v2_18d_posttrain import (
     ACTION_DIM,
     LEGACY_ACTION_DIM,
@@ -191,6 +195,91 @@ def test_kimodo_replay_head_is_unobserved_and_cannot_change_masked_loss_or_gradi
     first["total"].backward()
     assert torch.count_nonzero(model.output.weight.grad[15:]) == 0
     assert torch.count_nonzero(model.output.bias.grad[15:]) == 0
+
+
+def test_masked_objective_accepts_exact_shared_flow_state_for_condition_pairs():
+    class ConditionSensitiveModel(nn.Module):
+        def forward(self, x_t, _t, condition):
+            return x_t + condition[:, :1, None]
+
+        def forward_masked(self, x_t, t, condition, _frame_valid_mask):
+            return self.forward(x_t, t, condition)
+
+    model = ConditionSensitiveModel()
+    actions = torch.linspace(-0.4, 0.6, 2 * 6 * ACTION_DIM).reshape(
+        2, 6, ACTION_DIM
+    )
+    conditions = torch.zeros(2, KIMODO_V2_CONDITION_DIM)
+    conditions[:, 0] = torch.tensor([0.25, -0.5])
+    shuffled = conditions.flip(0)
+    dim_mask = torch.ones(2, ACTION_DIM, dtype=torch.bool)
+    frame_valid = torch.tensor(
+        [
+            [True, True, True, True, False, False],
+            [True, True, True, True, True, True],
+        ]
+    )
+    durations = torch.tensor([0.1, 5.0 / 30.0])
+    noise = torch.linspace(0.8, -0.7, actions.numel()).reshape_as(actions)
+    noise[0, 4:] = 10_000.0
+    flow_times = torch.tensor([0.2, 0.75])
+
+    first = masked_18d_objective(
+        model,
+        actions,
+        conditions,
+        dim_mask,
+        durations,
+        frame_valid_mask=frame_valid,
+        generator=torch.Generator().manual_seed(1),
+        noise=noise,
+        flow_times=flow_times,
+    )
+    repeated = masked_18d_objective(
+        model,
+        actions,
+        conditions,
+        dim_mask,
+        durations,
+        frame_valid_mask=frame_valid,
+        generator=torch.Generator().manual_seed(999),
+        noise=noise,
+        flow_times=flow_times,
+    )
+    counterfactual = masked_18d_objective(
+        model,
+        actions,
+        shuffled,
+        dim_mask,
+        durations,
+        frame_valid_mask=frame_valid,
+        noise=noise,
+        flow_times=flow_times,
+    )
+
+    assert all(torch.equal(first[name], repeated[name]) for name in first)
+    assert not torch.equal(first["flow"], counterfactual["flow"])
+
+    with pytest.raises(ValueError, match="explicit noise"):
+        masked_18d_objective(
+            model,
+            actions,
+            conditions,
+            dim_mask,
+            durations,
+            noise=noise[:, :-1],
+            flow_times=flow_times,
+        )
+    with pytest.raises(ValueError, match="explicit flow_times"):
+        masked_18d_objective(
+            model,
+            actions,
+            conditions,
+            dim_mask,
+            durations,
+            noise=noise,
+            flow_times=torch.tensor([0.2, 1.1]),
+        )
 
 
 def test_balanced_sampler_round_robins_domains_and_speakers_and_restores_state():
@@ -375,6 +464,13 @@ def test_replay_probe_and_regression_guard_are_deterministic_and_fail_closed():
     random_decision = posttrain_release_decision(from_scratch, no_guard)
     assert random_decision["formal_release_eligible"] is True
     assert random_decision["replay_regression_guard_required"] is False
+
+    clean_from_scratch = from_scratch | {
+        "generator_initialization_mode": MOTION_ONLY_RANDOM_INIT_MODE
+    }
+    clean_decision = posttrain_release_decision(clean_from_scratch, no_guard)
+    assert clean_decision["formal_release_eligible"] is True
+    assert clean_decision["replay_regression_guard_required"] is False
 
 
 def test_duration_fallback_uses_sample_intervals_and_formal_scope_fails_closed():
@@ -748,10 +844,14 @@ def test_cpu_posttrain_marks_unreviewed_checkpoint_unsafe_and_resumes(tmp_path):
     assert "beat_motion_not_all_adjudicated_train_ready" in summary["data_provenance"][
         "unsafe_reasons"
     ]
-    model, checkpoint = load_contract_checkpoint(
-        summary["checkpoint"], expected_action_dim=ACTION_DIM
+    with pytest.raises(ValueError, match="permanently forbidden dataset 'kimodo'"):
+        load_contract_checkpoint(
+            summary["checkpoint"], expected_action_dim=ACTION_DIM
+        )
+    checkpoint = torch.load(
+        summary["checkpoint"], map_location="cpu", weights_only=True
     )
-    assert model.action_dim == ACTION_DIM
+    assert checkpoint["action_dim"] == ACTION_DIM
     assert checkpoint["posttrain_artifact_kind"].endswith("interaction_posttrain")
     assert checkpoint["unsafe_training_data"] is True
     assert checkpoint["formal_release_eligible"] is False

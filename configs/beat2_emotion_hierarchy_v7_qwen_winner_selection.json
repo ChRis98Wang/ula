@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "beat2_emotion_hierarchy_qwen_ab_winner_selection_config_v1",
+  "sealed_ab_receipt": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_lora_qwen/qwen_generator_ab_receipt_v7.json",
+  "expected_sealed_ab_receipt_sha256": "cc99baf2922512c7e41f19b470d0e4142b53161d81359205b07e2ebf8ed1fb56",
+  "arms": {
+    "frozen_base": {
+      "summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/training_summary_v7.json",
+      "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/generator_emotion_hierarchy_v7.pt",
+      "expected_summary_sha256": "d382834ccffbf9533006e7b70b40ae5725790e19c1db37434dc726c6f5758731",
+      "expected_checkpoint_sha256": "b18f7cf1050144b9870d85047d39c50e123d495e5f0be65079bc3d0b50db2b3b"
+    },
+    "lora_finetuned": {
+      "summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_lora_qwen/training_summary_v7.json",
+      "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_lora_qwen/generator_emotion_hierarchy_v7.pt",
+      "expected_summary_sha256": null,
+      "expected_checkpoint_sha256": null
+    }
+  },
+  "decision_policy": {
+    "policy": "material_multimetric_condition_and_emotion_gain_with_flow_duration_non_regression_v1",
+    "near_tie_winner": "frozen_base",
+    "single_metric_can_select_lora": false,
+    "condition_metrics": [
+      {
+        "name": "aligned_vs_zero_prediction_rms",
+        "direction": "higher",
+        "scale_floor": 0.02
+      },
+      {
+        "name": "aligned_vs_cross_group_prediction_rms",
+        "direction": "higher",
+        "scale_floor": 0.02
+      },
+      {
+        "name": "cross_group_minus_aligned_flow_loss",
+        "direction": "higher",
+        "scale_floor": 0.002
+      },
+      {
+        "name": "correct_flow_win_rate",
+        "direction": "higher",
+        "scale_floor": 0.25
+      }
+    ],
+    "emotion_metrics": [
+      {
+        "name": "semantic_cross_group_cosine_gap",
+        "direction": "higher",
+        "scale_floor": 0.05
+      },
+      {
+        "name": "semantic_global_hard_cross_group_margin",
+        "direction": "higher",
+        "scale_floor": 0.1
+      },
+      {
+        "name": "semantic_global_motion_to_prototype_recall_at_1",
+        "direction": "higher",
+        "scale_floor": 0.25
+      },
+      {
+        "name": "semantic_global_positive_cosine",
+        "direction": "higher",
+        "scale_floor": 0.25
+      }
+    ],
+    "minimum_composite_normalized_gain": 0.05,
+    "minimum_individual_normalized_gain": 0.03,
+    "minimum_material_metrics_per_family": 2,
+    "maximum_individual_normalized_regression": 0.05,
+    "motion_non_regression_guards": [
+      {
+        "name": "aligned_flow_loss",
+        "direction": "lower",
+        "maximum_relative_regression": 0.005,
+        "maximum_absolute_regression": 0.005
+      },
+      {
+        "name": "duration_mae_sec",
+        "direction": "lower",
+        "maximum_relative_regression": 0.02,
+        "maximum_absolute_regression": 0.02
+      }
+    ],
+    "requires_both_arms_anti_collapse_passed": true,
+    "requires_exact_shared_training_contract": true,
+    "requires_no_external_data": true,
+    "requires_no_kimodo": true,
+    "requires_no_hanyang": true
+  },
+  "output_receipt": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_qwen_ab_selection/qwen_ab_winner_selection_receipt_v1.json"
+}

@@ -12,6 +12,7 @@ from tools.train_ula_v2_18d_formal_from_scratch import (
     MOTION_ONLY_CONDITIONING_POLICY,
     MOTION_ONLY_OPTIMIZATION_TARGETS,
     MOTION_ONLY_PROVENANCE_LOCK_KIND,
+    MOTION_ONLY_SOURCE_POLICY,
     NONCOMMERCIAL_CONFIRMATION_TEXT,
     USER_CONFIRMATION_RECEIPT_KIND,
     _license_bound_source_provenance,
@@ -21,6 +22,12 @@ from tools.train_ula_v2_18d_formal_from_scratch import (
     resolve_formal_config,
 )
 from upper_body_skeleton.ula_v2_18d_head import MOTION_ONLY_EPISODE_CONTRACT
+from upper_body_skeleton.ula_v2_18d_head import (
+    MOTION_ONLY_NO_KIMODO_POLICY,
+    MOTION_ONLY_NO_QWEN_POLICY,
+    MOTION_ONLY_RANDOM_INIT_MODE,
+    MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+)
 from upper_body_skeleton.ula_v2_expression_turn_episode import FORMAL_EPISODE_CONTRACT
 
 
@@ -83,7 +90,7 @@ def _fixture(tmp_path: Path) -> dict:
         "qwen_checkpoint_sha256": _sha256(qwen),
         "motion_sources": [
             {
-                "dataset_source": "beat2-v7",
+                "dataset_source": "beat2_official_semantic_event_training_pool_v7",
                 "manifest": str(manifest),
                 "source_inventory": str(inventory),
                 "source_inventory_sha256": _sha256(inventory),
@@ -175,7 +182,14 @@ def test_checkpoint_binds_exact_license_confirmation(tmp_path):
     audit = audit_formal_readiness(config, stage="initialize")["license_audit"]
     provenance = _license_bound_source_provenance(
         config,
-        [{"dataset_source": "beat2-v7", "manifest_sha256": "a" * 64}],
+        [
+            {
+                "dataset_source": (
+                    "beat2_official_semantic_event_training_pool_v7"
+                ),
+                "manifest_sha256": "a" * 64,
+            }
+        ],
         audit,
     )
     checkpoint = {"sources": {"motion_manifests": provenance}}
@@ -224,6 +238,18 @@ def test_tampered_receipt_blocks_formal_initialization(tmp_path):
 def test_motion_only_lock_binds_release_manifests_and_exact_confirmation(tmp_path):
     config = _fixture(tmp_path)
     config["formal_episode_contract"] = MOTION_ONLY_EPISODE_CONTRACT
+    config["initialization_mode"] = MOTION_ONLY_RANDOM_INIT_MODE
+    config["qwen_policy"] = MOTION_ONLY_NO_QWEN_POLICY
+    config["kimodo_policy"] = MOTION_ONLY_NO_KIMODO_POLICY
+    config["motion_source_policy"] = MOTION_ONLY_SOURCE_POLICY
+    config["condition_policy"] = MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY
+    config.pop("qwen_checkpoint")
+    config.pop("qwen_checkpoint_sha256")
+    config["motion_sources"][0].update(
+        use_manifest_fixed_split=True,
+        speaker_namespace="beat2",
+        source_group_namespace="beat2",
+    )
     confirmation = tmp_path / "user_confirmation.json"
     confirmation_payload = {
         "artifact_kind": USER_CONFIRMATION_RECEIPT_KIND,
@@ -236,14 +262,21 @@ def test_motion_only_lock_binds_release_manifests_and_exact_confirmation(tmp_pat
     }
     _write_json(confirmation, confirmation_payload)
     artifacts = {}
-    for key in (
-        "physical_qc_passed_manifest",
-        "train_ready_manifest",
-        "motion_only_release_report",
-    ):
+    for key in ("physical_qc_passed_manifest",):
         path = tmp_path / f"{key}.json"
         path.write_text(f"{key}\n", encoding="utf-8")
         artifacts[key] = {"path": str(path), "sha256": _sha256(path)}
+    train_ready = Path(config["motion_sources"][0]["manifest"])
+    artifacts["train_ready_manifest"] = {
+        "path": str(train_ready),
+        "sha256": _sha256(train_ready),
+    }
+    release_report = tmp_path / "motion_only_release_report.json"
+    _write_json(release_report, {"scale": {"train_ready_clips": 12345}})
+    artifacts["motion_only_release_report"] = {
+        "path": str(release_report),
+        "sha256": _sha256(release_report),
+    }
 
     lock_path = Path(config["source_provenance_lock"])
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
@@ -322,10 +355,46 @@ def test_formal_entry_rejects_fixed_or_cropped_temporal_controls(field):
             encoding="utf-8"
         )
     )
+    config.pop("initialization_mode")
+    config.pop("qwen_policy")
+    config.pop("qwen_checkpoint")
+    config.pop("qwen_checkpoint_sha256")
+    config["motion_sources"][0]["use_manifest_fixed_split"] = True
     config["training"][field] = [64, 96] if field == "phase_frame_choices" else 6
 
     with pytest.raises(ValueError, match="fixed/cropped temporal controls"):
         resolve_formal_config(config)
+
+
+def test_motion_only_config_is_explicitly_no_qwen_no_kimodo_and_fixed_split(
+    tmp_path,
+):
+    root = Path(__file__).resolve().parents[1]
+    config = json.loads(
+        (root / "configs/beat2_18d_from_scratch_formal_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    config.pop("initialization_mode")
+    config.pop("qwen_policy")
+    config.pop("qwen_checkpoint")
+    config.pop("qwen_checkpoint_sha256")
+    config["motion_sources"][0]["use_manifest_fixed_split"] = True
+
+    resolved = resolve_formal_config(config)
+
+    assert resolved["initialization_mode"] == MOTION_ONLY_RANDOM_INIT_MODE
+    assert resolved["qwen_policy"] == MOTION_ONLY_NO_QWEN_POLICY
+    assert resolved["kimodo_policy"] == MOTION_ONLY_NO_KIMODO_POLICY
+    assert resolved["motion_source_policy"] == MOTION_ONLY_SOURCE_POLICY
+    assert resolved["motion_sources"][0]["use_manifest_fixed_split"] is True
+    assert "qwen_checkpoint" not in resolved
+    assert "qwen_checkpoint_sha256" not in resolved
+
+    contaminated = json.loads(json.dumps(resolved))
+    contaminated["qwen_checkpoint"] = str(tmp_path / "qwen.pt")
+    with pytest.raises(ValueError, match="forbids Qwen"):
+        resolve_formal_config(contaminated)
 
 
 def test_motion_only_entry_rejects_behavior_or_emotion_conditions():
@@ -371,6 +440,11 @@ def test_explicit_v8_entry_enables_only_three_tier_blind_conditioning():
     config["qwen_policy"] = EXPRESSION_TURN_V8_QWEN_POLICY
     config["conditioning_policy"] = EXPRESSION_TURN_V8_CONDITIONING_POLICY
     config["training"]["optimization_targets"] = EXPRESSION_TURN_V8_OPTIMIZATION_TARGETS
+    with pytest.raises(ValueError, match="permanently forbidden"):
+        resolve_formal_config(config)
+    config["qwen_checkpoint"] = (
+        "/tmp/qwen_clean_motion_latent_v1/best.pt"
+    )
 
     resolved = resolve_formal_config(config)
     assert resolved["formal_episode_contract"] == FORMAL_EPISODE_CONTRACT

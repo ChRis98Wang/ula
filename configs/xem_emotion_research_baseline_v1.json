@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_kind": "xem_isolated_emotion_research_config_v1",
+  "dataset": "XEM",
+  "research_scope": "isolated_external_emotion_research_only",
+  "archive_path": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/xem_v1/xem-dataset-assembled.zip",
+  "expected_archive_bytes": 271751792,
+  "expected_archive_md5": "4a7729c4d3d503f1cb0a71433d25d871",
+  "metadata_path": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/xem_v1/dataverse_metadata.json",
+  "expected_metadata_sha256": "10debdb664d2cbd52f6a5f748229d2df0af2efdd4cf42baf76f5aaf9c71ed686",
+  "mat_member": "matlab/Data.mat",
+  "mat_variable": "VelocityData",
+  "participant_split": {
+    "train": [1, 2, 3, 4, 5, 6],
+    "validation": [7, 8],
+    "test": [9, 10]
+  },
+  "ridge_alphas": [0.01, 0.1, 1.0, 10.0, 100.0],
+  "seed": 20260727,
+  "output_root": "../deliverables/external_emotion_research/xem_v1_participant_disjoint_baseline"
+}

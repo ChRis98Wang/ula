@@ -21,6 +21,9 @@ import numpy as np
 
 
 EVENT_REVIEW_PROVENANCE_FIELDS = (
+    "annotation_kind",
+    "language",
+    "language_code",
     "canonical_action",
     "canonical_action_role",
     "canonical_prompt",
@@ -77,9 +80,14 @@ EVENT_REVIEW_PROVENANCE_FIELDS = (
     "qc_replacement_for_stratum",
     "qc_replacement_selection_status",
     "qc_replacement_contract_sha256",
+    "training_admission_status",
 )
 RETARGET_SEGMENT_REPRESENTATION = (
     "native_variable_length_semantic_event_retimed_30hz_v1"
+)
+MOTION_FOUNDATION_ANNOTATION_KIND = "motion_foundation_unlabeled_contiguous_chunk"
+MOTION_FOUNDATION_RETARGET_SEGMENT_REPRESENTATION = (
+    "motion_foundation_contiguous_chunk_retimed_30hz_v1"
 )
 
 
@@ -87,7 +95,11 @@ def build_retarget_segment_contract(
     task: dict[str, Any], *, source_frame_count: int, output_frame_count: int, fps: float
 ) -> dict[str, Any]:
     payload = {
-        "representation": RETARGET_SEGMENT_REPRESENTATION,
+        "representation": (
+            MOTION_FOUNDATION_RETARGET_SEGMENT_REPRESENTATION
+            if task.get("annotation_kind") == MOTION_FOUNDATION_ANNOTATION_KIND
+            else RETARGET_SEGMENT_REPRESENTATION
+        ),
         "source_start_frame": int(task["start_frame"]),
         "source_end_frame_exclusive": int(task["end_frame_exclusive"]),
         "source_frame_count": int(source_frame_count),
@@ -180,6 +192,45 @@ class GroupedRuntimeConfig:
     smoothing_window: int = 7
     posture_cost: float = 0.02
     solver: str = "daqp"
+    neutral_limit_margin_rad: float = 0.0
+
+
+def interiorize_neutral_qpos(
+    model,
+    mujoco,
+    neutral_qpos: np.ndarray,
+    margin_rad: float,
+) -> np.ndarray:
+    """Move exact-bound hinge initializers into the feasible-set interior.
+
+    Some QP backends reject a value that is numerically equal to a joint
+    limit after MuJoCo/Mink conversions.  The opt-in margin changes only the
+    event-local IK initializer; output trajectories still have to pass the
+    unchanged physical quality gates.
+    """
+
+    margin = float(margin_rad)
+    if not np.isfinite(margin) or margin < 0.0:
+        raise ValueError("neutral_limit_margin_rad must be finite and non-negative")
+    result = np.asarray(neutral_qpos, dtype=np.float64).copy()
+    if margin == 0.0:
+        return result
+    for joint_name in JOINT_ORDER_18D:
+        joint_id = mujoco.mj_name2id(
+            model, mujoco.mjtObj.mjOBJ_JOINT, joint_name
+        )
+        if joint_id < 0 or not bool(model.jnt_limited[joint_id]):
+            continue
+        lower, upper = (float(value) for value in model.jnt_range[joint_id])
+        if upper - lower <= 2.0 * margin:
+            raise ValueError(
+                f"neutral limit margin {margin} is too large for {joint_name}"
+            )
+        qpos_address = int(model.jnt_qposadr[joint_id])
+        result[qpos_address] = np.clip(
+            result[qpos_address], lower + margin, upper - margin
+        )
+    return result
 
 
 def slice_decoded_source(
@@ -295,6 +346,7 @@ class GroupedBeat2RetargetRuntime:
         self.source_load_count = 0
         self.event_reset_count = 0
         self.current_source_event_reset_count = 0
+        self.current_event_limit_margin_interventions = 0
 
     def load_source(self, source_path: Path) -> None:
         """Load exactly one source container for a grouped worker call."""
@@ -335,14 +387,22 @@ class GroupedBeat2RetargetRuntime:
         neutral_qpos, target_for_frame = prepare_target_builder(
             self.retargeter.model, self.mujoco, positions, quaternions
         )
+        neutral_qpos = interiorize_neutral_qpos(
+            self.retargeter.model,
+            self.mujoco,
+            neutral_qpos,
+            self.config.neutral_limit_margin_rad,
+        )
 
         # This is the hard event boundary. No configuration or warm-start state
         # from the preceding event is allowed to seed the current event.
         self.retargeter.configuration.update(neutral_qpos)
+        self.current_event_limit_margin_interventions = 0
         if self.posture_task is not None:
             self.posture_task.set_target(neutral_qpos)
         first_target = target_for_frame(0)
         for _ in range(20 + self.config.warmup_frames):
+            self._enforce_configuration_limit_margin()
             self.retargeter.retarget(first_target)
 
         self.event_reset_count += 1
@@ -355,7 +415,22 @@ class GroupedBeat2RetargetRuntime:
             "raw_head": raw_head,
             "target_for_frame": target_for_frame,
             "event_reset_ordinal": self.current_source_event_reset_count,
+            "neutral_limit_margin_rad": self.config.neutral_limit_margin_rad,
         }
+
+    def _enforce_configuration_limit_margin(self) -> None:
+        if self.config.neutral_limit_margin_rad == 0.0:
+            return
+        current = self.retargeter.configuration.data.qpos.copy()
+        interior = interiorize_neutral_qpos(
+            self.retargeter.model,
+            self.mujoco,
+            current,
+            self.config.neutral_limit_margin_rad,
+        )
+        if not np.array_equal(interior, current):
+            self.retargeter.configuration.update(interior)
+            self.current_event_limit_margin_interventions += 1
 
     def retarget_event(
         self,
@@ -376,6 +451,7 @@ class GroupedBeat2RetargetRuntime:
         ik_errors: list[float] = []
         for frame_index in range(int(decoded["frame_count"])):
             target = target_for_frame(frame_index)
+            self._enforce_configuration_limit_margin()
             qpos = self.retargeter.retarget(target)
             raw_rows.append(
                 extract_joint_row(self.retargeter.model, qpos, self.mujoco)
@@ -511,6 +587,12 @@ class GroupedBeat2RetargetRuntime:
                     "gmr_runtime_scope": "one_cached_instance_per_worker_process",
                     "event_reset_ordinal": event["event_reset_ordinal"],
                     "ik_reset": "neutral_qpos_before_each_event",
+                    "neutral_limit_margin_rad": float(
+                        event["neutral_limit_margin_rad"]
+                    ),
+                    "limit_margin_interventions": int(
+                        self.current_event_limit_margin_interventions
+                    ),
                     "warmup_iterations_per_event": 20
                     + self.config.warmup_frames,
                     "smoothing_scope": "single_event_only_no_cross_event_frames",

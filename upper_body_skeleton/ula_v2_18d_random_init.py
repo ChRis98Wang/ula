@@ -1,8 +1,8 @@
 """Strict full-random initialization contract for the 18D ULA MMDiT V2.
 
-This module deliberately does not accept a generator checkpoint.  The only
-learned artifact it consumes is the frozen Qwen LoRA text encoder.  Dataset
-statistics and style normalization are fitted after a speaker/source-group
+This module deliberately does not accept a generator checkpoint.  Motion-only
+BEAT2 initialization also refuses Qwen/Kimodo checkpoints entirely.  Dataset
+statistics and style normalization are fitted after the immutable manifest
 split, using the optimization split only.
 """
 
@@ -18,6 +18,18 @@ import numpy as np
 import torch
 from torch import nn
 
+from upper_body_skeleton.data_source_registry import (
+    DATA_SOURCE_REGISTRY_HASH_FIELD,
+    EXPRESSION_GENERATOR_ROLE,
+    GENERATOR_FOUNDATION_ROLE,
+    SEMANTIC_GENERATOR_ROLE,
+    assert_no_forbidden_data_lineage,
+    bind_contract_to_data_sources,
+    build_data_source_registry_contract,
+    registered_source,
+    validate_contract_source_binding,
+    validate_data_source_registry_contract,
+)
 from upper_body_skeleton.kimodo_semantics import (
     KIMODO_BEHAVIOR_IDS,
     KIMODO_BEHAVIOR_FAMILIES,
@@ -35,6 +47,7 @@ from upper_body_skeleton.ula_training import (
     TRANSITION_IDS,
     LEGACY_CONDITION_DIM,
     ULA_MMDIT_V2_ARCHITECTURE,
+    ULA_MMDIT_V3_ADALN_ARCHITECTURE,
     create_ula_model,
 )
 from upper_body_skeleton.ula_v2_18d_head import (
@@ -42,6 +55,7 @@ from upper_body_skeleton.ula_v2_18d_head import (
     ARTIFACT_KIND,
     CHECKPOINT_SCHEMA_VERSION,
     CONDITION_CACHE_SCHEMA_VERSION,
+    MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION,
     FORMAL_SELECTED_LINEAGE_FIELDS,
     FORMAL_SEMANTIC_SUPERVISION_MASKS,
     LEGACY_ACTION_DIM,
@@ -49,6 +63,11 @@ from upper_body_skeleton.ula_v2_18d_head import (
     LEGACY_GESTURE_SLICE,
     LEGACY_INTENT_SLICE,
     MOTION_ONLY_EPISODE_CONTRACT,
+    MOTION_ONLY_DATA_ISOLATION_CONTRACT_TYPE,
+    MOTION_ONLY_NO_KIMODO_POLICY,
+    MOTION_ONLY_NO_QWEN_POLICY,
+    MOTION_ONLY_RANDOM_INIT_MODE,
+    MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
     OFFICIAL_CATEGORY_CONDITIONING_ROLE,
     OFFICIAL_EMOTION_CONDITION_CHANNEL,
     OFFICIAL_EMOTION_DISABLED_ROLE,
@@ -58,6 +77,7 @@ from upper_body_skeleton.ula_v2_18d_head import (
     semantic_supervision_policy,
     sha256_file,
     validate_checkpoint_contract,
+    validate_motion_only_style_condition,
 )
 from upper_body_skeleton.ula_v2_18d_posttrain import strict_group_split
 from upper_body_skeleton.ula_v2_conditioning import (
@@ -76,6 +96,9 @@ FORMAL_SEMANTIC_EVENT_SELECTION_STATUS = (
     "official_semantic_event_variable_length_boundary_validated"
 )
 PROJECT_BEHAVIOR_MAPPING_SOURCE = "project_dataset_scope_weak_mapping_v1"
+SUPPORTED_GENERATOR_ARCHITECTURES = frozenset(
+    {ULA_MMDIT_V2_ARCHITECTURE, ULA_MMDIT_V3_ADALN_ARCHITECTURE}
+)
 DEFAULT_LENGTH_BUCKETS = (48, 64, 96, 128, 192, 256, 384, 512)
 DEFAULT_SPLIT_FRACTIONS = {"train": 0.8, "validation": 0.1, "test": 0.1}
 LEGACY_FORMAL_EPISODE_CONTRACT = "official_semantic_event_train_episode_v1"
@@ -112,11 +135,17 @@ def _formal_episode_contract(episodes: Sequence[Mapping]) -> str:
         FORMAL_EPISODE_CONTRACT,
         is_expression_turn_v8_episode,
     )
+    from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+        FORMAL_EPISODE_CONTRACT as CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+        is_conversational_realization_v9_episode,
+    )
 
     regimes = []
     for episode in episodes:
         if is_expression_turn_v8_episode(episode):
             regimes.append(FORMAL_EPISODE_CONTRACT)
+        elif is_conversational_realization_v9_episode(episode):
+            regimes.append(CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT)
         elif episode.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT:
             regimes.append(MOTION_ONLY_EPISODE_CONTRACT)
         else:
@@ -124,8 +153,8 @@ def _formal_episode_contract(episodes: Sequence[Mapping]) -> str:
     unique = set(regimes)
     if len(unique) != 1:
         raise ValueError(
-            "random initialization cannot mix expression-turn v8, motion-only, "
-            "and legacy semantic-event episode contracts"
+            "random initialization cannot mix conversational v9, expression-turn v8, "
+            "motion-only, and legacy semantic-event episode contracts"
         )
     return regimes[0]
 
@@ -317,28 +346,15 @@ def _validate_motion_only_variable_length_episode(
             raise ValueError(f"{clip_id}: {field} must bind formal source provenance")
 
     if require_attached_condition or episode.get("condition") is not None:
-        condition = np.asarray(episode.get("condition"), dtype=np.float32)
-        if condition.shape != (KIMODO_V2_CONDITION_DIM,):
-            raise ValueError(f"{clip_id}: attached motion-only condition is missing")
-        behavior_start = LEGACY_CONDITION_DIM
-        behavior_end = behavior_start + len(KIMODO_BEHAVIOR_IDS)
-        emotion_start = behavior_end
-        emotion_end = emotion_start + len(KIMODO_EMOTION_IDS)
-        family_start = emotion_end
-        family_end = family_start + len(KIMODO_BEHAVIOR_FAMILIES)
-        masked_slices = (
-            LEGACY_INTENT_SLICE,
-            LEGACY_AFFECT_SLICE,
-            LEGACY_GESTURE_SLICE,
-            slice(behavior_start, behavior_end),
-            slice(emotion_start, emotion_end),
-            slice(family_start, family_end),
-            slice(KIMODO_CONDITION_DIM, KIMODO_V2_CONDITION_DIM),
-        )
-        if any(np.any(condition[index] != 0.0) for index in masked_slices):
-            raise ValueError(
-                f"{clip_id}: motion-only text, semantic, and emotion conditions must be zero"
+        try:
+            validate_motion_only_style_condition(
+                episode.get("condition"),
+                context=f"{clip_id}: attached motion-only condition",
             )
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"{clip_id}: motion-only condition must contain only trajectory style"
+            ) from error
 
 
 def validate_formal_variable_length_episode(
@@ -350,6 +366,16 @@ def validate_formal_variable_length_episode(
         is_expression_turn_v8_episode,
         validate_expression_turn_v8_episode,
     )
+    from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+        is_conversational_realization_v9_episode,
+        validate_conversational_realization_v9_episode,
+    )
+
+    if is_conversational_realization_v9_episode(episode):
+        validate_conversational_realization_v9_episode(
+            episode, require_attached_condition=require_attached_condition
+        )
+        return
 
     if is_expression_turn_v8_episode(episode):
         validate_expression_turn_v8_episode(
@@ -662,10 +688,28 @@ def validate_random_checkpoint_split(
     requested_fractions: Mapping[str, float],
 ) -> tuple[dict[str, list[dict]], dict]:
     """Restore the immutable initialization split and train-only statistic fit set."""
+    formal_episode_contract = _formal_episode_contract(episodes)
+    source_role = (
+        GENERATOR_FOUNDATION_ROLE
+        if formal_episode_contract == MOTION_ONLY_EPISODE_CONTRACT
+        else (
+            EXPRESSION_GENERATOR_ROLE
+            if formal_episode_contract != LEGACY_FORMAL_EPISODE_CONTRACT
+            else SEMANTIC_GENERATOR_ROLE
+        )
+    )
+    assert_no_forbidden_data_lineage(
+        episodes, context="random_checkpoint_split.episodes"
+    )
+    expected_random_mode = (
+        MOTION_ONLY_RANDOM_INIT_MODE
+        if formal_episode_contract == MOTION_ONLY_EPISODE_CONTRACT
+        else RANDOM_INIT_MODE
+    )
     random_initialization = checkpoint.get("random_initialization")
     if not isinstance(random_initialization, Mapping) or random_initialization.get(
         "mode"
-    ) != RANDOM_INIT_MODE:
+    ) != expected_random_mode:
         raise ValueError("checkpoint is not the supported full-random generator baseline")
     if (checkpoint.get("action_contract") or {}).get("migration") != (
         "none_full_18d_random_initialization"
@@ -675,7 +719,6 @@ def validate_random_checkpoint_split(
     if not isinstance(contracts, Mapping):
         raise ValueError("full-random checkpoint is missing V2 contracts")
     _validate_embedded_contract(contracts, name="V2 aggregate")
-    formal_episode_contract = _formal_episode_contract(episodes)
     if checkpoint.get("formal_episode_contract") != formal_episode_contract or (
         contracts.get("formal_episode_contract") != formal_episode_contract
     ):
@@ -686,11 +729,55 @@ def validate_random_checkpoint_split(
     action_contract = contracts.get("action_statistics")
     style_contract = contracts.get("style")
     duration_contract = contracts.get("duration")
+    sources = checkpoint.get("sources")
+    source_records = (
+        sources.get("motion_manifests") if isinstance(sources, Mapping) else None
+    )
+    if not isinstance(source_records, list) or not source_records:
+        raise ValueError("random checkpoint source provenance is missing")
+    assert_no_forbidden_data_lineage(
+        source_records, context="random_checkpoint.sources"
+    )
+    registry_contract = (
+        sources.get("data_source_registry")
+        if isinstance(sources, Mapping)
+        else None
+    )
+    if registry_contract is not None:
+        dataset_sources = [
+            record.get("dataset_source")
+            for record in source_records
+            if isinstance(record, Mapping)
+        ]
+        validate_data_source_registry_contract(
+            registry_contract,
+            expected_role=source_role,
+            expected_dataset_sources=dataset_sources,
+        )
+        for name, contract in (
+            ("split", split_contract),
+            ("action statistics", action_contract),
+            ("style normalization", style_contract),
+            ("duration", duration_contract),
+        ):
+            validate_contract_source_binding(
+                contract,
+                registry_contract,
+                context=f"random_checkpoint.{name}",
+            )
     if (contracts.get("batching") or {}).get(
         "formal_episode_contract"
     ) != formal_episode_contract:
         raise ValueError("random checkpoint batching episode contract changed")
     _validate_posttrain_json_contract(split_contract, name="split")
+    if (
+        formal_episode_contract == MOTION_ONLY_EPISODE_CONTRACT
+        and split_contract.get("assignment_policy")
+        != "fixed_pre_quarantine_assignment"
+    ):
+        raise ValueError(
+            "motion-only checkpoint must preserve fixed manifest split assignments"
+        )
     for name, contract in (
         ("action statistics", action_contract),
         ("style", style_contract),
@@ -756,9 +843,22 @@ def validate_random_checkpoint_split(
             str(episode.get("speaker_key")) != str(record.get("speaker_key"))
             or str(episode.get("source_group_key"))
             != str(record.get("source_group_key"))
+            or (
+                record.get("dataset_source") is not None
+                and str(episode.get("dataset_source"))
+                != str(record.get("dataset_source"))
+            )
         ):
             raise ValueError(
-                f"{clip_id}: speaker/source group differs from random initialization"
+                f"{clip_id}: dataset/speaker/source group differs from random initialization"
+            )
+        if (
+            formal_episode_contract == MOTION_ONLY_EPISODE_CONTRACT
+            and episode.get("fixed_split_assignment")
+            != contract_assignment[clip_id]
+        ):
+            raise ValueError(
+                f"{clip_id}: fixed manifest split differs from random initialization"
             )
     splits = {
         name: [by_id[clip_id] for clip_id in stored_ids[name]]
@@ -893,15 +993,27 @@ def fit_train_style_contract(
 def qwen_lora_source_contract(qwen_checkpoint: str | Path) -> dict:
     qwen_checkpoint = Path(qwen_checkpoint)
     payload = torch.load(qwen_checkpoint, map_location="cpu", weights_only=True)
-    if payload.get("artifact_kind") != "qwen_motion_cross_modal_alignment":
-        raise ValueError("Qwen checkpoint is not a motion-alignment LoRA artifact")
+    artifact_kind = payload.get("artifact_kind")
+    supported_kinds = {
+        "qwen_motion_cross_modal_alignment",
+        "beat2_qwen_frozen_base_alignment_v1",
+        "beat2_qwen_lora_alignment_v1",
+    }
+    if artifact_kind not in supported_kinds:
+        raise ValueError("Qwen checkpoint is not a supported motion-alignment artifact")
+    if artifact_kind.startswith("beat2_qwen_") and (
+        payload.get("no_kimodo") is not True
+        or payload.get("data_policy") != "beat2_only_no_external_motion_dataset_v1"
+    ):
+        raise ValueError("BEAT2 Qwen checkpoint violates the no-Kimodo data policy")
     if not isinstance(payload.get("qwen_lora_state_dict"), Mapping) or not payload[
         "qwen_lora_state_dict"
     ]:
-        raise ValueError("Qwen checkpoint has no trained LoRA state")
+        if artifact_kind != "beat2_qwen_frozen_base_alignment_v1":
+            raise ValueError("Qwen checkpoint has no trained LoRA state")
     qwen = payload.get("qwen") or {}
     config = payload.get("config") or {}
-    latent_dim = int(config.get("latent_dim", -1))
+    latent_dim = int(config.get("latent_dim", payload.get("latent_dim", -1)))
     if latent_dim != KIMODO_MOTION_LATENT_DIM:
         raise ValueError(
             f"Qwen motion latent must be {KIMODO_MOTION_LATENT_DIM}D, got {latent_dim}"
@@ -912,13 +1024,18 @@ def qwen_lora_source_contract(qwen_checkpoint: str | Path) -> dict:
         raise ValueError("Qwen checkpoint lacks a pinned model name/revision")
     return {
         "checkpoint_sha256": sha256_file(qwen_checkpoint),
-        "artifact_kind": payload["artifact_kind"],
+        "artifact_kind": artifact_kind,
         "global_step": int(payload.get("global_step", 0)),
         "best_step": int(payload.get("best_step", 0)),
         "model_name": model_name,
         "revision": revision,
         "latent_dim": latent_dim,
-        "lora_policy": "reuse_frozen_existing_lora_no_generator_weight_reuse",
+        "lora_policy": (
+            "official_base_frozen_existing_text_head_no_generator_weight_reuse"
+            if artifact_kind == "beat2_qwen_frozen_base_alignment_v1"
+            else "reuse_frozen_existing_lora_no_generator_weight_reuse"
+        ),
+        "no_kimodo": payload.get("no_kimodo") is True,
     }
 
 
@@ -934,11 +1051,18 @@ def build_length_bucket_contract(
     }:
         source_representation = VARIABLE_SEGMENT_REPRESENTATION
     else:
-        from upper_body_skeleton.ula_v2_expression_turn_episode import (
-            EXPRESSION_TURN_REPRESENTATION,
+        from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+            FORMAL_EPISODE_CONTRACT as CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+            TRAINING_SEGMENT_REPRESENTATION as CONVERSATIONAL_REPRESENTATION,
         )
+        if formal_episode_contract == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT:
+            source_representation = CONVERSATIONAL_REPRESENTATION
+        else:
+            from upper_body_skeleton.ula_v2_expression_turn_episode import (
+                EXPRESSION_TURN_REPRESENTATION,
+            )
 
-        source_representation = EXPRESSION_TURN_REPRESENTATION
+            source_representation = EXPRESSION_TURN_REPRESENTATION
     frame_counts = [int(np.asarray(episode["actions"]).shape[0]) for episode in train_episodes]
     if not frame_counts:
         raise ValueError("cannot build length buckets without train episodes")
@@ -1127,6 +1251,11 @@ def forward_with_frame_mask(model, x_t, t, condition, frame_valid_mask):
     """ULA MMDiT V2 forward pass with key padding for native-length batches."""
     if frame_valid_mask.shape != x_t.shape[:2] or frame_valid_mask.dtype != torch.bool:
         raise ValueError("frame_valid_mask must be bool [batch, frames]")
+    # AdaLN generators condition every block instead of prefixing condition
+    # tokens, so they own their masked forward pass.
+    forward_masked = getattr(model, "forward_masked", None)
+    if callable(forward_masked):
+        return forward_masked(x_t, t, condition, frame_valid_mask)
     motion = model.input(x_t)
     motion = motion + model.time(t)[:, None, :]
     frame_counts = frame_valid_mask.sum(dim=1)
@@ -1158,10 +1287,21 @@ def _explicit_random_initialize(model: nn.Module, seed: int) -> None:
                     parameter.fill_(1.0)
                 else:
                     parameter.zero_()
+    # AdaLN-Zero requires the modulation projections to start at exactly zero so
+    # every conditioned block begins as an identity residual.  The xavier pass
+    # above would otherwise destroy that invariant and destabilise early steps.
+    for name, parameter in model.named_parameters():
+        if ".modulation." in name or name.startswith("output_modulation."):
+            with torch.no_grad():
+                parameter.zero_()
 
 
 def _split_for_initialization(
-    episodes: Sequence[Mapping], *, seed: int, fractions: Mapping[str, float]
+    episodes: Sequence[Mapping],
+    *,
+    seed: int,
+    fractions: Mapping[str, float],
+    require_fixed_manifest_split: bool = False,
 ) -> tuple[dict[str, list[dict]], dict]:
     provisional = []
     for episode in episodes:
@@ -1169,23 +1309,41 @@ def _split_for_initialization(
         item = dict(episode)
         item["condition"] = np.zeros(KIMODO_V2_CONDITION_DIM, dtype=np.float32)
         provisional.append(item)
+    if require_fixed_manifest_split:
+        invalid = [
+            _episode_id(episode)
+            for episode in provisional
+            if episode.get("fixed_split_assignment")
+            not in {"train", "validation", "test"}
+        ]
+        if invalid:
+            raise ValueError(
+                "motion-only initialization requires a valid manifest fixed split "
+                f"on every episode; invalid={invalid[:5]}"
+            )
     return strict_group_split(provisional, seed=seed, fractions=fractions)
 
 
 def build_random_18d_checkpoint(
     episodes: Sequence[Mapping],
     *,
-    qwen_checkpoint: str | Path,
+    qwen_checkpoint: str | Path | None = None,
     source_provenance: Sequence[Mapping],
     seed: int = 7,
     fractions: Mapping[str, float] = DEFAULT_SPLIT_FRACTIONS,
     hidden_dim: int = 384,
     layers: int = 6,
     semantic_tokens: int = 7,
+    architecture: str = ULA_MMDIT_V2_ARCHITECTURE,
     style_clip: float = 5.0,
     length_buckets: Sequence[int] = DEFAULT_LENGTH_BUCKETS,
 ) -> tuple[dict, dict, dict]:
     """Return a contract-valid random checkpoint, split contract, and audit report."""
+    if architecture not in SUPPORTED_GENERATOR_ARCHITECTURES:
+        raise ValueError(
+            f"unsupported formal generator architecture: {architecture!r}; "
+            f"expected one of {sorted(SUPPORTED_GENERATOR_ARCHITECTURES)}"
+        )
     episodes = list(episodes)
     if not episodes:
         raise ValueError("at least one formal variable-length episode is required")
@@ -1193,19 +1351,109 @@ def build_random_18d_checkpoint(
         raise ValueError("clip_id must be globally unique across motion sources")
     formal_episode_contract = _formal_episode_contract(episodes)
     motion_only = formal_episode_contract == MOTION_ONLY_EPISODE_CONTRACT
-    expression_turn_v8 = formal_episode_contract not in {
-        LEGACY_FORMAL_EPISODE_CONTRACT,
-        MOTION_ONLY_EPISODE_CONTRACT,
-    }
-    qwen_source = qwen_lora_source_contract(qwen_checkpoint)
+    from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+        FORMAL_EPISODE_CONTRACT as CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT,
+        PROMPT_TEXT_PROVENANCE as CONVERSATIONAL_PROMPT_TEXT_PROVENANCE,
+    )
+    from upper_body_skeleton.ula_v2_expression_turn_episode import (
+        FORMAL_EPISODE_CONTRACT as EXPRESSION_TURN_V8_EPISODE_CONTRACT,
+    )
+    conversational_realization_v9 = (
+        formal_episode_contract == CONVERSATIONAL_REALIZATION_V9_EPISODE_CONTRACT
+    )
+    random_initialization_mode = (
+        MOTION_ONLY_RANDOM_INIT_MODE if motion_only else RANDOM_INIT_MODE
+    )
+    expression_turn_v8 = formal_episode_contract == EXPRESSION_TURN_V8_EPISODE_CONTRACT
+    expression_conditioned = expression_turn_v8 or conversational_realization_v9
+    if motion_only:
+        if qwen_checkpoint is not None:
+            raise ValueError(
+                "motion-only BEAT2 initialization forbids a Qwen checkpoint"
+            )
+        qwen_source = None
+    else:
+        if qwen_checkpoint is None:
+            raise ValueError("semantic initialization requires a Qwen checkpoint")
+        qwen_source = qwen_lora_source_contract(qwen_checkpoint)
     splits, split_contract = _split_for_initialization(
-        episodes, seed=int(seed), fractions=fractions
+        episodes,
+        seed=int(seed),
+        fractions=fractions,
+        require_fixed_manifest_split=motion_only or conversational_realization_v9,
+    )
+    source_role = (
+        GENERATOR_FOUNDATION_ROLE
+        if motion_only
+        else (
+            EXPRESSION_GENERATOR_ROLE
+            if expression_conditioned
+            else SEMANTIC_GENERATOR_ROLE
+        )
+    )
+    assert_no_forbidden_data_lineage(
+        episodes, context="random_initialization.episodes"
+    )
+    assert_no_forbidden_data_lineage(
+        source_provenance, context="random_initialization.source_provenance"
+    )
+    episode_dataset_sources = sorted(
+        {
+            str(episode.get("dataset_source") or "").strip().casefold()
+            for episode in episodes
+        }
+    )
+    provenance_dataset_sources = sorted(
+        {
+            str(record.get("dataset_source") or "").strip().casefold()
+            for record in source_provenance
+            if isinstance(record, Mapping)
+        }
+    )
+    if (
+        not provenance_dataset_sources
+        or episode_dataset_sources != provenance_dataset_sources
+    ):
+        raise ValueError(
+            "episode dataset sources differ from source provenance: "
+            f"episodes={episode_dataset_sources}, provenance={provenance_dataset_sources}"
+        )
+    data_source_registry = build_data_source_registry_contract(
+        episode_dataset_sources,
+        role=source_role,
+    )
+    dataset_source_by_clip = {
+        _episode_id(episode): str(episode["dataset_source"]).strip().casefold()
+        for episode in episodes
+    }
+    split_payload = {
+        key: value for key, value in split_contract.items() if key != "sha256"
+    }
+    split_payload["episodes"] = [
+        dict(record)
+        | {"dataset_source": dataset_source_by_clip[str(record["clip_id"])]}
+        for record in split_payload["episodes"]
+    ]
+    split_contract = bind_contract_to_data_sources(
+        split_payload, data_source_registry
     )
     train = splits["train"]
     action_stats, action_stats_contract = compute_masked_train_action_stats(train)
     style_contract = fit_train_style_contract(train, clip=style_clip)
     batching_contract = build_length_bucket_contract(train, buckets=length_buckets)
     duration_contract = build_native_duration_contract(train)
+    action_stats_contract = bind_contract_to_data_sources(
+        action_stats_contract, data_source_registry
+    )
+    style_contract = bind_contract_to_data_sources(
+        style_contract, data_source_registry
+    )
+    batching_contract = bind_contract_to_data_sources(
+        batching_contract, data_source_registry
+    )
+    duration_contract = bind_contract_to_data_sources(
+        duration_contract, data_source_registry
+    )
 
     semantic_episodes = (
         [
@@ -1219,6 +1467,8 @@ def build_random_18d_checkpoint(
         if expression_turn_v8
         else ([] if motion_only else episodes)
     )
+    if conversational_realization_v9:
+        semantic_episodes = list(episodes)
     prompt_profile_counts: dict[str, int] = {}
     communicative_intent_count = 0
     text_provenance_by_profile: dict[str, str] = {}
@@ -1244,14 +1494,24 @@ def build_random_18d_checkpoint(
             DYADIC_INTERACTION_PROMPT_PROFILE: DYADIC_PROMPT_TEXT_PROVENANCE,
         }
     text_contract_payload = {
-        "contract_type": "ula_v2_qwen_lora_text_motion_latent",
-        "contract_version": 3 if motion_only else (2 if expression_turn_v8 else 1),
+        "contract_type": (
+            "ula_v2_reserved_zero_text_motion_latent"
+            if motion_only
+            else "ula_v2_qwen_lora_text_motion_latent"
+        ),
+        "contract_version": (
+            3 if motion_only or conversational_realization_v9 else (2 if expression_turn_v8 else 1)
+        ),
         "latent_dim": KIMODO_MOTION_LATENT_DIM,
         "l2_normalized": True,
         "text_field": (
             None
             if motion_only
-            else ("prompt" if expression_turn_v8 else "canonical_prompt")
+            else (
+                "prompt"
+                if expression_turn_v8 or conversational_realization_v9
+                else "canonical_prompt"
+            )
         ),
         "episode_count": len(episodes),
         "conditioned_episode_count": len(semantic_episodes),
@@ -1263,8 +1523,12 @@ def build_random_18d_checkpoint(
                 if str(episode.get("prompt") or "").strip()
             }
         ),
-        "source": qwen_source,
-        "encoder_training_policy": "frozen_existing_lora",
+        **({"source": qwen_source} if qwen_source is not None else {}),
+        "encoder_training_policy": (
+            MOTION_ONLY_NO_QWEN_POLICY
+            if motion_only
+            else "frozen_existing_lora"
+        ),
     }
     if expression_turn_v8:
         text_contract_payload.update(
@@ -1283,6 +1547,17 @@ def build_random_18d_checkpoint(
                 "unqualified_text_policy": "prompt_absent_qwen_latent_zero",
             }
         )
+    elif conversational_realization_v9:
+        text_contract_payload.update(
+            {
+                "formal_episode_contract": formal_episode_contract,
+                "qualification_required": "verified_conversational_gesturing_realization",
+                "text_provenance": CONVERSATIONAL_PROMPT_TEXT_PROVENANCE,
+                "primary_intent_conditioned_count": 0,
+                "emotion_conditioned_count": 0,
+                "unqualified_text_policy": "not_applicable_all_rows_verified_realization",
+            }
+        )
     elif motion_only:
         text_contract_payload.update(
             {
@@ -1290,18 +1565,26 @@ def build_random_18d_checkpoint(
                 "qualification_required": None,
                 "conditioning_policy": "all_text_latents_exact_zero",
                 "metadata_text_use": "provenance_only_not_a_training_condition",
-                "unqualified_text_policy": "qwen_latent_zero",
+                "unqualified_text_policy": "reserved_text_motion_latent_exact_zero",
+                "qwen_checkpoint_bound": False,
+                "qwen_checkpoint_loaded": False,
             }
         )
     text_contract = _contract(text_contract_payload)
     evaluation_contract = _contract(
         {
             "contract_type": "ula_v2_random_baseline_non_oracle_evaluation",
-            "contract_version": 3 if motion_only else (2 if expression_turn_v8 else 1),
+            "contract_version": (
+                3
+                if motion_only or conversational_realization_v9
+                else (2 if expression_turn_v8 else 1)
+            ),
             "formal_episode_contract": formal_episode_contract,
             "primary_conditioning": (
                 "qualification_masked_blind_text_semantics_plus_blind_affect_default_style"
                 if expression_turn_v8
+                else "verified_ordinary_speaking_text_plus_trajectory_style"
+                if conversational_realization_v9
                 else (
                     "motion_only_zero_text_emotion_audio_default_style"
                     if motion_only
@@ -1328,11 +1611,23 @@ def build_random_18d_checkpoint(
             "interaction_model_selection_split": "validation",
             "interaction_final_report_split": "test_once_after_model_selection",
             "kimodo_policy": (
-                "original_validation_for_model_selection_and_disjoint_original_test_once"
+                MOTION_ONLY_NO_KIMODO_POLICY
+                if motion_only
+                else (
+                    "original_validation_for_model_selection_and_disjoint_original_test_once"
+                )
             ),
             "forgetting_guard": "not_applicable_no_pretrained_generator_baseline",
             "pretrained_comparison_policy": (
-                "same_data_same_split_same_qwen_same_sampling_seeds_separate_initialization"
+                (
+                    "same_beat2_data_fixed_split_no_qwen_same_sampling_seeds_"
+                    "separate_initialization"
+                )
+                if motion_only
+                else (
+                    "same_data_same_split_same_qwen_same_sampling_seeds_"
+                    "separate_initialization"
+                )
             ),
         }
     )
@@ -1413,6 +1708,36 @@ def build_random_18d_checkpoint(
                 ],
             }
         )
+    elif conversational_realization_v9:
+        semantic_supervision_contract = _contract(
+            {
+                "contract_type": "ula_v2_18d_conversational_realization_v9_supervision",
+                "contract_version": 1,
+                "formal_episode_contract": formal_episode_contract,
+                "motion_conditioned_count": len(episodes),
+                "motion_realization_conditioned_count": len(episodes),
+                "semantic_conditioned_count": len(episodes),
+                "primary_intent_conditioned_count": 0,
+                "emotion_conditioned_count": 0,
+                "audio_conditioned_count": 0,
+                "motion_realization_id": "conversational_gesturing",
+                "prompt_text_provenance": CONVERSATIONAL_PROMPT_TEXT_PROVENANCE,
+                "source_transcript_semantics_used": False,
+                "source_filename_semantics_used": False,
+                "condition_layout": (
+                    "style_133_136_plus_frozen_qwen_text_136_264_all_other_zero"
+                ),
+                "primary_intent_independent": True,
+                "emotion_independent": True,
+                "formal_optimization_targets": [
+                    "motion_flow_18d",
+                    "head_3dof",
+                    "trajectory_style",
+                    "ordinary_speaking_text_realization",
+                    "native_duration",
+                ],
+            }
+        )
     elif motion_only:
         semantic_supervision_contract = _contract(
             {
@@ -1431,7 +1756,9 @@ def build_random_18d_checkpoint(
                 "audio_conditioning_enabled": False,
                 "metadata_text_use": "provenance_only_not_a_training_condition",
                 "unqualified_channel_policy": "exact_zero_mask",
-                "condition_cache_schema_version": CONDITION_CACHE_SCHEMA_VERSION,
+                "condition_cache_schema_version": (
+                    MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION
+                ),
                 "formal_optimization_targets": [
                     "motion_flow_18d",
                     "head_3dof",
@@ -1484,17 +1811,65 @@ def build_random_18d_checkpoint(
                 ],
             }
         )
+    data_isolation_contract = (
+        _contract(
+            {
+                "contract_type": MOTION_ONLY_DATA_ISOLATION_CONTRACT_TYPE,
+                "contract_version": 1,
+                "formal_episode_contract": MOTION_ONLY_EPISODE_CONTRACT,
+                "dataset_family_whitelist": ["BEAT2"],
+                "motion_source_policy": "hash_bound_beat2_manifests_only",
+                "manifest_split_policy": "fixed_manifest_assignment_required",
+                DATA_SOURCE_REGISTRY_HASH_FIELD: data_source_registry["sha256"],
+                "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+                "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+                "generator_checkpoint_inputs": [],
+                "condition_policy": MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+                "condition_nonzero_indices": list(
+                    range(STYLE_CONTROL_SLICE.start, STYLE_CONTROL_SLICE.stop)
+                ),
+                "condition_exact_zero_ranges": [
+                    [0, STYLE_CONTROL_SLICE.start],
+                    [STYLE_CONTROL_SLICE.stop, KIMODO_V2_CONDITION_DIM],
+                ],
+            }
+        )
+        if motion_only
+        else None
+    )
     condition_contract = _contract(
         {
             "contract_type": "ula_v2_condition",
-            "contract_version": 4 if motion_only else (3 if expression_turn_v8 else 2),
+            "contract_version": (
+                4
+                if motion_only
+                else 3
+                if expression_turn_v8 or conversational_realization_v9
+                else 2
+            ),
             "formal_episode_contract": formal_episode_contract,
             "condition_dim": KIMODO_V2_CONDITION_DIM,
             "base_condition_dim": KIMODO_CONDITION_DIM,
             "motion_latent_dim": KIMODO_MOTION_LATENT_DIM,
             "layout": [
-                {"name": "explicit_semantics_with_style", "start": 0, "end": 136},
-                {"name": "qwen_lora_text_motion_latent", "start": 136, "end": 264},
+                {
+                    "name": (
+                        "reserved_zero_base_with_trajectory_style"
+                        if motion_only
+                        else "explicit_semantics_with_style"
+                    ),
+                    "start": 0,
+                    "end": 136,
+                },
+                {
+                    "name": (
+                        "reserved_zero_text_motion_latent"
+                        if motion_only
+                        else "qwen_lora_text_motion_latent"
+                    ),
+                    "start": 136,
+                    "end": 264,
+                },
             ],
             "style_control_indices": list(
                 range(STYLE_CONTROL_SLICE.start, STYLE_CONTROL_SLICE.stop)
@@ -1508,21 +1883,49 @@ def build_random_18d_checkpoint(
             "semantic_supervision_contract_sha256": (
                 semantic_supervision_contract["sha256"]
             ),
+            **(
+                {
+                    "motion_only_condition_policy": (
+                        MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY
+                    ),
+                    "exact_zero_ranges": [
+                        [0, STYLE_CONTROL_SLICE.start],
+                        [STYLE_CONTROL_SLICE.stop, KIMODO_V2_CONDITION_DIM],
+                    ],
+                    "data_isolation_contract_sha256": data_isolation_contract[
+                        "sha256"
+                    ],
+                }
+                if motion_only
+                else {}
+            ),
         }
     )
     contracts = _contract(
         {
-            "contract_version": 4 if motion_only else (3 if expression_turn_v8 else 2),
+            "contract_version": (
+                4
+                if motion_only
+                else 3
+                if expression_turn_v8 or conversational_realization_v9
+                else 2
+            ),
             "formal_episode_contract": formal_episode_contract,
             "split": split_contract,
             "action_statistics": action_stats_contract,
             "style": style_contract,
             "batching": batching_contract,
             "duration": duration_contract,
+            "data_source_registry": data_source_registry,
             "text_motion_latent": text_contract,
             "condition": condition_contract,
             "evaluation": evaluation_contract,
             "semantic_supervision": semantic_supervision_contract,
+            **(
+                {"data_isolation": data_isolation_contract}
+                if data_isolation_contract is not None
+                else {}
+            ),
         }
     )
 
@@ -1531,7 +1934,7 @@ def build_random_18d_checkpoint(
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(int(seed))
         model = create_ula_model(
-            ULA_MMDIT_V2_ARCHITECTURE,
+            architecture,
             action_dim=ACTION_DIM,
             condition_dim=KIMODO_V2_CONDITION_DIM,
             hidden_dim=int(hidden_dim),
@@ -1543,11 +1946,19 @@ def build_random_18d_checkpoint(
     state = {name: value.detach().cpu().clone() for name, value in model.state_dict().items()}
     state_sha256 = _state_sha256(state)
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
-    source_records = [dict(record) for record in source_provenance]
+    source_records = [
+        dict(record)
+        | {
+            "data_source_registration": registered_source(
+                record.get("dataset_source"), role=source_role
+            )
+        }
+        for record in source_provenance
+    ]
     checkpoint = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
         "artifact_kind": ARTIFACT_KIND,
-        "architecture": ULA_MMDIT_V2_ARCHITECTURE,
+        "architecture": architecture,
         "model_state_dict": state,
         "joint_order": list(JOINT_ORDER_18D),
         "condition_dim": KIMODO_V2_CONDITION_DIM,
@@ -1575,11 +1986,16 @@ def build_random_18d_checkpoint(
         ],
         "sources": {
             "motion_manifests": source_records,
-            "qwen_checkpoint_sha256": qwen_source["checkpoint_sha256"],
+            "data_source_registry": data_source_registry,
+            **(
+                {}
+                if motion_only
+                else {"qwen_checkpoint_sha256": qwen_source["checkpoint_sha256"]}
+            ),
         },
         "random_initialization": {
             "contract_version": RANDOM_INIT_CONTRACT_VERSION,
-            "mode": RANDOM_INIT_MODE,
+            "mode": random_initialization_mode,
             "seed": int(seed),
             "generator_checkpoint_inputs": [],
             "generator_parameter_count": int(parameter_count),
@@ -1587,7 +2003,16 @@ def build_random_18d_checkpoint(
             "matrix_initialization": "xavier_uniform_independent_per_parameter",
             "bias_initialization": "zeros",
             "normalization_initialization": "unit_scale_zero_bias",
-            "qwen_policy": "existing_lora_frozen_not_part_of_generator_state",
+            "qwen_policy": (
+                MOTION_ONLY_NO_QWEN_POLICY
+                if motion_only
+                else "existing_lora_frozen_not_part_of_generator_state"
+            ),
+            "kimodo_policy": (
+                MOTION_ONLY_NO_KIMODO_POLICY
+                if motion_only
+                else "not_part_of_generator_initialization"
+            ),
         },
         "planner_supervision_contract": {
             "duration_head_supervision": "native_output_sample_span_(N-1)/fps",
@@ -1604,13 +2029,13 @@ def build_random_18d_checkpoint(
             "missing_transition_policy": "mask_false_no_default_end_label",
         },
         "config": {
-            "architecture": ULA_MMDIT_V2_ARCHITECTURE,
+            "architecture": architecture,
             "hidden_dim": int(hidden_dim),
             "layers": int(layers),
             "semantic_tokens": int(semantic_tokens),
             "seed": int(seed),
             "action_dim": ACTION_DIM,
-            "initialization_mode": RANDOM_INIT_MODE,
+            "initialization_mode": random_initialization_mode,
             "fixed_window_training": False,
             "formal_episode_contract": formal_episode_contract,
         },
@@ -1624,11 +2049,20 @@ def build_random_18d_checkpoint(
         "generator_parameter_count": int(parameter_count),
         "generator_state_sha256": state_sha256,
         "initialization_seed": int(seed),
-        "qwen_checkpoint_sha256": qwen_source["checkpoint_sha256"],
+        **(
+            {
+                "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+                "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+                "data_isolation_contract_sha256": data_isolation_contract["sha256"],
+            }
+            if motion_only
+            else {"qwen_checkpoint_sha256": qwen_source["checkpoint_sha256"]}
+        ),
         "generator_checkpoint_inputs": [],
         "split_counts": {name: len(splits[name]) for name in splits},
         "formal_episode_contract": formal_episode_contract,
         "split_contract_sha256": split_contract["sha256"],
+        DATA_SOURCE_REGISTRY_HASH_FIELD: data_source_registry["sha256"],
         "semantic_supervision_contract_sha256": (
             semantic_supervision_contract["sha256"]
         ),
@@ -1638,11 +2072,11 @@ def build_random_18d_checkpoint(
         "action_statistics_contract_sha256": action_stats_contract["sha256"],
         "style_statistics_fit_split": "train",
         "style_contract_sha256": style_contract["sha256"],
-            "variable_length_contract_sha256": batching_contract["sha256"],
+        "variable_length_contract_sha256": batching_contract["sha256"],
         "duration_contract_sha256": duration_contract["sha256"],
         "formal_training_started": False,
         "forgetting_guard_applicable": False,
-        "kimodo_holdout_required": True,
+        "kimodo_holdout_required": not motion_only,
         "primary_evaluation": evaluation_contract["primary_conditioning"],
     }
     if expression_turn_v8:
@@ -1660,6 +2094,7 @@ __all__ = [
     "DEFAULT_LENGTH_BUCKETS",
     "FORMAL_SEMANTIC_EVENT_SELECTION_STATUS",
     "PROJECT_BEHAVIOR_MAPPING_SOURCE",
+    "MOTION_ONLY_RANDOM_INIT_MODE",
     "RANDOM_INIT_MODE",
     "VARIABLE_SEGMENT_REPRESENTATION",
     "build_length_bucket_contract",

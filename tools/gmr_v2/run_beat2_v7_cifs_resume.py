@@ -16,7 +16,7 @@ from tools.gmr_v2 import batch_retarget_beat2_v2 as ordinary
 
 
 EXPECTED_ORDINARY_SHA256 = "cd3dd79c4420d7eeea3ce11a96a85b9453907976cae8e9f3049e078170c0f652"
-EXPECTED_GROUPED_SHA256 = "f0074203beeb226dd68609811cfbd0dfa1c10dfb79e139984b9b3993677bd49d"
+EXPECTED_GROUPED_SHA256 = "38f2614e6d13b2ddb68ca8ce65314a8d14dfda2640d50cccfc0455f2c5f7e086"
 AUDIT_NAME = "cifs_manifest_recovery_audit.json"
 
 

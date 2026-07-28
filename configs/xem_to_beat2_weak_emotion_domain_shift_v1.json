@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_kind": "xem_to_beat2_weak_emotion_domain_shift_config_v1",
+  "research_scope": "isolated_cross_dataset_emotion_screening_research_only",
+  "xem_archive_path": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/xem_v1/xem-dataset-assembled.zip",
+  "expected_xem_archive_sha256": "5ac22069ea03d5fce08bc4399c5287e9a6ec13e4d8cbdd581aa47af5bc7f3d3b",
+  "xem_metadata_path": "/home/gez/nas/cloud/gez/human_motion/external_emotion_research/xem_v1/dataverse_metadata.json",
+  "expected_xem_metadata_sha256": "10debdb664d2cbd52f6a5f748229d2df0af2efdd4cf42baf76f5aaf9c71ed686",
+  "xem_mat_member": "matlab/Data.mat",
+  "xem_mat_variable": "VelocityData",
+  "beat2_manifest_path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+  "expected_beat2_manifest_sha256": "2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd",
+  "overlapping_emotions": ["angry", "neutral", "happy", "sad"],
+  "ridge_alphas": [0.01, 0.1, 1.0, 10.0, 100.0],
+  "bootstrap_replicates": 2000,
+  "seed": 20260727,
+  "output_root": "../deliverables/external_emotion_research/xem_to_beat2_weak_emotion_domain_shift_v1"
+}

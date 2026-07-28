@@ -24,6 +24,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from upper_body_skeleton.data_source_registry import (
+    DATA_SOURCE_REGISTRY_HASH_FIELD,
+    GENERATOR_FOUNDATION_ROLE,
+    assert_no_forbidden_data_lineage,
+    validate_contract_source_binding,
+    validate_data_source_registry_contract,
+)
 from upper_body_skeleton.kimodo_semantics import (
     KIMODO_BEHAVIOR_FAMILIES,
     KIMODO_BEHAVIOR_IDS,
@@ -46,6 +53,7 @@ from upper_body_skeleton.ula_training import (
     LEGACY_CONDITION_DIM,
     STYLE_IDS,
     ULA_MMDIT_V2_ARCHITECTURE,
+    ULA_MMDIT_V3_ADALN_ARCHITECTURE,
     build_condition_from_text,
     create_ula_model,
     sample_span_to_frame_count,
@@ -61,6 +69,9 @@ ACTION_DIM = len(JOINT_ORDER_18D)
 HEAD_SLICE = slice(LEGACY_ACTION_DIM, ACTION_DIM)
 CHECKPOINT_SCHEMA_VERSION = 2
 ARTIFACT_KIND = "ula_mmdit_v2_generator"
+SUPPORTED_GENERATOR_ARCHITECTURES = frozenset(
+    {ULA_MMDIT_V2_ARCHITECTURE, ULA_MMDIT_V3_ADALN_ARCHITECTURE}
+)
 ADAPTER_POLICY = "new_input_columns_and_output_rows_only_v1"
 LEGACY_FORWARD_ATOL = 1e-5
 BODY_DISTILLATION_WEIGHT = 1.0
@@ -78,6 +89,21 @@ DEFAULT_QWEN_CHECKPOINT = Path(
     "training/runs/kimodo_qwen_motion_latent_lora_v2/best.pt"
 )
 CONDITION_CACHE_SCHEMA_VERSION = 3
+MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION = 1
+MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND = (
+    "ula_v2_18d_motion_only_style_condition_cache"
+)
+MOTION_ONLY_NO_QWEN_POLICY = "disabled_not_configured_not_loaded_v1"
+MOTION_ONLY_NO_KIMODO_POLICY = (
+    "forbidden_dataset_checkpoint_replay_and_condition_channels_v1"
+)
+MOTION_ONLY_RANDOM_INIT_MODE = "full_generator_random_no_qwen_no_kimodo_v1"
+MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY = (
+    "trajectory_style_indices_133_136_only_all_other_dimensions_exact_zero_v1"
+)
+MOTION_ONLY_DATA_ISOLATION_CONTRACT_TYPE = (
+    "ula_v2_18d_beat2_only_no_kimodo_no_qwen"
+)
 FORMAL_ADJUDICATION_SCHEMA_VERSION = "1.2.0"
 FORMAL_RELEASE_REPORT_FILENAME = "dataset_scale_report.json"
 MOTION_ONLY_EPISODE_CONTRACT = "ula_v2_18d_motion_only_physical_qc_v1"
@@ -281,11 +307,174 @@ def _checkpoint_model_shape(checkpoint: Mapping) -> dict:
     }
 
 
+def validate_motion_only_style_condition(
+    condition,
+    *,
+    context: str = "motion-only condition",
+) -> np.ndarray:
+    """Require an exact-zero 264D condition outside trajectory style controls."""
+    value = np.asarray(condition, dtype=np.float32)
+    if value.shape[-1:] != (KIMODO_V2_CONDITION_DIM,):
+        raise ValueError(
+            f"{context} must end in {KIMODO_V2_CONDITION_DIM} dimensions"
+        )
+    if not np.isfinite(value).all():
+        raise ValueError(f"{context} contains non-finite values")
+    if np.any(value[..., : STYLE_CONTROL_SLICE.start] != 0.0) or np.any(
+        value[..., STYLE_CONTROL_SLICE.stop :] != 0.0
+    ):
+        raise ValueError(
+            f"{context} must be exactly zero outside trajectory style indices "
+            f"{STYLE_CONTROL_SLICE.start}:{STYLE_CONTROL_SLICE.stop}"
+        )
+    return value
+
+
+def validate_motion_only_checkpoint_isolation(checkpoint: Mapping) -> dict:
+    """Fail closed unless a motion-only checkpoint proves BEAT2-only isolation."""
+    assert_no_forbidden_data_lineage(
+        checkpoint, context="motion_only_checkpoint"
+    )
+    if checkpoint.get("formal_episode_contract") != MOTION_ONLY_EPISODE_CONTRACT:
+        raise ValueError("checkpoint is not a motion-only formal generator")
+    contracts = checkpoint.get("v2_contracts")
+    if not isinstance(contracts, Mapping):
+        raise ValueError("motion-only checkpoint lacks its aggregate contracts")
+    isolation = contracts.get("data_isolation")
+    expected = {
+        "contract_type": MOTION_ONLY_DATA_ISOLATION_CONTRACT_TYPE,
+        "contract_version": 1,
+        "formal_episode_contract": MOTION_ONLY_EPISODE_CONTRACT,
+        "dataset_family_whitelist": ["BEAT2"],
+        "motion_source_policy": "hash_bound_beat2_manifests_only",
+        "manifest_split_policy": "fixed_manifest_assignment_required",
+        "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+        "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+        "generator_checkpoint_inputs": [],
+        "condition_policy": MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+        "condition_nonzero_indices": list(
+            range(STYLE_CONTROL_SLICE.start, STYLE_CONTROL_SLICE.stop)
+        ),
+        "condition_exact_zero_ranges": [
+            [0, STYLE_CONTROL_SLICE.start],
+            [STYLE_CONTROL_SLICE.stop, KIMODO_V2_CONDITION_DIM],
+        ],
+    }
+    if not isinstance(isolation, Mapping):
+        raise ValueError("motion-only checkpoint lacks its data-isolation contract")
+    if {key: isolation.get(key) for key in expected} != expected:
+        raise ValueError("motion-only checkpoint data-isolation policy changed")
+    if isolation.get("sha256") != _contract_sha256(isolation):
+        raise ValueError("motion-only checkpoint data-isolation hash is invalid")
+
+    split_contract = contracts.get("split")
+    if not isinstance(split_contract, Mapping) or split_contract.get(
+        "assignment_policy"
+    ) != "fixed_pre_quarantine_assignment":
+        raise ValueError("motion-only checkpoint must use fixed manifest split assignments")
+
+    sources = checkpoint.get("sources")
+    if not isinstance(sources, Mapping):
+        raise ValueError("motion-only checkpoint source contract is missing")
+    forbidden_qwen_fields = {
+        "qwen_checkpoint",
+        "qwen_checkpoint_sha256",
+        "qwen_model_name",
+        "qwen_revision",
+    }
+    if (
+        forbidden_qwen_fields.intersection(sources)
+        or forbidden_qwen_fields.intersection(checkpoint)
+        or forbidden_qwen_fields.intersection(checkpoint.get("config") or {})
+    ):
+        raise ValueError("motion-only checkpoint must not bind a Qwen checkpoint")
+    text_contract = contracts.get("text_motion_latent")
+    if (
+        not isinstance(text_contract, Mapping)
+        or text_contract.get("contract_type")
+        != "ula_v2_reserved_zero_text_motion_latent"
+        or text_contract.get("encoder_training_policy") != MOTION_ONLY_NO_QWEN_POLICY
+        or "source" in text_contract
+    ):
+        raise ValueError("motion-only checkpoint text reserve is not Qwen-free")
+    condition_contract = contracts.get("condition")
+    if (
+        not isinstance(condition_contract, Mapping)
+        or condition_contract.get("motion_only_condition_policy")
+        != MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY
+        or condition_contract.get("exact_zero_ranges")
+        != expected["condition_exact_zero_ranges"]
+        or condition_contract.get("data_isolation_contract_sha256")
+        != isolation.get("sha256")
+    ):
+        raise ValueError("motion-only checkpoint condition isolation changed")
+    source_records = sources.get("motion_manifests")
+    if not isinstance(source_records, list) or not source_records:
+        raise ValueError("motion-only checkpoint requires hash-bound BEAT2 manifests")
+    for index, record in enumerate(source_records):
+        gate = record.get("license_gate") if isinstance(record, Mapping) else None
+        dataset_source = (
+            str(record.get("dataset_source") or "").strip().lower()
+            if isinstance(record, Mapping)
+            else ""
+        )
+        if (
+            not isinstance(record, Mapping)
+            or not dataset_source.startswith(("beat2_", "beat2-"))
+            or not isinstance(gate, Mapping)
+            or str(gate.get("dataset_family") or "").strip().upper() != "BEAT2"
+            or not _is_sha256(record.get("manifest_sha256"))
+            or record.get("manifest_fixed_split") is not True
+            or not _is_sha256(record.get("fixed_split_assignment_sha256"))
+        ):
+            raise ValueError(
+                f"motion-only checkpoint source {index} is not a fixed-split "
+                "hash-bound BEAT2 manifest"
+            )
+    registry_contract = sources.get("data_source_registry")
+    if registry_contract is not None:
+        dataset_sources = [record["dataset_source"] for record in source_records]
+        registry_contract = validate_data_source_registry_contract(
+            registry_contract,
+            expected_role=GENERATOR_FOUNDATION_ROLE,
+            expected_dataset_sources=dataset_sources,
+        )
+        if contracts.get("data_source_registry") != registry_contract:
+            raise ValueError(
+                "motion-only checkpoint registry copies are inconsistent"
+            )
+        for name, contract in (
+            ("split", split_contract),
+            ("action statistics", contracts.get("action_statistics")),
+            ("style normalization", contracts.get("style")),
+            ("duration", contracts.get("duration")),
+            ("data isolation", isolation),
+        ):
+            validate_contract_source_binding(
+                contract,
+                registry_contract,
+                context=f"motion_only_checkpoint.{name}",
+            )
+
+    random_initialization = checkpoint.get("random_initialization")
+    if not isinstance(random_initialization, Mapping) or (
+        random_initialization.get("mode") != MOTION_ONLY_RANDOM_INIT_MODE
+        or random_initialization.get("qwen_policy") != MOTION_ONLY_NO_QWEN_POLICY
+        or random_initialization.get("kimodo_policy") != MOTION_ONLY_NO_KIMODO_POLICY
+        or random_initialization.get("generator_checkpoint_inputs") != []
+    ):
+        raise ValueError("motion-only random initialization isolation policy changed")
+    return dict(isolation)
+
+
 def validate_checkpoint_contract(checkpoint: Mapping, *, expected_action_dim=None) -> list[str]:
     """Validate either the legacy 15D or append-only 18D checkpoint contract."""
+    assert_no_forbidden_data_lineage(
+        checkpoint, context="generator_checkpoint"
+    )
     if checkpoint.get("artifact_kind") != ARTIFACT_KIND:
         raise ValueError(f"unexpected checkpoint artifact_kind: {checkpoint.get('artifact_kind')!r}")
-    if checkpoint.get("architecture") != ULA_MMDIT_V2_ARCHITECTURE:
+    if checkpoint.get("architecture") not in SUPPORTED_GENERATOR_ARCHITECTURES:
         raise ValueError(f"unexpected architecture: {checkpoint.get('architecture')!r}")
     if int(checkpoint.get("condition_dim", -1)) != KIMODO_V2_CONDITION_DIM:
         raise ValueError(
@@ -328,6 +517,8 @@ def validate_checkpoint_contract(checkpoint: Mapping, *, expected_action_dim=Non
             raise ValueError(f"checkpoint action_stats.{name} must be finite [{action_dim}]")
     if torch.any(torch.as_tensor(stats["std"]) <= 0):
         raise ValueError("checkpoint action_stats.std must be positive")
+    if checkpoint.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT:
+        validate_motion_only_checkpoint_isolation(checkpoint)
     return expected_order
 
 
@@ -2077,6 +2268,15 @@ def load_18d_episodes(
     """Load strict 18D CSV episodes from a merged manifest or a motion-root/semantics pair."""
     if manifest is None and (motion_root is None or semantics is None):
         raise ValueError("provide --manifest or both --motion-root and --semantics")
+    for field, value in (
+        ("manifest", manifest),
+        ("motion_root", motion_root),
+        ("semantics", semantics),
+    ):
+        if value is not None:
+            assert_no_forbidden_data_lineage(
+                {field: str(value)}, context="18d_episode_loader"
+            )
     if manifest is not None:
         manifest_path = Path(manifest)
         source_records = _read_jsonl(manifest_path)
@@ -2103,6 +2303,9 @@ def load_18d_episodes(
     seen = set()
     release_report_validated = False
     for record in source_records:
+        assert_no_forbidden_data_lineage(
+            record, context="18d_episode_manifest_record"
+        )
         clip_id = str(record.get("clip_id") or record.get("sample_id") or "").strip()
         if not clip_id or clip_id in seen:
             raise ValueError(f"missing or duplicate clip_id: {clip_id!r}")
@@ -2322,6 +2525,10 @@ def load_18d_episodes(
                 ),
                 "formal_source_metadata": formal_source_metadata,
                 "source_record_sha256": source_record_sha256,
+                "fixed_split_assignment": (
+                    record.get("fixed_split_assignment")
+                    or split.get("assignment")
+                ),
                 "split_assignment": split.get("assignment"),
                 "eval_eligible": bool(split.get("eval_eligible", False)),
             }
@@ -2625,10 +2832,352 @@ def build_condition_cache(
     return metadata
 
 
+def build_motion_only_condition_cache(
+    episodes: Sequence[Mapping],
+    output_path: str | Path,
+    *,
+    base_checkpoint: str | Path,
+) -> dict:
+    """Build a BEAT2 motion-only cache without importing or loading Qwen."""
+    output_path = Path(output_path)
+    if output_path.suffix != ".npz":
+        raise ValueError("condition cache output must use the .npz suffix")
+    if not episodes:
+        raise ValueError("at least one motion-only 18D episode is required")
+    clip_ids = [
+        str(item.get("clip_id") or item.get("sample_id") or "").strip()
+        for item in episodes
+    ]
+    if any(not clip_id for clip_id in clip_ids) or len(set(clip_ids)) != len(
+        clip_ids
+    ):
+        raise ValueError("motion-only cache requires unique non-empty clip ids")
+    prompts = [_resolve_prompt(item) for item in episodes]
+    for clip_id, episode in zip(clip_ids, episodes, strict=True):
+        if episode.get("formal_episode_contract") != MOTION_ONLY_EPISODE_CONTRACT:
+            raise ValueError(f"{clip_id}: cache input is not motion-only")
+        if episode.get("behavior_supervision_mask") is not False:
+            raise ValueError(f"{clip_id}: behavior supervision must be disabled")
+        for field in (
+            "emotion_supervision_mask",
+            "affect_observable_supervision_mask",
+            "emotion_conditioning_mask",
+            "official_category_conditioning_enabled",
+            "official_emotion_conditioning_enabled",
+        ):
+            if episode.get(field) is not False:
+                raise ValueError(f"{clip_id}: {field} must be false")
+        if episode.get("semantic_supervision_masks") != (
+            FORMAL_SEMANTIC_SUPERVISION_MASKS
+        ):
+            raise ValueError(f"{clip_id}: every semantic channel must be masked")
+        if episode.get("fixed_split_assignment") not in {
+            "train",
+            "validation",
+            "test",
+        }:
+            raise ValueError(f"{clip_id}: fixed manifest split is missing")
+
+    generator_checkpoint, style_contract = _load_target_generator_contract(
+        base_checkpoint
+    )
+    validate_motion_only_checkpoint_isolation(generator_checkpoint)
+    split_contract = (generator_checkpoint.get("v2_contracts") or {}).get("split")
+    data_source_registry = (
+        (generator_checkpoint.get("sources") or {}).get(
+            "data_source_registry"
+        )
+    )
+    if data_source_registry is not None:
+        data_source_registry = validate_data_source_registry_contract(
+            data_source_registry,
+            expected_role=GENERATOR_FOUNDATION_ROLE,
+            expected_dataset_sources=[
+                episode.get("dataset_source") for episode in episodes
+            ],
+        )
+    split_assignment = {
+        str(record.get("clip_id")): record.get("split")
+        for record in (split_contract or {}).get("episodes") or ()
+    }
+    if split_assignment != {
+        clip_id: episode.get("fixed_split_assignment")
+        for clip_id, episode in zip(clip_ids, episodes, strict=True)
+    }:
+        raise ValueError(
+            "motion-only cache episodes do not match the checkpoint fixed split"
+        )
+
+    style_features = []
+    style_controls = []
+    for clip_id, episode in zip(clip_ids, episodes, strict=True):
+        actions = np.asarray(episode.get("actions"), dtype=np.float32)
+        if (
+            actions.ndim != 2
+            or actions.shape[1] != ACTION_DIM
+            or actions.shape[0] < 2
+            or not np.isfinite(actions).all()
+        ):
+            raise ValueError(f"{clip_id}: motion-only cache requires finite 18D actions")
+        features = extract_style_features(
+            actions[:, :LEGACY_ACTION_DIM],
+            fps=float(episode.get("fps") or 30.0),
+        )
+        style_features.append(features)
+        style_controls.append(normalize_style_features(features, style_contract))
+    style_features_array = np.stack(style_features).astype(np.float32)
+    style_controls_array = np.stack(style_controls).astype(np.float32)
+    conditions = np.zeros(
+        (len(episodes), KIMODO_V2_CONDITION_DIM), dtype=np.float32
+    )
+    conditions[:, STYLE_CONTROL_SLICE] = style_controls_array
+    validate_motion_only_style_condition(
+        conditions, context="motion-only condition cache"
+    )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        output_path,
+        clip_ids=np.asarray(clip_ids),
+        prompts=np.asarray(prompts),
+        conditions=conditions,
+        style_features=style_features_array,
+        style_controls=style_controls_array,
+    )
+    metadata = {
+        "schema_version": MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION,
+        "artifact_kind": MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND,
+        "formal_episode_contract": MOTION_ONLY_EPISODE_CONTRACT,
+        "condition_dim": KIMODO_V2_CONDITION_DIM,
+        "count": len(episodes),
+        "generator_checkpoint": str(Path(base_checkpoint).resolve()),
+        "generator_checkpoint_sha256": sha256_file(base_checkpoint),
+        "style_contract_sha256": style_contract["sha256"],
+        "split_contract_sha256": split_contract["sha256"],
+        **(
+            {
+                "data_source_registry": data_source_registry,
+                DATA_SOURCE_REGISTRY_HASH_FIELD: data_source_registry["sha256"],
+            }
+            if data_source_registry is not None
+            else {}
+        ),
+        "cache_sha256": sha256_file(output_path),
+        "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+        "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+        "condition_policy": MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+        "condition_nonzero_indices": list(
+            range(STYLE_CONTROL_SLICE.start, STYLE_CONTROL_SLICE.stop)
+        ),
+        "condition_exact_zero_ranges": [
+            [0, STYLE_CONTROL_SLICE.start],
+            [STYLE_CONTROL_SLICE.stop, KIMODO_V2_CONDITION_DIM],
+        ],
+        "episodes": [
+            {
+                "clip_id": clip_id,
+                "dataset_source": episode.get("dataset_source"),
+                "source_manifest_sha256": episode.get(
+                    "source_manifest_sha256"
+                ),
+                "source_record_sha256": episode.get("source_record_sha256"),
+                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                "fixed_split_assignment": episode["fixed_split_assignment"],
+                "trajectory_sha256": episode.get("trajectory_sha256"),
+                "style_features": features.tolist(),
+                "style_controls": controls.tolist(),
+            }
+            for clip_id, prompt, episode, features, controls in zip(
+                clip_ids,
+                prompts,
+                episodes,
+                style_features_array,
+                style_controls_array,
+                strict=True,
+            )
+        ],
+    }
+    _atomic_json_save(metadata, output_path.with_suffix(output_path.suffix + ".json"))
+    return metadata
+
+
+def _validate_motion_only_cache_metadata(
+    cache_metadata: Mapping,
+    *,
+    metadata_path: Path,
+    actual_cache_sha256: str,
+    clip_ids: Sequence[str],
+    prompts: Sequence[str],
+    conditions: np.ndarray,
+    style_features,
+    style_controls,
+    structured_payload_present: bool,
+    semantic_payload_present: bool,
+    affect_payload_present: bool,
+) -> dict:
+    assert_no_forbidden_data_lineage(
+        cache_metadata, context="motion_only_condition_cache"
+    )
+    exact = {
+        "schema_version": MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION,
+        "artifact_kind": MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND,
+        "formal_episode_contract": MOTION_ONLY_EPISODE_CONTRACT,
+        "condition_dim": KIMODO_V2_CONDITION_DIM,
+        "count": len(clip_ids),
+        "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+        "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+        "condition_policy": MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+        "condition_nonzero_indices": list(
+            range(STYLE_CONTROL_SLICE.start, STYLE_CONTROL_SLICE.stop)
+        ),
+        "condition_exact_zero_ranges": [
+            [0, STYLE_CONTROL_SLICE.start],
+            [STYLE_CONTROL_SLICE.stop, KIMODO_V2_CONDITION_DIM],
+        ],
+    }
+    if any(cache_metadata.get(field) != expected for field, expected in exact.items()):
+        raise ValueError("motion-only condition cache isolation contract changed")
+    forbidden_qwen_fields = {
+        "qwen_checkpoint",
+        "qwen_checkpoint_sha256",
+        "qwen_model_name",
+        "qwen_revision",
+    }
+    if forbidden_qwen_fields.intersection(cache_metadata):
+        raise ValueError("motion-only condition cache must not bind Qwen")
+    if structured_payload_present or semantic_payload_present or affect_payload_present:
+        raise ValueError(
+            "motion-only condition cache must not carry semantic condition payloads"
+        )
+    if cache_metadata.get("cache_sha256") != actual_cache_sha256:
+        raise ValueError("motion-only condition cache hash does not match metadata")
+    validate_motion_only_style_condition(
+        conditions, context="motion-only condition cache"
+    )
+    if (
+        not isinstance(style_features, np.ndarray)
+        or not isinstance(style_controls, np.ndarray)
+        or style_features.shape != (len(clip_ids), 3)
+        or style_controls.shape != (len(clip_ids), 3)
+        or not np.isfinite(style_features).all()
+        or not np.isfinite(style_controls).all()
+    ):
+        raise ValueError("motion-only cache has invalid trajectory style arrays")
+
+    generator_value = cache_metadata.get("generator_checkpoint")
+    if not isinstance(generator_value, str) or not generator_value.strip():
+        raise ValueError("motion-only cache lacks its target random checkpoint")
+    generator_path = Path(generator_value)
+    if not generator_path.is_absolute():
+        generator_path = metadata_path.parent / generator_path
+    if not generator_path.is_file():
+        raise FileNotFoundError(
+            f"motion-only cache generator checkpoint is missing: {generator_path}"
+        )
+    generator_sha256 = sha256_file(generator_path)
+    if cache_metadata.get("generator_checkpoint_sha256") != generator_sha256:
+        raise ValueError("motion-only cache generator checkpoint hash changed")
+    generator_checkpoint, style_contract = _load_target_generator_contract(
+        generator_path
+    )
+    validate_motion_only_checkpoint_isolation(generator_checkpoint)
+    split_contract = (generator_checkpoint.get("v2_contracts") or {}).get("split")
+    generator_registry = (
+        (generator_checkpoint.get("sources") or {}).get(
+            "data_source_registry"
+        )
+    )
+    cache_registry = cache_metadata.get("data_source_registry")
+    if generator_registry is not None:
+        generator_registry = validate_data_source_registry_contract(
+            generator_registry,
+            expected_role=GENERATOR_FOUNDATION_ROLE,
+        )
+        cache_registry = validate_data_source_registry_contract(
+            cache_registry,
+            expected_role=GENERATOR_FOUNDATION_ROLE,
+        )
+        if (
+            cache_registry != generator_registry
+            or cache_metadata.get(DATA_SOURCE_REGISTRY_HASH_FIELD)
+            != generator_registry["sha256"]
+        ):
+            raise ValueError(
+                "motion-only cache data-source registry binding changed"
+            )
+    elif cache_registry is not None:
+        raise ValueError(
+            "legacy generator cannot acquire an unbound cache source registry"
+        )
+    if (
+        cache_metadata.get("style_contract_sha256") != style_contract["sha256"]
+        or cache_metadata.get("split_contract_sha256")
+        != (split_contract or {}).get("sha256")
+    ):
+        raise ValueError("motion-only cache style/split binding changed")
+
+    episode_metadata = cache_metadata.get("episodes")
+    if not isinstance(episode_metadata, list) or len(episode_metadata) != len(
+        clip_ids
+    ):
+        raise ValueError("motion-only cache episode metadata count is invalid")
+    split_assignment = {
+        str(record.get("clip_id")): record.get("split")
+        for record in (split_contract or {}).get("episodes") or ()
+    }
+    split_dataset_source = {
+        str(record.get("clip_id")): record.get("dataset_source")
+        for record in (split_contract or {}).get("episodes") or ()
+    }
+    for index, (clip_id, prompt) in enumerate(
+        zip(clip_ids, prompts, strict=True)
+    ):
+        record = episode_metadata[index]
+        if (
+            not isinstance(record, Mapping)
+            or record.get("clip_id") != clip_id
+            or record.get("prompt_sha256")
+            != hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            or record.get("fixed_split_assignment") != split_assignment.get(clip_id)
+            or not _is_sha256(record.get("trajectory_sha256"))
+        ):
+            raise ValueError("motion-only cache episode lineage changed")
+        if generator_registry is not None and (
+            record.get("dataset_source") != split_dataset_source.get(clip_id)
+            or not _is_sha256(record.get("source_manifest_sha256"))
+            or not _is_sha256(record.get("source_record_sha256"))
+        ):
+            raise ValueError(
+                "motion-only cache episode data-source lineage changed"
+            )
+        recorded_features = np.asarray(record.get("style_features"), dtype=np.float32)
+        recorded_controls = np.asarray(record.get("style_controls"), dtype=np.float32)
+        if (
+            not np.array_equal(recorded_features, style_features[index])
+            or not np.array_equal(recorded_controls, style_controls[index])
+            or not np.array_equal(
+                normalize_style_features(recorded_features, style_contract),
+                recorded_controls,
+            )
+            or not np.array_equal(
+                conditions[index, STYLE_CONTROL_SLICE], recorded_controls
+            )
+        ):
+            raise ValueError("motion-only cache trajectory style binding changed")
+    return {
+        **dict(cache_metadata),
+        "generator_checkpoint": str(generator_path.resolve()),
+        "unsafe_condition_cache": False,
+    }
+
+
 def load_condition_cache(
     cache_path: str | Path, *, allow_unsafe_metadata=False
 ) -> tuple[list[str], list[str], np.ndarray, dict]:
     cache_path = Path(cache_path)
+    assert_no_forbidden_data_lineage(
+        {"cache_path": str(cache_path)}, context="condition_cache"
+    )
     with np.load(cache_path, allow_pickle=False) as payload:
         clip_ids = payload["clip_ids"].astype(str).tolist()
         prompts = payload["prompts"].astype(str).tolist()
@@ -2639,9 +3188,8 @@ def load_condition_cache(
             "behavior_supervision_mask",
             "emotion_ids",
             "emotion_supervision_mask",
-            "style_features",
-            "style_controls",
         }
+        style_names = {"style_features", "style_controls"}
         semantic_mask_names = {
             "canonical_prompt_roles",
             "official_category_supervision_mask",
@@ -2670,11 +3218,16 @@ def load_condition_cache(
             if raw_supervision_mask.dtype != np.dtype(np.bool_):
                 raise ValueError("condition cache emotion supervision mask must be boolean")
             emotion_supervision_mask = raw_supervision_mask.tolist()
-            style_features = payload["style_features"].astype(np.float32)
-            style_controls = payload["style_controls"].astype(np.float32)
         else:
             behavior_ids = behavior_review_statuses = behavior_supervision_mask = None
             emotion_ids = emotion_supervision_mask = None
+        present_style_names = style_names.intersection(payload.files)
+        if present_style_names and present_style_names != style_names:
+            raise ValueError("condition cache has an incomplete trajectory style payload")
+        if present_style_names:
+            style_features = payload["style_features"].astype(np.float32)
+            style_controls = payload["style_controls"].astype(np.float32)
+        else:
             style_features = style_controls = None
         present_semantic_mask_names = semantic_mask_names.intersection(payload.files)
         if present_semantic_mask_names and present_semantic_mask_names != semantic_mask_names:
@@ -2725,6 +3278,34 @@ def load_condition_cache(
     metadata_path = cache_path.with_suffix(cache_path.suffix + ".json")
     if metadata_path.is_file():
         cache_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        assert_no_forbidden_data_lineage(
+            cache_metadata, context="condition_cache.metadata"
+        )
+        if (
+            cache_metadata.get("artifact_kind")
+            == MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND
+        ):
+            cache_metadata = _validate_motion_only_cache_metadata(
+                cache_metadata,
+                metadata_path=metadata_path,
+                actual_cache_sha256=actual_cache_sha256,
+                clip_ids=clip_ids,
+                prompts=prompts,
+                conditions=conditions,
+                style_features=style_features,
+                style_controls=style_controls,
+                structured_payload_present=behavior_ids is not None,
+                semantic_payload_present=canonical_prompt_roles is not None,
+                affect_payload_present=(
+                    affect_observable_review_statuses is not None
+                ),
+            )
+            cache_metadata = {
+                **cache_metadata,
+                "path": str(cache_path.resolve()),
+                "metadata_path": str(metadata_path.resolve()),
+            }
+            return clip_ids, prompts, conditions, cache_metadata
         metadata_schema = cache_metadata.get("schema_version")
         if metadata_schema not in (1, 2, CONDITION_CACHE_SCHEMA_VERSION):
             raise ValueError("condition cache metadata has an unsupported schema version")
@@ -3147,8 +3728,21 @@ def attach_condition_cache(
         for record in cache_metadata.get("episodes", [])
         if isinstance(record, Mapping) and "behavior_id" in record
     }
+    motion_only_cache = (
+        cache_metadata.get("artifact_kind")
+        == MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND
+    )
+    motion_only_by_clip = (
+        {
+            str(record.get("clip_id")): record
+            for record in cache_metadata.get("episodes", [])
+            if isinstance(record, Mapping)
+        }
+        if motion_only_cache
+        else {}
+    )
     style_contract = None
-    if semantic_by_clip:
+    if semantic_by_clip or motion_only_cache:
         _, style_contract = _load_target_generator_contract(
             cache_metadata["generator_checkpoint"]
         )
@@ -3161,6 +3755,56 @@ def attach_condition_cache(
         if cached_prompt != _resolve_prompt(episode):
             raise ValueError(f"condition cache prompt changed for {clip_id}")
         item = dict(episode)
+        if motion_only_cache:
+            if (
+                episode.get("formal_episode_contract")
+                != MOTION_ONLY_EPISODE_CONTRACT
+                or clip_id not in motion_only_by_clip
+            ):
+                raise ValueError(
+                    f"motion-only cache cannot attach to non-motion episode {clip_id}"
+                )
+            validate_motion_only_style_condition(
+                condition, context=f"{clip_id}: motion-only cached condition"
+            )
+            cached_record = motion_only_by_clip[clip_id]
+            if (
+                episode.get("fixed_split_assignment")
+                != cached_record.get("fixed_split_assignment")
+                or episode.get("trajectory_sha256")
+                != cached_record.get("trajectory_sha256")
+            ):
+                raise ValueError(
+                    f"motion-only cache fixed split/trajectory changed for {clip_id}"
+                )
+            actions = np.asarray(episode.get("actions"), dtype=np.float32)
+            if actions.ndim != 2 or actions.shape[1] != ACTION_DIM:
+                raise ValueError(
+                    f"motion-only cache requires unchanged 18D actions for {clip_id}"
+                )
+            features = extract_style_features(
+                actions[:, :LEGACY_ACTION_DIM],
+                fps=float(episode.get("fps") or 30.0),
+            )
+            controls = normalize_style_features(features, style_contract)
+            if (
+                not np.array_equal(
+                    features,
+                    np.asarray(cached_record["style_features"], dtype=np.float32),
+                )
+                or not np.array_equal(
+                    controls,
+                    np.asarray(cached_record["style_controls"], dtype=np.float32),
+                )
+                or not np.array_equal(
+                    condition[STYLE_CONTROL_SLICE], controls
+                )
+            ):
+                raise ValueError(
+                    f"motion-only cache trajectory style changed for {clip_id}"
+                )
+            item["style_features"] = features
+            item["style_controls"] = controls
         if semantic_by_clip:
             if clip_id not in semantic_by_clip:
                 raise ValueError(f"condition cache is missing semantic metadata for {clip_id}")
@@ -3232,10 +3876,16 @@ def attach_condition_cache(
 
 
 def training_data_provenance(episodes: Sequence[Mapping]) -> dict:
+    assert_no_forbidden_data_lineage(
+        episodes, context="training_data_provenance.episodes"
+    )
     cache_records = [item.get("condition_cache_provenance") or {} for item in episodes]
     canonical_cache = cache_records[0] if cache_records else {}
     if any(record != canonical_cache for record in cache_records):
         raise ValueError("episodes do not share one immutable condition cache")
+    assert_no_forbidden_data_lineage(
+        canonical_cache, context="training_data_provenance.condition_cache"
+    )
     cache_path = canonical_cache.get("path")
     if cache_path and sha256_file(cache_path) != canonical_cache.get("cache_sha256"):
         raise ValueError("condition cache changed after episode loading")
@@ -3251,6 +3901,12 @@ def training_data_provenance(episodes: Sequence[Mapping]) -> dict:
         records.append(
             {
                 "clip_id": item["clip_id"],
+                "dataset_source": item.get("dataset_source"),
+                "source_clip_id": item.get("source_clip_id"),
+                "source_manifest_sha256": item.get(
+                    "source_manifest_sha256"
+                ),
+                "source_record_sha256": item.get("source_record_sha256"),
                 "review_state": item.get("review_state", "unspecified"),
                 "eligibility_mode": item.get("eligibility_mode", "unversioned_direct_input"),
                 "trajectory_path": None if trajectory_path is None else str(trajectory_path.resolve()),
@@ -3331,6 +3987,16 @@ def training_data_provenance(episodes: Sequence[Mapping]) -> dict:
         row["eligibility_mode"] != "adjudicated_train_ready" for row in records
     )
     unsafe_cache = bool(canonical_cache.get("unsafe_condition_cache", False))
+    data_source_registry = canonical_cache.get("data_source_registry")
+    if data_source_registry is not None:
+        data_source_registry = validate_data_source_registry_contract(
+            data_source_registry,
+            expected_dataset_sources=[
+                row["dataset_source"]
+                for row in records
+                if row["dataset_source"] is not None
+            ],
+        )
     return {
         "contract_version": CONTRACT_VERSION,
         "episode_count": len(records),
@@ -3363,6 +4029,14 @@ def training_data_provenance(episodes: Sequence[Mapping]) -> dict:
         "all_adjudicated_train_ready": not unsafe_episodes,
         "unsafe_condition_cache": unsafe_cache,
         "unsafe_training_data": unsafe_episodes or unsafe_cache,
+        **(
+            {
+                "data_source_registry": data_source_registry,
+                DATA_SOURCE_REGISTRY_HASH_FIELD: data_source_registry["sha256"],
+            }
+            if data_source_registry is not None
+            else {}
+        ),
         "source_manifests": [
             {"path": path, "sha256": digest} for path, digest in manifests
         ],
@@ -3575,11 +4249,103 @@ def validate_condition_cache_for_generator(
     allow_unsafe=False,
 ) -> dict:
     """Bind a condition cache to the text and style contracts of a generator."""
+    assert_no_forbidden_data_lineage(
+        generator_checkpoint, context="condition_cache.generator_checkpoint"
+    )
+    assert_no_forbidden_data_lineage(
+        cache_provenance, context="condition_cache.provenance"
+    )
     if cache_provenance.get("unsafe_condition_cache") is True:
         if allow_unsafe:
             return {"validated": False, "unsafe_condition_cache": True}
         raise ValueError("strict generator use refuses an unsafe condition cache")
     cache_artifact_kind = cache_provenance.get("artifact_kind")
+    if cache_artifact_kind == MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND:
+        validate_motion_only_checkpoint_isolation(generator_checkpoint)
+        expected = {
+            "schema_version": MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION,
+            "formal_episode_contract": MOTION_ONLY_EPISODE_CONTRACT,
+            "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+            "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+            "condition_policy": MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY,
+            "condition_dim": KIMODO_V2_CONDITION_DIM,
+        }
+        if any(
+            cache_provenance.get(field) != value
+            for field, value in expected.items()
+        ):
+            raise ValueError("motion-only cache/generator isolation contract changed")
+        if {
+            "qwen_checkpoint",
+            "qwen_checkpoint_sha256",
+            "qwen_model_name",
+            "qwen_revision",
+        }.intersection(cache_provenance):
+            raise ValueError("motion-only cache must not contain Qwen lineage")
+        style_contract = _generator_style_contract(generator_checkpoint)
+        split_contract = (generator_checkpoint.get("v2_contracts") or {}).get(
+            "split"
+        ) or {}
+        generator_registry = (
+            (generator_checkpoint.get("sources") or {}).get(
+                "data_source_registry"
+            )
+        )
+        cache_registry = cache_provenance.get("data_source_registry")
+        if generator_registry is not None:
+            generator_registry = validate_data_source_registry_contract(
+                generator_registry,
+                expected_role=GENERATOR_FOUNDATION_ROLE,
+            )
+            cache_registry = validate_data_source_registry_contract(
+                cache_registry,
+                expected_role=GENERATOR_FOUNDATION_ROLE,
+            )
+            if (
+                cache_registry != generator_registry
+                or cache_provenance.get(DATA_SOURCE_REGISTRY_HASH_FIELD)
+                != generator_registry["sha256"]
+            ):
+                raise ValueError(
+                    "motion-only cache/generator data-source registry changed"
+                )
+        elif cache_registry is not None:
+            raise ValueError(
+                "legacy generator cannot acquire an unbound cache source registry"
+            )
+        if (
+            cache_provenance.get("style_contract_sha256")
+            != style_contract["sha256"]
+            or cache_provenance.get("split_contract_sha256")
+            != split_contract.get("sha256")
+        ):
+            raise ValueError("motion-only cache style/fixed-split contract changed")
+        source_checkpoint_sha256 = cache_provenance.get(
+            "generator_checkpoint_sha256"
+        )
+        if not _is_sha256(source_checkpoint_sha256):
+            raise ValueError("motion-only cache lacks its target checkpoint hash")
+        if generator_checkpoint_path is None:
+            raise ValueError(
+                "strict motion-only cache validation requires a generator checkpoint path"
+            )
+        if sha256_file(generator_checkpoint_path) != source_checkpoint_sha256:
+            raise ValueError("motion-only cache targets a different generator checkpoint")
+        return {
+            "validated": True,
+            "unsafe_condition_cache": False,
+            "qwen_policy": MOTION_ONLY_NO_QWEN_POLICY,
+            "kimodo_policy": MOTION_ONLY_NO_KIMODO_POLICY,
+            "style_contract_sha256": style_contract["sha256"],
+            "split_contract_sha256": split_contract["sha256"],
+            **(
+                {DATA_SOURCE_REGISTRY_HASH_FIELD: generator_registry["sha256"]}
+                if generator_registry is not None
+                else {}
+            ),
+            "generator_checkpoint_sha256": source_checkpoint_sha256,
+            "generator_checkpoint_compatibility": "direct_checkpoint",
+        }
     expression_turn_v8_cache = (
         cache_artifact_kind == "ula_v2_expression_turn_v8_condition_cache"
     )
@@ -4778,8 +5544,15 @@ __all__ = [
     "LEGACY_GESTURE_SLICE",
     "LEGACY_INTENT_SLICE",
     "MOTION_ONLY_EPISODE_CONTRACT",
+    "MOTION_ONLY_CONDITION_CACHE_ARTIFACT_KIND",
+    "MOTION_ONLY_CONDITION_CACHE_SCHEMA_VERSION",
+    "MOTION_ONLY_DATA_ISOLATION_CONTRACT_TYPE",
+    "MOTION_ONLY_NO_KIMODO_POLICY",
+    "MOTION_ONLY_NO_QWEN_POLICY",
+    "MOTION_ONLY_RANDOM_INIT_MODE",
     "MOTION_ONLY_RELEASE_REPORT_FILENAME",
     "MOTION_ONLY_REQUIRED_RELEASE_INVARIANTS",
+    "MOTION_ONLY_STYLE_ONLY_CONDITION_POLICY",
     "STYLE_CONTROL_SLICE",
     "attach_condition_cache",
     "assess_body_compatibility",
@@ -4787,6 +5560,7 @@ __all__ = [
     "benchmark_text_to_trajectory_inference",
     "body_sampling_drift_metrics",
     "build_condition_cache",
+    "build_motion_only_condition_cache",
     "compute_18d_action_stats",
     "configure_head_adapter_policy",
     "evaluate_head_adapter",
@@ -4806,6 +5580,8 @@ __all__ = [
     "training_data_provenance",
     "validate_condition_cache_for_generator",
     "validate_checkpoint_contract",
+    "validate_motion_only_checkpoint_isolation",
+    "validate_motion_only_style_condition",
     "verify_migrated_prefix",
     "validate_qwen_checkpoint_for_generator",
     "write_contract_csv",

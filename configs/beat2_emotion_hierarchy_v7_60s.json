@@ -1,0 +1,112 @@
+{
+  "schema_version": 7,
+  "artifact_kind": "beat2_emotion_hierarchy_qualitative_60s_config_v7",
+  "data_policy": "beat2_only_no_external_motion_dataset_v1",
+  "no_external_data": true,
+  "no_kimodo": true,
+  "source_manifest": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication_min30f/train_ready.jsonl",
+  "source_manifest_sha256": "2b3692c4f0a9ea8e10f3bde74fa178800556ed9bb79d0918a770b963a7f7c7fd",
+  "qwen_condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_frozen_base.npz",
+  "generator_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/generator_emotion_hierarchy_v7.pt",
+  "generator_training_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/training_summary_v7.json",
+  "minimum_training_steps": 80000,
+  "six_emotion_full_diagnostic_gate": {
+    "required_episode_count": 54,
+    "required_prototype_count": 6,
+    "non_regression_tolerance": 0.000001,
+    "minimum_loss_decrease": 0.02,
+    "minimum_rank_decrease": 0.1,
+    "minimum_margin_increase": 0.02,
+    "minimum_clear_improvement_count": 2
+  },
+  "qwen_generator_comparison": {
+    "artifact_kind": "beat2_qwen_generator_ab_interface_v7",
+    "ab_contract_receipt": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_lora_qwen/qwen_generator_ab_receipt_v7.json",
+    "ab_contract_receipt_sha256": "cc99baf2922512c7e41f19b470d0e4142b53161d81359205b07e2ebf8ed1fb56",
+    "active_variant": "frozen_base",
+    "shared_noise_policy": "same_pair_seed_same_initial_noise_prefix_across_qwen_generator_variants_v1",
+    "same_comparison_pair_seeds": true,
+    "variants": {
+      "frozen_base": {
+        "condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_frozen_base.npz",
+        "condition_cache_sha256": "a38f43335dfdcff606df06cea25f4e7cb3be43f3bbd01d26f66dfa49a4b6d272",
+        "condition_variant": "frozen_base",
+        "generation_enabled": true,
+        "generator_checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/generator_emotion_hierarchy_v7.pt",
+        "generator_training_summary": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7/training_summary_v7.json",
+        "expected_training_policy": "adaln_qwen_style_source_group_first_binary_six_emotion_global_prototypes_global54_auxiliary_intended_weak_v7"
+      },
+      "lora_finetuned": {
+        "condition_cache": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_qwen_motion_alignment_ab_v1/conditions_128d_lora_finetuned.npz",
+        "condition_cache_sha256": "38ef15d8baa6f70971882adf4b9eee18449c27ac23457aad6fc229d8f88a1753",
+        "condition_variant": "lora_finetuned",
+        "generation_enabled": false,
+        "generator_checkpoint": null,
+        "generator_training_summary": null,
+        "expected_training_policy": null
+      }
+    }
+  },
+  "target_duration_sec": 60.0,
+  "slot_duration_sec": 10.0,
+  "comparison_pairs": [
+    {
+      "label": "low deictic · neutral vs happy",
+      "neutral_prompt": "Perform a low-intensity deictic pointing gesture with neutral affect.",
+      "emotion_prompt": "Perform a low-intensity deictic pointing gesture with a happy affect.",
+      "seed": 2026072801
+    },
+    {
+      "label": "medium deictic · neutral vs angry",
+      "neutral_prompt": "Perform a medium-intensity deictic pointing gesture with neutral affect.",
+      "emotion_prompt": "Perform a medium-intensity deictic pointing gesture with an angry affect.",
+      "seed": 2026072802
+    },
+    {
+      "label": "high iconic · neutral vs surprised",
+      "neutral_prompt": "Perform a high-intensity iconic upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a high-intensity iconic upper-body gesture with a surprised affect.",
+      "seed": 2026072803
+    },
+    {
+      "label": "low iconic · neutral vs sad",
+      "neutral_prompt": "Perform a low-intensity iconic upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a low-intensity iconic upper-body gesture with a sad affect.",
+      "seed": 2026072804
+    },
+    {
+      "label": "medium metaphoric · neutral vs fearful",
+      "neutral_prompt": "Perform a medium-intensity metaphoric upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a medium-intensity metaphoric upper-body gesture with a fearful affect.",
+      "seed": 2026072805
+    },
+    {
+      "label": "high metaphoric · neutral vs happy",
+      "neutral_prompt": "Perform a high-intensity metaphoric upper-body gesture with neutral affect.",
+      "emotion_prompt": "Perform a high-intensity metaphoric upper-body gesture with a happy affect.",
+      "seed": 2026072806
+    }
+  ],
+  "sampling": {
+    "steps": 32,
+    "guidance_scale": 1.5,
+    "device": "cuda"
+  },
+  "render": {
+    "pane_width": 600,
+    "panel_width": 720,
+    "height": 720,
+    "simplified": false,
+    "backend": "mujoco_egl"
+  },
+  "playback_contract": {
+    "planner_native_duration": true,
+    "endpoint_hold_only_if_needed": true,
+    "smoothing": false,
+    "time_warp": false,
+    "network_frame_crop": false,
+    "boundary_blend": false,
+    "last_frame_blend": false
+  },
+  "output_dir": "/home/gez/shuaiwang/ula-motion-generate/training/runs/beat2_emotion_hierarchy_v7_qualitative_60s/frozen_base"
+}

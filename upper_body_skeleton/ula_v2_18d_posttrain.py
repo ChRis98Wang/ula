@@ -37,6 +37,8 @@ from upper_body_skeleton.ula_training import (
 from upper_body_skeleton.ula_v2_18d_head import (
     ACTION_DIM,
     LEGACY_ACTION_DIM,
+    MOTION_ONLY_EPISODE_CONTRACT,
+    MOTION_ONLY_RANDOM_INIT_MODE,
     attach_condition_cache,
     configure_head_adapter_policy,
     frozen_weight_max_error,
@@ -51,6 +53,12 @@ from upper_body_skeleton.ula_v2_18d_head import (
 
 POSTTRAIN_SCHEMA_VERSION = 1
 POSTTRAIN_ARTIFACT_KIND = "ula_mmdit_v2_18d_interaction_posttrain"
+FULL_RANDOM_INITIALIZATION_MODES = frozenset(
+    {
+        "full_generator_random_qwen_lora_frozen_v1",
+        MOTION_ONLY_RANDOM_INIT_MODE,
+    }
+)
 MAX_FULL_FINETUNE_LR = 1e-4
 MAX_HEAD_PROJECTION_LR = 1e-3
 SPLIT_NAMES = ("train", "validation", "test")
@@ -1483,7 +1491,10 @@ def _default_style_evaluation_episodes(
             episode["condition"]
         )
         item["evaluation_conditioning_policy"] = (
-            "text_explicit_semantics_default_style_non_oracle"
+            "motion_only_zero_text_semantics_default_style_non_oracle"
+            if episode.get("formal_episode_contract")
+            == MOTION_ONLY_EPISODE_CONTRACT
+            else "text_explicit_semantics_default_style_non_oracle"
         )
         result.append(item)
     return result
@@ -1535,8 +1546,16 @@ def masked_18d_objective(
     frame_valid_mask: torch.Tensor | None = None,
     transition_targets: torch.Tensor | None = None,
     transition_supervision_mask: torch.Tensor | None = None,
+    noise: torch.Tensor | None = None,
+    flow_times: torch.Tensor | None = None,
 ) -> dict[str, torch.Tensor]:
-    """Flow and physical derivative losses with joint and optional frame masks."""
+    """Flow and physical derivative losses with joint and optional frame masks.
+
+    ``noise`` and ``flow_times`` may be supplied together for paired
+    counterfactual objectives.  In that case two condition variants can be
+    compared at the exact same flow state instead of accidentally comparing
+    different random draws.
+    """
     if actions.ndim != 3 or actions.shape[-1] != ACTION_DIM:
         raise ValueError("actions must have shape [batch, frames, 18]")
     if conditions.shape != (actions.shape[0], KIMODO_V2_CONDITION_DIM):
@@ -1575,7 +1594,18 @@ def masked_18d_objective(
         velocity_mask = velocity_valid[:, :, None] & dim_mask[:, None, :]
         acceleration_mask = acceleration_valid[:, :, None] & dim_mask[:, None, :]
         jerk_mask = jerk_valid[:, :, None] & dim_mask[:, None, :]
-    if frame_valid_mask is None:
+    if noise is not None:
+        if (
+            noise.shape != actions.shape
+            or noise.dtype != actions.dtype
+            or noise.device != actions.device
+            or not torch.isfinite(noise).all()
+        ):
+            raise ValueError(
+                "explicit noise must be finite and match actions shape/dtype/device"
+            )
+        noise = noise.clone()
+    elif frame_valid_mask is None:
         if generator is None:
             noise = torch.randn_like(actions)
         else:
@@ -1596,12 +1626,27 @@ def masked_18d_objective(
                 device=actions.device,
                 generator=generator,
             )
-    t = torch.rand(
-        actions.shape[0],
-        dtype=actions.dtype,
-        device=actions.device,
-        generator=generator,
-    )
+    if flow_times is not None:
+        if (
+            flow_times.shape != (actions.shape[0],)
+            or flow_times.dtype != actions.dtype
+            or flow_times.device != actions.device
+            or not torch.isfinite(flow_times).all()
+            or torch.any(flow_times < 0.0)
+            or torch.any(flow_times > 1.0)
+        ):
+            raise ValueError(
+                "explicit flow_times must be finite [batch] values in [0, 1] "
+                "matching actions dtype/device"
+            )
+        t = flow_times
+    else:
+        t = torch.rand(
+            actions.shape[0],
+            dtype=actions.dtype,
+            device=actions.device,
+            generator=generator,
+        )
     noise = noise * observed
     x_t = ((1.0 - t[:, None, None]) * noise + t[:, None, None] * actions) * observed
     target = (actions - noise) * observed
@@ -1936,7 +1981,7 @@ def posttrain_release_decision(data_provenance: Mapping, replay_guard: Mapping) 
     )
     random_from_scratch = bool(
         data_provenance.get("generator_initialization_mode")
-        == "full_generator_random_qwen_lora_frozen_v1"
+        in FULL_RANDOM_INITIALIZATION_MODES
         and data_provenance.get("forgetting_guard_applicable") is False
     )
     replay_guard_required = not random_from_scratch
@@ -2013,16 +2058,37 @@ def load_attached_beat_episodes(
         load_expression_turn_v8_episodes,
         validate_expression_turn_v8_episode,
     )
+    from upper_body_skeleton.ula_v2_conversational_realization_episode import (
+        attach_conversational_realization_v9_condition_cache,
+        is_conversational_realization_v9_episode,
+        load_conversational_realization_v9_episodes,
+        validate_conversational_realization_v9_episode,
+    )
 
     v8_flags = [is_expression_turn_v8_episode(record) for record in raw_records]
-    if any(v8_flags) and not all(v8_flags):
-        raise ValueError(f"manifest mixes v8 and legacy episode contracts: {manifest}")
+    conversational_flags = [
+        is_conversational_realization_v9_episode(record) for record in raw_records
+    ]
+    if sum((any(v8_flags), any(conversational_flags))) > 1 or (
+        any(v8_flags) and not all(v8_flags)
+    ) or (any(conversational_flags) and not all(conversational_flags)):
+        raise ValueError(f"manifest mixes incompatible episode contracts: {manifest}")
     expression_turn_v8 = bool(v8_flags and all(v8_flags))
+    conversational_realization_v9 = bool(
+        conversational_flags and all(conversational_flags)
+    )
     if expression_turn_v8:
         if allow_unreviewed or allow_unsafe_condition_cache:
             raise ValueError("expression-turn v8 has no unsafe or unreviewed loading mode")
         loaded = load_expression_turn_v8_episodes(manifest)
         attached = attach_expression_turn_v8_condition_cache(loaded, condition_cache)
+    elif conversational_realization_v9:
+        if allow_unreviewed or allow_unsafe_condition_cache:
+            raise ValueError("conversational realization v9 has no unsafe loading mode")
+        loaded = load_conversational_realization_v9_episodes(manifest)
+        attached = attach_conversational_realization_v9_condition_cache(
+            loaded, condition_cache
+        )
     else:
         loaded = load_18d_episodes(manifest=manifest, allow_unreviewed=allow_unreviewed)
         attached = attach_condition_cache(
@@ -2058,6 +2124,10 @@ def load_attached_beat_episodes(
             )
         if expression_turn_v8:
             validate_expression_turn_v8_episode(item, require_attached_condition=True)
+        elif conversational_realization_v9:
+            validate_conversational_realization_v9_episode(
+                item, require_attached_condition=True
+            )
         enriched.append(item)
     return canonicalize_beat_episodes(enriched)
 
@@ -2659,7 +2729,7 @@ def train_18d_posttrain(
     full_random_initialization = bool(
         isinstance(random_initialization, Mapping)
         and random_initialization.get("mode")
-        == "full_generator_random_qwen_lora_frozen_v1"
+        in FULL_RANDOM_INITIALIZATION_MODES
         and (initial_checkpoint.get("action_contract") or {}).get("migration")
         == "none_full_18d_random_initialization"
     )
@@ -2865,7 +2935,10 @@ def train_18d_posttrain(
             else "reuse_source_checkpoint_statistics"
         ),
         "primary_evaluation_conditioning": (
-            "text_explicit_semantics_default_style_non_oracle"
+            "motion_only_zero_text_semantics_default_style_non_oracle"
+            if initial_checkpoint.get("formal_episode_contract")
+            == MOTION_ONLY_EPISODE_CONTRACT
+            else "text_explicit_semantics_default_style_non_oracle"
             if full_random_initialization
             else "attached_conditions"
         ),

@@ -21,7 +21,14 @@ from upper_body_skeleton.ula_v2_18d_head import (
     ACTION_DIM,
     FORMAL_SELECTED_LINEAGE_FIELDS,
     MOTION_ONLY_EPISODE_CONTRACT,
+    MOTION_ONLY_NO_KIMODO_POLICY,
+    MOTION_ONLY_NO_QWEN_POLICY,
+    MOTION_ONLY_RANDOM_INIT_MODE,
+    STYLE_CONTROL_SLICE,
+    build_motion_only_condition_cache,
+    load_condition_cache,
     validate_checkpoint_contract,
+    validate_motion_only_style_condition,
 )
 from upper_body_skeleton.ula_v2_18d_random_init import (
     FORMAL_SEMANTIC_EVENT_SELECTION_STATUS,
@@ -170,7 +177,7 @@ def _episodes():
                     "emotion_protocol_contract": emotion_contract,
                     "accepted_for_training": True,
                     "eligibility_mode": "adjudicated_train_ready",
-                    "dataset_source": "formal-test",
+                    "dataset_source": "ula0513_user_owned",
                     "speaker_key": speaker,
                     "source_group_key": f"{speaker}/source-{local_index}",
                     "source_clip_id": f"{speaker}_source_{local_index}",
@@ -242,11 +249,30 @@ def _episodes():
 
 
 def _build(tmp_path, episodes=None, *, seed=7):
-    qwen = _qwen_checkpoint(tmp_path / "qwen.pt")
+    episodes = episodes or _episodes()
+    motion_only = all(
+        episode.get("formal_episode_contract") == MOTION_ONLY_EPISODE_CONTRACT
+        for episode in episodes
+    )
+    qwen = None if motion_only else _qwen_checkpoint(tmp_path / "qwen.pt")
+    source_provenance = {
+        "dataset_source": (
+            "beat2_official_semantic_event_training_pool_v7"
+            if motion_only
+            else "ula0513_user_owned"
+        ),
+        "manifest_sha256": "a" * 64,
+    }
+    if motion_only:
+        source_provenance.update(
+            manifest_fixed_split=True,
+            fixed_split_assignment_sha256="b" * 64,
+            license_gate={"dataset_family": "BEAT2"},
+        )
     return build_random_18d_checkpoint(
-        episodes or _episodes(),
+        episodes,
         qwen_checkpoint=qwen,
-        source_provenance=[{"dataset_source": "formal-test", "manifest_sha256": "a" * 64}],
+        source_provenance=[source_provenance],
         seed=seed,
         fractions={"train": 1 / 3, "validation": 1 / 3, "test": 1 / 3},
         hidden_dim=32,
@@ -258,7 +284,18 @@ def _build(tmp_path, episodes=None, *, seed=7):
 
 def _motion_only_episodes():
     episodes = deepcopy(_episodes())
+    split_by_speaker = {
+        "speaker-a": "train",
+        "speaker-b": "validation",
+        "speaker-c": "test",
+    }
     for episode in episodes:
+        episode["dataset_source"] = (
+            "beat2_official_semantic_event_training_pool_v7"
+        )
+        episode["fixed_split_assignment"] = split_by_speaker[
+            episode["speaker_key"]
+        ]
         episode["formal_episode_contract"] = MOTION_ONLY_EPISODE_CONTRACT
         episode["motion_only_admission"] = {
             "physical_qc_only": True,
@@ -293,6 +330,15 @@ def test_motion_only_random_checkpoint_preserves_masked_contract(tmp_path):
     assert text["masked_episode_count"] == len(_episodes())
     assert text["text_field"] is None
     assert text["conditioning_policy"] == "all_text_latents_exact_zero"
+    assert "source" not in text
+    assert "qwen_checkpoint_sha256" not in checkpoint["sources"]
+    assert checkpoint["random_initialization"]["mode"] == MOTION_ONLY_RANDOM_INIT_MODE
+    assert checkpoint["random_initialization"]["qwen_policy"] == (
+        MOTION_ONLY_NO_QWEN_POLICY
+    )
+    assert checkpoint["random_initialization"]["kimodo_policy"] == (
+        MOTION_ONLY_NO_KIMODO_POLICY
+    )
     supervision = checkpoint["semantic_supervision_contract"]
     assert supervision["semantic_conditioned_count"] == 0
     assert supervision["expressive_conditioned_count"] == 0
@@ -301,6 +347,75 @@ def test_motion_only_random_checkpoint_preserves_masked_contract(tmp_path):
     assert report["primary_evaluation"] == (
         "motion_only_zero_text_emotion_audio_default_style"
     )
+    assert report["split_counts"] == {"train": 2, "validation": 2, "test": 2}
+
+
+def test_motion_only_random_checkpoint_rejects_qwen_and_generated_split(tmp_path):
+    episodes = _motion_only_episodes()
+    with pytest.raises(ValueError, match="forbids a Qwen"):
+        build_random_18d_checkpoint(
+            episodes,
+            qwen_checkpoint=_qwen_checkpoint(tmp_path / "qwen.pt"),
+            source_provenance=[],
+            hidden_dim=32,
+            layers=2,
+        )
+
+    for episode in episodes:
+        episode.pop("fixed_split_assignment")
+    with pytest.raises(ValueError, match="fixed split"):
+        build_random_18d_checkpoint(
+            episodes,
+            qwen_checkpoint=None,
+            source_provenance=[],
+            hidden_dim=32,
+            layers=2,
+        )
+
+
+def test_motion_only_condition_is_style_only_fail_closed():
+    condition = np.zeros(KIMODO_V2_CONDITION_DIM, dtype=np.float32)
+    condition[STYLE_CONTROL_SLICE] = [0.25, -0.5, 0.75]
+    validate_motion_only_style_condition(condition)
+    for index in (0, 28, 91, 92, 132, 136, 263):
+        tampered = condition.copy()
+        tampered[index] = 1.0
+        with pytest.raises(ValueError, match="exactly zero"):
+            validate_motion_only_style_condition(tampered)
+
+
+def test_motion_only_cache_has_no_qwen_lineage_and_rejects_hidden_channels(
+    tmp_path,
+):
+    episodes = _motion_only_episodes()
+    checkpoint, _, _ = _build(tmp_path, episodes)
+    checkpoint_path = tmp_path / "random_init.pt"
+    torch.save(checkpoint, checkpoint_path)
+    cache_path = tmp_path / "conditions.npz"
+
+    metadata = build_motion_only_condition_cache(
+        episodes,
+        cache_path,
+        base_checkpoint=checkpoint_path,
+    )
+
+    assert metadata["qwen_policy"] == MOTION_ONLY_NO_QWEN_POLICY
+    assert metadata["kimodo_policy"] == MOTION_ONLY_NO_KIMODO_POLICY
+    assert not any(key.startswith("qwen_checkpoint") for key in metadata)
+    _, _, conditions, loaded = load_condition_cache(cache_path)
+    validate_motion_only_style_condition(conditions)
+    assert loaded["unsafe_condition_cache"] is False
+
+    with np.load(cache_path, allow_pickle=False) as payload:
+        values = {name: payload[name].copy() for name in payload.files}
+    values["conditions"][0, 28] = 1.0
+    np.savez_compressed(cache_path, **values)
+    metadata["cache_sha256"] = hashlib.sha256(cache_path.read_bytes()).hexdigest()
+    cache_path.with_suffix(".npz.json").write_text(
+        json.dumps(metadata), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="exactly zero"):
+        load_condition_cache(cache_path)
 
 
 def test_random_checkpoint_rejects_mixed_motion_only_and_legacy_contracts(tmp_path):

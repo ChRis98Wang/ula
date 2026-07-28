@@ -1,0 +1,79 @@
+{
+  "accepted_for_training": true,
+  "artifact_kind": "ula_v2_18d_motion_only_pretrain_provenance_lock_v1",
+  "created_at_utc": "2026-07-28T05:14:45.556571+00:00",
+  "dataset_filter": {
+    "min_frame_count": 30,
+    "policy": "v8_full_retarget_physical_qc_plus_minimum_30_frames",
+    "source_release": "beat2_v8_expansion_motion_only_release"
+  },
+  "dataset_scale": {
+    "distinct_frame_count_count": 193,
+    "episode_count": 12148,
+    "frame_count_max": 465,
+    "frame_count_min": 30,
+    "source_group_count": 1352,
+    "speaker_count": 25,
+    "total_frames": 807114,
+    "total_sample_span_sec": 26498.866666666694
+  },
+  "derived_from_lock": "/home/gez/nas/cloud/gez/human_motion/catalog/beat2_semantic_event_pilot_v7_full/motion_only_pretrain_provenance_lock_min30f.json",
+  "derived_from_lock_sha256": "fecfcfeb83467f6fa2b3810877e795e9a910e7232c6a1da22d958106eff1a411",
+  "duration_policy": "native_variable_length_physical_qc_no_fixed_duration_v1",
+  "experimental_local_processing_allowed": true,
+  "formal_episode_contract": "ula_v2_18d_motion_only_physical_qc_v1",
+  "formal_release_allowed": true,
+  "license_gate": {
+    "allowed_scope": "non-commercial_research_only",
+    "authorized_via": "noncommercial_research_user_confirmation_v1",
+    "dataset_card_declared_license": "apache-2.0",
+    "dataset_training_use_review_status": "confirmed_noncommercial_research_by_user",
+    "formal_release_blocked": false,
+    "official_project_statement": "Non-commercial",
+    "smplx_terms_review_status": "pending_human_review",
+    "terms_status": "conflicting_upstream_statements",
+    "training_authorized_by_this_lock": true
+  },
+  "locked_artifacts": {
+    "acquisition_receipt": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/catalog/beat2_motion_only_acquisition.json",
+      "selected_file_count": 4878,
+      "selection_sha256": "a1318595a75065e4cf73321e2b55c8843da24dcd424d56aeaf1a04f976229a39",
+      "sha256": "551350dec66d9d050c11ea1e036a47ef7f7c18d03f811bc8fc44683bfbbf3ddd"
+    },
+    "expansion_final_report": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v8/expansion/release/expansion_final_report.json",
+      "sha256": "2615d2db5c95b3dc5df5545b60d5109d5c54f6adf8902de85a39009c9b94b482"
+    },
+    "motion_only_release_report": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v8/expansion/release/adjudication_min30f/motion_only_release_report.json",
+      "sha256": "b36362c9d0b7b37c98601b521520f1ad71e7239387f495d555ab5d1a5441b6c6"
+    },
+    "physical_qc_passed_manifest": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v8/expansion/release/passed_manifest_min30f_expanded.jsonl",
+      "sha256": "cd57b3315a79d2bf8ce080e846e330e1a667b098209e594928027f7e3d690e3e"
+    },
+    "train_ready_manifest": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v8/expansion/release/adjudication_min30f/train_ready.jsonl",
+      "sha256": "4e955db469b08d7e33ec05e56b5dd695b9912348096384786a19d17f7e8f4b45"
+    },
+    "training_pool_low_medium": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/catalog/beat2_semantic_event_pilot_v7_full/training_pool_low_medium.jsonl",
+      "records": 14973,
+      "sha256": "5bdd9c1f196b0c67a1456decc4db03810b7a415ceee53b189d6d81333296e42b"
+    },
+    "user_confirmation_receipt": {
+      "path": "/home/gez/nas/cloud/gez/human_motion/processed/beat2_semantic_event_training_pool_18d_v7_full/adjudication/user_confirmation_receipt.json",
+      "sha256": "038a47604cc3294e5473160976712f10a288a68303347d4058a5fc92eba70509"
+    }
+  },
+  "policy": {
+    "audio_enabled": false,
+    "base_v7_records_hash_locked_unchanged": true,
+    "face_and_fingers_retargeted": false,
+    "native_variable_event_duration": true,
+    "physical_qc_cannot_enable_semantic_or_affect_supervision": true,
+    "semantic_and_affect_supervision_fail_closed": true
+  },
+  "schema_version": 1
+}
