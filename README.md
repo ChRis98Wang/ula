@@ -20,11 +20,9 @@ ULA（Upper-body Language-Action）把人体动作数据变成机器人上半身
 
 当前表现最好的 60 秒 BEAT2 对比演示：Ground Truth / 冻结 Qwen / LoRA Qwen。
 
-<video controls preload="metadata" width="100%" src="training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4">
-  <a href="training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4">打开 BEAT2 60 秒对比演示</a>
-</video>
+[![BEAT2 Ground Truth、冻结 Qwen 与 LoRA Qwen 的 60 秒对比演示](training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s_README_PREVIEW.gif)](training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4)
 
-[直接打开或下载 MP4](training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4)
+点击动画可打开[原始 MP4](training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4)。
 
 ## 1. 当前状态一览
 
