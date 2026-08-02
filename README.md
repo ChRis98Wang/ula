@@ -16,6 +16,16 @@ ULA（Upper-body Language-Action）把人体动作数据变成机器人上半身
 
 > 本文件是项目当前状态的总览。逐模块的代码地图见 [`docs/CODE_STRUCTURE.md`](docs/CODE_STRUCTURE.md)；`PROJECT_STRUCTURE.md` 是旧的 macOS 目录布局，已过时，忽略其中路径；2026-05 早期的 11 关节 MVP 规划文档搬到了 [`docs/roadmap/`](docs/roadmap/)，仅作历史参考。
 
+## 效果演示
+
+当前表现最好的 60 秒 BEAT2 对比演示：Ground Truth / 冻结 Qwen / LoRA Qwen。
+
+<video controls preload="metadata" width="100%" src="training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4">
+  <a href="training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4">打开 BEAT2 60 秒对比演示</a>
+</video>
+
+[直接打开或下载 MP4](training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4)
+
 ## 1. 当前状态一览
 
 | 部分 | 状态 | 说明 |
