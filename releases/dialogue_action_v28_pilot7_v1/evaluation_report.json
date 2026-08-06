@@ -1,0 +1,191 @@
+{
+  "artifact_kind": "dialogue_action_v28_pilot7_video_evaluation",
+  "cases": [
+    {
+      "action_id": "idle_attentive",
+      "frames": 161,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 0,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_00/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_00/network.csv",
+      "network_vs_gt_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_00/network_vs_gt.mp4",
+      "network_vs_gt_rms_rad": 0.0001344307529507205,
+      "realization_id": 0,
+      "render": {
+        "camera_view": "upper",
+        "duration_sec": 5.366666666666666,
+        "fps": 30.0,
+        "frames": 161,
+        "height": 520,
+        "layout": {
+          "left": "V28 NETWORK: idle_attentive r0",
+          "right": "REVIEWED GT: idle_attentive r0"
+        },
+        "model_nbody": 44,
+        "model_nq": 40,
+        "model_source": "/home/gez/shuaiwang/ula-motion-generate/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+        "output_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_00/network_vs_gt.mp4",
+        "sha256": "a2d2445b87818fef4adbc514be03e92be0fdf59318dce19a97d790519f6c59e0",
+        "width": 960
+      },
+      "seconds": 5.366666666666666,
+      "semantic_prompt": "Hold an attentive upright posture toward the person. Motion realization: The robot makes repeated shallow side-to-side head and upper-body rolls with both arms held low, then returns upright."
+    },
+    {
+      "action_id": "idle_attentive",
+      "frames": 131,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 1,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_01/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_01/network.csv",
+      "network_vs_gt_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_01/network_vs_gt.mp4",
+      "network_vs_gt_rms_rad": 0.0001869413536041975,
+      "realization_id": 1,
+      "render": {
+        "camera_view": "upper",
+        "duration_sec": 4.366666666666666,
+        "fps": 30.0,
+        "frames": 131,
+        "height": 520,
+        "layout": {
+          "left": "V28 NETWORK: idle_attentive r1",
+          "right": "REVIEWED GT: idle_attentive r1"
+        },
+        "model_nbody": 44,
+        "model_nq": 40,
+        "model_source": "/home/gez/shuaiwang/ula-motion-generate/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+        "output_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_01/network_vs_gt.mp4",
+        "sha256": "098e4dcab029ac59f99690c5ae51714f43dfea4f29da368cf1ccde75c24a01a8",
+        "width": 960
+      },
+      "seconds": 4.366666666666666,
+      "semantic_prompt": "Hold an attentive upright posture toward the person. Motion realization: The robot makes a slow shallow forward head dip while keeping its arms low, then lifts its head and settles upright."
+    },
+    {
+      "action_id": "idle_attentive",
+      "frames": 241,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 2,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_02/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_02/network.csv",
+      "network_vs_gt_mp4": null,
+      "network_vs_gt_rms_rad": 0.0001856971939560026,
+      "realization_id": 2,
+      "render": null,
+      "seconds": 8.033333333333333,
+      "semantic_prompt": "Hold an attentive upright posture toward the person. Motion realization: The robot makes a long series of shallow head and upper-body sways while its arms hang low, then returns to center."
+    },
+    {
+      "action_id": "search_scan",
+      "frames": 351,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 3,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_00/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_00/network.csv",
+      "network_vs_gt_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_00/network_vs_gt.mp4",
+      "network_vs_gt_rms_rad": 0.0005381698138080537,
+      "realization_id": 0,
+      "render": {
+        "camera_view": "upper",
+        "duration_sec": 11.7,
+        "fps": 30.0,
+        "frames": 351,
+        "height": 520,
+        "layout": {
+          "left": "V28 NETWORK: search_scan r0",
+          "right": "REVIEWED GT: search_scan r0"
+        },
+        "model_nbody": 44,
+        "model_nq": 40,
+        "model_source": "/home/gez/shuaiwang/ula-motion-generate/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+        "output_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_00/network_vs_gt.mp4",
+        "sha256": "8b8302f7f682b3a6e0879162c54e227be5fbd35cde48f3e6c6ee53b9a8aebfa1",
+        "width": 960
+      },
+      "seconds": 11.7,
+      "semantic_prompt": "Turn the head and upper body to scan deliberately across the surroundings. Motion realization: The robot turns to one side with a bent arm, returns, makes a deep forward head dip, then turns to the opposite side before settling upright."
+    },
+    {
+      "action_id": "search_scan",
+      "frames": 251,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 4,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_01/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_01/network.csv",
+      "network_vs_gt_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_01/network_vs_gt.mp4",
+      "network_vs_gt_rms_rad": 0.00010899174958467484,
+      "realization_id": 1,
+      "render": {
+        "camera_view": "upper",
+        "duration_sec": 8.366666666666667,
+        "fps": 30.0,
+        "frames": 251,
+        "height": 520,
+        "layout": {
+          "left": "V28 NETWORK: search_scan r1",
+          "right": "REVIEWED GT: search_scan r1"
+        },
+        "model_nbody": 44,
+        "model_nq": 40,
+        "model_source": "/home/gez/shuaiwang/ula-motion-generate/urdf_V2_20260514/urdf/xacro/robot_modify_meshdir.urdf",
+        "output_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_01/network_vs_gt.mp4",
+        "sha256": "648c53e0d93e30f2e17907b34c88291e73b4cf2410d6edbfb7970400a9bf8db7",
+        "width": 960
+      },
+      "seconds": 8.366666666666667,
+      "semantic_prompt": "Turn the head and upper body to scan deliberately across the surroundings. Motion realization: The robot turns its head to one side, moves through a deep forward dip, turns to the opposite side, and finishes facing forward."
+    },
+    {
+      "action_id": "search_scan",
+      "frames": 151,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 5,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_02/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_02/network.csv",
+      "network_vs_gt_mp4": null,
+      "network_vs_gt_rms_rad": 9.884336031973362e-05,
+      "realization_id": 2,
+      "render": null,
+      "seconds": 5.033333333333333,
+      "semantic_prompt": "Turn the head and upper body to scan deliberately across the surroundings. Motion realization: The robot turns its head to one side and back, then to the other side, adds a final downward side tilt, and returns to center."
+    },
+    {
+      "action_id": "search_scan",
+      "frames": 191,
+      "generation_runtime_dataset_or_csv_access": false,
+      "global_realization_id": 6,
+      "ground_truth_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_03/ground_truth.csv",
+      "network_csv": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_03/network.csv",
+      "network_vs_gt_mp4": null,
+      "network_vs_gt_rms_rad": 8.543948933947831e-05,
+      "realization_id": 3,
+      "render": null,
+      "seconds": 6.366666666666666,
+      "semantic_prompt": "Turn the head and upper body to scan deliberately across the surroundings. Motion realization: The robot slowly turns its head to one side, passes back through center to the other side, and finishes facing forward."
+    }
+  ],
+  "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/dialogue_action_adapter_v28_formal_gt_pilot7_30000_v2/ula_fm_checkpoint.pt",
+  "checkpoint_sha256": "7f9ace61e62754ae6a6b430504964c8c2e64e17ee69a286bfedbcbb2468e0fc1",
+  "formal_gt_count": 7,
+  "formal_release_eligible": false,
+  "interactive_command_demo": {
+    "inputs": [
+      "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_00/network_vs_gt.mp4",
+      "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/idle_attentive/realization_01/network_vs_gt.mp4",
+      "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_00/network_vs_gt.mp4",
+      "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/cases/search_scan/realization_01/network_vs_gt.mp4"
+    ],
+    "output_mp4": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_pilot7_video_v1/interactive_command_demo.mp4",
+    "sha256": "54fb3298a447a49a91cb9e669e926c0a0ac2a325c7eed6eb8222f29d9d033025"
+  },
+  "manifest": "/home/gez/shuaiwang/ula-motion-generate/deliverables/dialogue_action_v28_formal_gt_pilot7_v1/formal_gt_manifest.jsonl",
+  "manifest_sha256": "0a519eef9b80d1fd9ff29fc6a5f60ed0f1839278c9987dac2c91a5db2b0eb91e",
+  "maximum_network_vs_gt_rms_rad": 0.0005381698138080537,
+  "mean_network_vs_gt_rms_rad": 0.00019121624479469444,
+  "rendered_case_count": 4,
+  "schema_version": 1,
+  "supported_intent_ids": [
+    "idle_attentive",
+    "search_scan"
+  ]
+}

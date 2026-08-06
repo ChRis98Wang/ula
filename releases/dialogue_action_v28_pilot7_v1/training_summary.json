@@ -1,0 +1,21 @@
+{
+  "action_balanced_sampling": true,
+  "artifact_kind": "dialogue_action_formal_gt_adapter_v28_training_summary",
+  "best_step": 6800,
+  "checkpoint": "/home/gez/shuaiwang/ula-motion-generate/training/runs/dialogue_action_adapter_v28_formal_gt_pilot7_30000_v2/ula_fm_checkpoint.pt",
+  "checkpoint_sha256": "7f9ace61e62754ae6a6b430504964c8c2e64e17ee69a286bfedbcbb2468e0fc1",
+  "closest_intent_pair": [
+    "idle_attentive",
+    "search_scan"
+  ],
+  "formal_gt_count": 7,
+  "formal_release_eligible": false,
+  "intent_count": 2,
+  "maximum_formal_gt_rms_rad": 0.0005454292986541986,
+  "minimum_cross_intent_mse_rad2": 0.036697860807180405,
+  "minimum_diversity_retention_ratio": 0.9994488899009074,
+  "native_variable_length_training": true,
+  "schema_version": 1,
+  "source_generator_checkpoint_sha256": "0464d527dee359e98609336c39a6600578aceac54ab079c34be7d692e5d0d519",
+  "source_generator_frozen": true
+}
