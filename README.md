@@ -24,6 +24,12 @@ ULA（Upper-body Language-Action）把人体动作数据变成机器人上半身
 
 点击动画可打开[原始 MP4](training/runs/beat2_emotion_hierarchy_v7_qwen_ab_gt_60s/BEAT2_GT_vs_frozen_Qwen_vs_LoRA_Qwen_60s.mp4)。
 
+V28 Pilot7 对话动作网络与人工复核 GT 的 MuJoCo 对比（左侧为网络输出，右侧为 GT）：
+
+**[打开 29.8 秒 V28 Network vs GT 演示视频](releases/dialogue_action_v28_pilot7_v1/video/interactive_command_demo.mp4)**
+
+该视频展示 `idle_attentive` 与 `search_scan` 两类已冻结基线及其原生可变长度输出；它是高还原度 pilot，不代表开放动作泛化能力。完整模型、哈希与指标见 [`releases/dialogue_action_v28_pilot7_v1/`](releases/dialogue_action_v28_pilot7_v1/README.md)。
+
 ## 1. 当前状态一览
 
 | 部分 | 状态 | 说明 |
